@@ -1,0 +1,9 @@
+{
+  "name": "yaayatoo-apis",
+  "private": true,
+  "scripts": {
+    "admin:install": "npm --prefix admin ci",
+    "admin:build": "npm --prefix admin run build && node scripts/sync-admin-hosting.mjs",
+    "admin:dev": "npm --prefix admin run dev"
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "firebase": {
+    "apiKey": "AIzaSyBwyajLUje6Xh_Rzhci3xMWpRDU-MrytgE",
+    "authDomain": "yaayatoo-194f6.firebaseapp.com",
+    "projectId": "yaayatoo-194f6",
+    "storageBucket": "yaayatoo-194f6.firebasestorage.app",
+    "messagingSenderId": "682768515465",
+    "appId": "1:682768515465:web:ef62699611417ba7d82158",
+    "measurementId": "G-CJ5L290EED"
+  },
+  "yaayatooApiBase": "https://europe-west1-yaayatoo-194f6.cloudfunctions.net/yaayatoo"
+}

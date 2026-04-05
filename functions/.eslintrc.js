@@ -31,4 +31,22 @@ module.exports = {
     "import/no-unresolved": 0,
     "indent": ["error", 2],
   },
+  overrides: [
+    {
+      files: ["src/search/**/*.ts", "src/admin/**/*.ts", "src/lib/admin.ts"],
+      rules: {
+        "require-jsdoc": "off",
+        "valid-jsdoc": "off",
+        "indent": "off",
+        "@typescript-eslint/no-unused-vars": [
+          "error",
+          {
+            argsIgnorePattern: "^_",
+            varsIgnorePattern: "^_",
+            caughtErrorsIgnorePattern: "^_",
+          },
+        ],
+      },
+    },
+  ],
 };

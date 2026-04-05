@@ -64,6 +64,10 @@ node_modules/
 
 # dotenv environment variables file
 .env
+admin/.env.local
+
+# Build Next admin -> public/admin (généré par npm run admin:build)
+public/admin/
 
 # dataconnect generated files
 .dataconnect

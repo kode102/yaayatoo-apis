@@ -19,10 +19,16 @@
   ],
   "hosting": {
     "public": "public",
+    "cleanUrls": true,
     "ignore": [
       "firebase.json",
       "**/.*",
       "**/node_modules/**"
+    ],
+    "predeploy": [
+      "npm --prefix admin ci",
+      "npm --prefix admin run build",
+      "node scripts/sync-admin-hosting.mjs"
     ],
     "rewrites": [
       {
@@ -34,12 +40,19 @@
   "storage": {
     "rules": "storage.rules"
   },
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
   "emulators": {
     "auth": {
       "port": 9099
     },
     "functions": {
       "port": 5001
+    },
+    "firestore": {
+      "port": 8080
     },
     "database": {
       "port": 9000
