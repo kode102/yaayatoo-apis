@@ -1,3 +1,5 @@
+import {uiLocaleFromEditorCode} from "@/lib/ui-locale-constants";
+
 /** Bloc de texte par langue (clé = code locale, ex. fr, en). */
 export type TranslationMap = Record<
   string,
@@ -46,6 +48,57 @@ export function labelForLocale(
   if (!translations || !locale) return "";
   const block = translations[locale] ?? translations[locale.toLowerCase()];
   return (block?.name ?? "").trim();
+}
+
+/**
+ * Bloc de traduction pour préremplir l’édition : locale exacte, puis base (fr-cm → fr), fr/en, puis premier disponible.
+ */
+export function translationBlockForEditorLocale(
+  translations: TranslationMap | undefined,
+  editorLocale: string,
+): {name?: string; description?: string} | undefined {
+  if (!translations || !editorLocale?.trim()) return undefined;
+  const loc = editorLocale.trim().toLowerCase();
+  const base = uiLocaleFromEditorCode(editorLocale);
+
+  const keysToTry: string[] = [];
+  const push = (k: string) => {
+    const n = k.trim().toLowerCase();
+    if (n && !keysToTry.includes(n)) keysToTry.push(n);
+  };
+  push(loc);
+  push(base);
+  push("fr");
+  push("en");
+
+  for (const k of keysToTry) {
+    const b = translations[k];
+    if (b && (b.name?.trim() || b.description?.trim())) return b;
+  }
+  return Object.values(translations).find(
+    (b) => b?.name?.trim() || b?.description?.trim(),
+  );
+}
+
+/** Nom à afficher dans le champ édition (même logique que la liste si la clé locale manque). */
+export function editNamePrefill(
+  translations: TranslationMap | undefined,
+  editorLocale: string,
+  fallbackId: string,
+): string {
+  const block = translationBlockForEditorLocale(translations, editorLocale);
+  const fromBlock = (block?.name ?? "").trim();
+  if (fromBlock) return fromBlock;
+  return pickSortLabel(translations, editorLocale, fallbackId);
+}
+
+/** Description pour le champ édition service. */
+export function editDescriptionPrefill(
+  translations: TranslationMap | undefined,
+  editorLocale: string,
+): string {
+  const block = translationBlockForEditorLocale(translations, editorLocale);
+  return block?.description ?? "";
 }
 
 export function pickSortLabel(

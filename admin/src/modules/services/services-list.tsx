@@ -9,12 +9,15 @@ import {EditSheet} from "@/components/edit-sheet";
 import {RippleIconButton} from "@/components/ripple-icon-button";
 import {adminFetch, type ApiDocResponse, type ApiListResponse} from "@/lib/api";
 import {
+  editDescriptionPrefill,
+  editNamePrefill,
   labelForLocale,
   localeFilledCount,
   pickSortLabel,
   type ServiceDoc,
 } from "@/lib/i18n-types";
 import {uiLocaleFromEditorCode} from "@/lib/ui-locale-constants";
+import {ServiceImageUploadField} from "@/components/service-image-upload-field";
 
 export default function ServicesListView() {
   const {getIdToken} = useAuth();
@@ -85,13 +88,21 @@ export default function ServicesListView() {
     }
   }
 
-  function openEdit(row: ServiceDoc) {
-    setEditRow(row);
-    const block = row.translations?.[editorLocale];
-    setEditName(block?.name ?? "");
-    setEditDescription(block?.description ?? "");
+  function applyEditPrefill(row: ServiceDoc, locale: string) {
+    setEditName(editNamePrefill(row.translations, locale, row.id));
+    setEditDescription(editDescriptionPrefill(row.translations, locale));
     setEditImageUrl(row.imageUrl ?? "");
   }
+
+  function openEdit(row: ServiceDoc) {
+    setEditRow(row);
+    applyEditPrefill(row, editorLocale);
+  }
+
+  useEffect(() => {
+    if (!editRow) return;
+    applyEditPrefill(editRow, editorLocale);
+  }, [editorLocale, editRow?.id]);
 
   async function saveEdit() {
     if (!editRow) return;
@@ -308,15 +319,14 @@ export default function ServicesListView() {
             className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary/70 focus:ring-2 focus:ring-primary/15 focus:outline-none"
           />
         </label>
-        <label className="block text-sm text-gray-700">
-          {t("services.edit.imageUrl")}
-          <input
-            type="url"
+        {editRow ?
+          <ServiceImageUploadField
             value={editImageUrl}
-            onChange={(e) => setEditImageUrl(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary/70 focus:ring-2 focus:ring-primary/15 focus:outline-none"
+            onChange={setEditImageUrl}
+            serviceId={editRow.id}
+            disabled={busy}
           />
-        </label>
+        : null}
       </EditSheet>
     </div>
   );

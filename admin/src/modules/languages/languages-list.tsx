@@ -10,6 +10,7 @@ import {EditSheet} from "@/components/edit-sheet";
 import {RippleIconButton} from "@/components/ripple-icon-button";
 import {adminFetch, type ApiDocResponse, type ApiListResponse} from "@/lib/api";
 import {
+  editNamePrefill,
   labelForLocale,
   localeFilledCount,
   pickSortLabel,
@@ -93,11 +94,20 @@ export default function LanguagesListView() {
     }
   }
 
-  function openEdit(row: LanguageDoc) {
-    setEditRow(row);
-    setEditName(labelForLocale(row.translations, editorLocale));
+  function applyEditPrefill(row: LanguageDoc, locale: string) {
+    setEditName(editNamePrefill(row.translations, locale, row.code));
     setEditFlag(row.flagIconUrl ?? "");
   }
+
+  function openEdit(row: LanguageDoc) {
+    setEditRow(row);
+    applyEditPrefill(row, editorLocale);
+  }
+
+  useEffect(() => {
+    if (!editRow) return;
+    applyEditPrefill(editRow, editorLocale);
+  }, [editorLocale, editRow?.id]);
 
   async function saveEdit() {
     if (!editRow) return;

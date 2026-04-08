@@ -1,5 +1,6 @@
 import {getApp, getApps, initializeApp, type FirebaseApp} from "firebase/app";
 import {getAuth, type Auth} from "firebase/auth";
+import {getStorage, type FirebaseStorage} from "firebase/storage";
 import {getRuntimeConfig} from "@/lib/runtime-config";
 
 let initPromise: Promise<FirebaseApp> | null = null;
@@ -27,4 +28,12 @@ export async function ensureFirebaseApp(): Promise<FirebaseApp> {
  */
 export function getFirebaseAuth(): Auth {
   return getAuth(getApp());
+}
+
+/**
+ * Storage Firebase (après `ensureFirebaseApp()`).
+ * @return {FirebaseStorage} Bucket configuré sur l’app.
+ */
+export function getFirebaseStorage(): FirebaseStorage {
+  return getStorage(getApp());
 }

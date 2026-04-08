@@ -8,6 +8,7 @@ import {useEditorLocale} from "@/contexts/editor-locale-context";
 import {useUiLocale} from "@/contexts/ui-locale-context";
 import {adminFetch, type ApiDocResponse} from "@/lib/api";
 import type {ServiceDoc} from "@/lib/i18n-types";
+import {ServiceImageUploadField} from "@/components/service-image-upload-field";
 
 export default function ServicesCreateView() {
   const {getIdToken} = useAuth();
@@ -102,12 +103,10 @@ export default function ServicesCreateView() {
           rows={3}
           className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary/70 focus:ring-2 focus:ring-primary/15 focus:outline-none"
         />
-        <input
-          type="url"
-          placeholder={t("services.create.imageUrlPlaceholder")}
+        <ServiceImageUploadField
           value={imageUrl}
-          onChange={(e) => setImageUrl(e.target.value)}
-          className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary/70 focus:ring-2 focus:ring-primary/15 focus:outline-none"
+          onChange={setImageUrl}
+          disabled={busy}
         />
         <button
           type="submit"
