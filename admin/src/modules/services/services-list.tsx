@@ -7,28 +7,33 @@ import {useEditorLocale} from "@/contexts/editor-locale-context";
 import {useUiLocale} from "@/contexts/ui-locale-context";
 import {EditSheet} from "@/components/edit-sheet";
 import {RippleIconButton} from "@/components/ripple-icon-button";
+import {TranslationLocaleTabs} from "@/components/translation-locale-tabs";
 import {adminFetch, type ApiDocResponse, type ApiListResponse} from "@/lib/api";
 import {
-  editDescriptionPrefill,
-  editNamePrefill,
+  buildLocaleDraftsFromTranslations,
+  hasAnyDraftName,
   labelForLocale,
   localeFilledCount,
   pickSortLabel,
+  sortedActiveLanguageCodes,
+  type LocaleTextDraft,
   type ServiceDoc,
 } from "@/lib/i18n-types";
+import {persistServiceEditDrafts} from "@/lib/translation-persist";
 import {uiLocaleFromEditorCode} from "@/lib/ui-locale-constants";
 import {ServiceImageUploadField} from "@/components/service-image-upload-field";
 
 export default function ServicesListView() {
   const {getIdToken} = useAuth();
-  const {editorLocale} = useEditorLocale();
+  const {editorLocale, activeLanguages} = useEditorLocale();
   const {t, locale: uiLocale} = useUiLocale();
   const [items, setItems] = useState<ServiceDoc[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [editRow, setEditRow] = useState<ServiceDoc | null>(null);
-  const [editName, setEditName] = useState("");
-  const [editDescription, setEditDescription] = useState("");
+  const [editDrafts, setEditDrafts] = useState<Record<string, LocaleTextDraft>>(
+    {},
+  );
   const [editImageUrl, setEditImageUrl] = useState("");
 
   const load = useCallback(async () => {
@@ -88,21 +93,13 @@ export default function ServicesListView() {
     }
   }
 
-  function applyEditPrefill(row: ServiceDoc, locale: string) {
-    setEditName(editNamePrefill(row.translations, locale, row.id));
-    setEditDescription(editDescriptionPrefill(row.translations, locale));
-    setEditImageUrl(row.imageUrl ?? "");
-  }
-
   function openEdit(row: ServiceDoc) {
     setEditRow(row);
-    applyEditPrefill(row, editorLocale);
+    setEditDrafts(
+      buildLocaleDraftsFromTranslations(row.translations, activeLanguages),
+    );
+    setEditImageUrl(row.imageUrl ?? "");
   }
-
-  useEffect(() => {
-    if (!editRow) return;
-    applyEditPrefill(editRow, editorLocale);
-  }, [editorLocale, editRow?.id]);
 
   async function saveEdit() {
     if (!editRow) return;
@@ -110,18 +107,13 @@ export default function ServicesListView() {
     if (!token) return;
     setBusy(true);
     try {
-      await adminFetch<ApiDocResponse<ServiceDoc>>(
-        `/admin/documents/services/${editRow.id}`,
+      const codes = sortedActiveLanguageCodes(activeLanguages);
+      await persistServiceEditDrafts(
         token,
-        {
-          method: "PUT",
-          body: JSON.stringify({
-            locale: editorLocale,
-            name: editName.trim(),
-            description: editDescription,
-            imageUrl: editImageUrl,
-          }),
-        },
+        editRow.id,
+        codes,
+        editDrafts,
+        editImageUrl,
       );
       setEditRow(null);
       await load();
@@ -278,9 +270,7 @@ export default function ServicesListView() {
       </div>
       <EditSheet
         open={!!editRow}
-        title={t("services.edit.title", {
-          locale: editorLocale.toUpperCase(),
-        })}
+        title={t("services.edit.sheetTitle")}
         onClose={() => setEditRow(null)}
         footer={
           <>
@@ -293,7 +283,7 @@ export default function ServicesListView() {
             </button>
             <button
               type="button"
-              disabled={busy || !editName.trim()}
+              disabled={busy || !hasAnyDraftName(editDrafts)}
               onClick={() => void saveEdit()}
               className="rounded-lg bg-primary px-3 py-2 text-sm font-medium text-white hover:bg-primary-hover disabled:opacity-50"
             >
@@ -302,23 +292,17 @@ export default function ServicesListView() {
           </>
         }
       >
-        <label className="block text-sm text-gray-700">
-          {t("common.name")}
-          <input
-            value={editName}
-            onChange={(e) => setEditName(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary/70 focus:ring-2 focus:ring-primary/15 focus:outline-none"
-          />
-        </label>
-        <label className="block text-sm text-gray-700">
-          {t("common.description")}
-          <textarea
-            value={editDescription}
-            onChange={(e) => setEditDescription(e.target.value)}
-            rows={3}
-            className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary/70 focus:ring-2 focus:ring-primary/15 focus:outline-none"
-          />
-        </label>
+        <TranslationLocaleTabs
+          activeLanguages={activeLanguages}
+          editorLocale={editorLocale}
+          drafts={editDrafts}
+          showDescription
+          nameLabel={t("common.name")}
+          descriptionLabel={t("common.description")}
+          onDraftChange={(code, next) =>
+            setEditDrafts((prev) => ({...prev, [code]: next}))
+          }
+        />
         {editRow ?
           <ServiceImageUploadField
             value={editImageUrl}

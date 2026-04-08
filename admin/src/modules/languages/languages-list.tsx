@@ -8,25 +8,31 @@ import {useEditorLocale} from "@/contexts/editor-locale-context";
 import {useUiLocale} from "@/contexts/ui-locale-context";
 import {EditSheet} from "@/components/edit-sheet";
 import {RippleIconButton} from "@/components/ripple-icon-button";
+import {TranslationLocaleTabs} from "@/components/translation-locale-tabs";
 import {adminFetch, type ApiDocResponse, type ApiListResponse} from "@/lib/api";
 import {
-  editNamePrefill,
-  labelForLocale,
+  buildLocaleDraftsFromTranslations,
+  hasAnyDraftName,
   localeFilledCount,
   pickSortLabel,
+  sortedActiveLanguageCodes,
   type LanguageDoc,
+  type LocaleTextDraft,
 } from "@/lib/i18n-types";
+import {persistLanguageEditDrafts} from "@/lib/translation-persist";
 import {uiLocaleFromEditorCode} from "@/lib/ui-locale-constants";
 
 export default function LanguagesListView() {
   const {getIdToken} = useAuth();
-  const {editorLocale, refreshLanguages} = useEditorLocale();
+  const {editorLocale, activeLanguages, refreshLanguages} = useEditorLocale();
   const {t, locale: uiLocale} = useUiLocale();
   const [items, setItems] = useState<LanguageDoc[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [editRow, setEditRow] = useState<LanguageDoc | null>(null);
-  const [editName, setEditName] = useState("");
+  const [editDrafts, setEditDrafts] = useState<Record<string, LocaleTextDraft>>(
+    {},
+  );
   const [editFlag, setEditFlag] = useState("");
 
   const load = useCallback(async () => {
@@ -94,20 +100,13 @@ export default function LanguagesListView() {
     }
   }
 
-  function applyEditPrefill(row: LanguageDoc, locale: string) {
-    setEditName(editNamePrefill(row.translations, locale, row.code));
-    setEditFlag(row.flagIconUrl ?? "");
-  }
-
   function openEdit(row: LanguageDoc) {
     setEditRow(row);
-    applyEditPrefill(row, editorLocale);
+    setEditDrafts(
+      buildLocaleDraftsFromTranslations(row.translations, activeLanguages),
+    );
+    setEditFlag(row.flagIconUrl ?? "");
   }
-
-  useEffect(() => {
-    if (!editRow) return;
-    applyEditPrefill(editRow, editorLocale);
-  }, [editorLocale, editRow?.id]);
 
   async function saveEdit() {
     if (!editRow) return;
@@ -118,17 +117,13 @@ export default function LanguagesListView() {
     }
     setBusy(true);
     try {
-      await adminFetch<ApiDocResponse<LanguageDoc>>(
-        `/admin/documents/languages/${editRow.id}`,
+      const codes = sortedActiveLanguageCodes(activeLanguages);
+      await persistLanguageEditDrafts(
         token,
-        {
-          method: "PUT",
-          body: JSON.stringify({
-            locale: (editorLocale || "fr").trim().toLowerCase(),
-            name: editName.trim(),
-            flagIconUrl: editFlag,
-          }),
-        },
+        editRow.id,
+        codes,
+        editDrafts,
+        editFlag,
       );
       setEditRow(null);
       await load();
@@ -295,9 +290,7 @@ export default function LanguagesListView() {
       </div>
       <EditSheet
         open={!!editRow}
-        title={t("languages.edit.title", {
-          locale: editorLocale.toUpperCase(),
-        })}
+        title={t("languages.edit.sheetTitle")}
         onClose={() => setEditRow(null)}
         footer={
           <>
@@ -310,7 +303,7 @@ export default function LanguagesListView() {
             </button>
             <button
               type="button"
-              disabled={busy || !editName.trim()}
+              disabled={busy || !hasAnyDraftName(editDrafts)}
               onClick={() => void saveEdit()}
               className="rounded-lg bg-primary px-3 py-2 text-sm font-medium text-white hover:bg-primary-hover disabled:opacity-50"
             >
@@ -322,14 +315,17 @@ export default function LanguagesListView() {
         <p className="text-xs text-gray-500">
           {t("common.code")} : <code className="text-gray-700">{editRow?.code}</code>
         </p>
-        <label className="block text-sm text-gray-700">
-          {t("languages.list.label")}
-          <input
-            value={editName}
-            onChange={(e) => setEditName(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary/70 focus:ring-2 focus:ring-primary/15 focus:outline-none"
-          />
-        </label>
+        <TranslationLocaleTabs
+          activeLanguages={activeLanguages}
+          editorLocale={editorLocale}
+          drafts={editDrafts}
+          showDescription={false}
+          nameLabel={t("languages.list.label")}
+          descriptionLabel={t("common.description")}
+          onDraftChange={(code, next) =>
+            setEditDrafts((prev) => ({...prev, [code]: next}))
+          }
+        />
         <label className="block text-sm text-gray-700">
           {t("languages.create.flagUrl")}
           <input

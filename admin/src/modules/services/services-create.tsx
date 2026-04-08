@@ -2,48 +2,108 @@
 
 import Link from "next/link";
 import {useRouter} from "next/navigation";
-import {useState} from "react";
+import {useEffect, useState} from "react";
 import {useAuth} from "@/contexts/auth-context";
 import {useEditorLocale} from "@/contexts/editor-locale-context";
 import {useUiLocale} from "@/contexts/ui-locale-context";
+import {TranslationLocaleTabs} from "@/components/translation-locale-tabs";
 import {adminFetch, type ApiDocResponse} from "@/lib/api";
-import type {ServiceDoc} from "@/lib/i18n-types";
+import {
+  hasAnyDraftName,
+  sortedActiveLanguageCodes,
+  type LocaleTextDraft,
+  type ServiceDoc,
+} from "@/lib/i18n-types";
 import {ServiceImageUploadField} from "@/components/service-image-upload-field";
 
 export default function ServicesCreateView() {
   const {getIdToken} = useAuth();
-  const {editorLocale} = useEditorLocale();
+  const {editorLocale, activeLanguages} = useEditorLocale();
   const {t} = useUiLocale();
   const router = useRouter();
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
+  const [drafts, setDrafts] = useState<Record<string, LocaleTextDraft>>({});
   const [imageUrl, setImageUrl] = useState("");
   const [activeNew, setActiveNew] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  useEffect(() => {
+    setDrafts((prev) => {
+      const next = {...prev};
+      for (const lang of activeLanguages) {
+        const c = lang.code.trim().toLowerCase();
+        if (!c) continue;
+        if (!(c in next)) next[c] = {name: "", description: ""};
+      }
+      for (const k of Object.keys(next)) {
+        if (!activeLanguages.some((l) => l.code.trim().toLowerCase() === k)) {
+          delete next[k];
+        }
+      }
+      return next;
+    });
+  }, [activeLanguages]);
+
   async function createRow(e: React.FormEvent) {
     e.preventDefault();
+    if (!hasAnyDraftName(drafts)) {
+      setLoadError(t("common.translationTabsHint"));
+      return;
+    }
     const token = await getIdToken();
     if (!token) {
       setLoadError(t("errors.session"));
       return;
     }
+    const sortedCodes = sortedActiveLanguageCodes(activeLanguages);
+    const el = editorLocale.trim().toLowerCase();
+    const primaryCode =
+      drafts[el]?.name.trim() ?
+        el
+      : sortedCodes.find((c) => drafts[c]?.name.trim()) ?? "";
+    if (!primaryCode || !drafts[primaryCode]?.name.trim()) {
+      setLoadError(t("services.create.errorNeedName"));
+      return;
+    }
+
     setBusy(true);
     setLoadError(null);
     try {
-      await adminFetch<ApiDocResponse<ServiceDoc>>("/admin/documents/services", token, {
-        method: "POST",
-        body: JSON.stringify({
-          locale: editorLocale,
-          name,
-          description,
-          imageUrl,
-          active: activeNew,
-        }),
-      });
-      setName("");
-      setDescription("");
+      const res = await adminFetch<ApiDocResponse<ServiceDoc>>(
+        "/admin/documents/services",
+        token,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            locale: primaryCode,
+            name: drafts[primaryCode]!.name.trim(),
+            description: drafts[primaryCode]!.description ?? "",
+            imageUrl,
+            active: activeNew,
+          }),
+        },
+      );
+      const id = res.data?.id;
+      if (!id) throw new Error("Missing id");
+
+      for (const code of sortedCodes) {
+        if (code === primaryCode) continue;
+        const d = drafts[code];
+        if (!d) continue;
+        const n = d.name.trim();
+        const desc = d.description;
+        if (!n && !desc.trim()) continue;
+        const body: Record<string, unknown> = {locale: code};
+        if (n) body.name = n;
+        body.description = desc;
+        await adminFetch<ApiDocResponse<ServiceDoc>>(
+          `/admin/documents/services/${id}`,
+          token,
+          {method: "PUT", body: JSON.stringify(body)},
+        );
+      }
+
+      setDrafts({});
       setImageUrl("");
       setActiveNew(true);
       router.push("/services/list");
@@ -61,7 +121,7 @@ export default function ServicesCreateView() {
           {t("services.create.title")}
         </h1>
         <p className="mt-1 text-sm text-gray-500">
-          {t("services.create.subtitle", {locale: editorLocale.toUpperCase()})}
+          {t("services.create.subtitleTabs")}
         </p>
       </div>
       <Link
@@ -79,30 +139,26 @@ export default function ServicesCreateView() {
         onSubmit={(e) => void createRow(e)}
         className="space-y-3 rounded-xl border border-gray-200 bg-white p-5 shadow-sm"
       >
-        <div className="grid gap-3 sm:grid-cols-2">
-          <input
-            placeholder={t("services.create.namePlaceholder")}
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary/70 focus:ring-2 focus:ring-primary/15 focus:outline-none"
-            required
-          />
-          <label className="flex items-center gap-2 text-sm text-gray-700">
-            <input
-              type="checkbox"
-              checked={activeNew}
-              onChange={(e) => setActiveNew(e.target.checked)}
-            />
-            {t("common.active")}
-          </label>
-        </div>
-        <textarea
-          placeholder={t("services.create.descriptionPlaceholder")}
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          rows={3}
-          className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary/70 focus:ring-2 focus:ring-primary/15 focus:outline-none"
+        <TranslationLocaleTabs
+          activeLanguages={activeLanguages}
+          editorLocale={editorLocale}
+          drafts={drafts}
+          showDescription
+          nameLabel={t("common.name")}
+          descriptionLabel={t("common.description")}
+          onDraftChange={(code, next) =>
+            setDrafts((prev) => ({...prev, [code]: next}))
+          }
         />
+        <div className="flex items-center gap-2 text-sm text-gray-700">
+          <input
+            type="checkbox"
+            id="svc-active"
+            checked={activeNew}
+            onChange={(e) => setActiveNew(e.target.checked)}
+          />
+          <label htmlFor="svc-active">{t("common.active")}</label>
+        </div>
         <ServiceImageUploadField
           value={imageUrl}
           onChange={setImageUrl}
@@ -110,7 +166,7 @@ export default function ServicesCreateView() {
         />
         <button
           type="submit"
-          disabled={busy}
+          disabled={busy || !hasAnyDraftName(drafts)}
           className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover disabled:opacity-50"
         >
           {busy ? t("common.saving") : t("services.create.submit")}

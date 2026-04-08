@@ -111,3 +111,40 @@ export function pickSortLabel(
   const first = translations ? Object.values(translations).find((b) => b?.name?.trim()) : undefined;
   return first?.name?.trim() || fallback;
 }
+
+/** Brouillon nom + description par code locale (clé = minuscules). */
+export type LocaleTextDraft = {name: string; description: string};
+
+export type LanguageDocLike = {code: string};
+
+/**
+ * Préremplit les brouillons pour chaque langue active à partir de `translations`.
+ */
+export function buildLocaleDraftsFromTranslations(
+  translations: TranslationMap | undefined,
+  activeLanguages: LanguageDocLike[],
+): Record<string, LocaleTextDraft> {
+  const out: Record<string, LocaleTextDraft> = {};
+  for (const lang of activeLanguages) {
+    const code = lang.code.trim().toLowerCase();
+    if (!code) continue;
+    const b = translations?.[code] ?? translations?.[lang.code.trim()];
+    out[code] = {
+      name: (b?.name ?? "").trim(),
+      description: typeof b?.description === "string" ? b.description : "",
+    };
+  }
+  return out;
+}
+
+/** Vrai si au moins une langue a un nom non vide. */
+export function hasAnyDraftName(drafts: Record<string, LocaleTextDraft>): boolean {
+  return Object.values(drafts).some((d) => d.name.trim().length > 0);
+}
+
+export function sortedActiveLanguageCodes(langs: LanguageDocLike[]): string[] {
+  return [...langs]
+    .map((l) => l.code.trim().toLowerCase())
+    .filter(Boolean)
+    .sort((a, b) => a.localeCompare(b));
+}
