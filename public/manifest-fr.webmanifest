@@ -1,0 +1,21 @@
+{
+  "name": "Yaayatoo Admin",
+  "short_name": "Yaayatoo",
+  "description": "Console d’administration Yaayatoo : services, pays, langues et dictionnaire d’interface.",
+  "lang": "fr",
+  "dir": "ltr",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f9fafb",
+  "theme_color": "#0266ff",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "48x48",
+      "type": "image/x-icon",
+      "purpose": "any"
+    }
+  ]
+}

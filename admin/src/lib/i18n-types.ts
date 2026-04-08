@@ -32,6 +32,11 @@ export type LanguageDoc = {
   updatedAt?: string;
 };
 
+export function localeFilledCount(translations: TranslationMap | undefined): number {
+  if (!translations) return 0;
+  return Object.keys(translations).filter((k) => translations[k]?.name?.trim()).length;
+}
+
 export function labelForLocale(
   translations: TranslationMap | undefined,
   locale: string,

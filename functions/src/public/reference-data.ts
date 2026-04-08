@@ -1,0 +1,227 @@
+/**
+ * Données de référence publiques (pays, langues, services actifs).
+ */
+
+import type {Request, Response} from "express";
+import type {DocumentData} from "firebase-admin/firestore";
+import {db} from "../lib/admin.js";
+import {
+  DEFAULT_LOCALE,
+  normLocale,
+  normalizeLegacyCountryTranslations,
+  normalizeLegacyLanguageTranslations,
+  normalizeLegacyServiceTranslations,
+  pickSortLabel,
+  type TranslationsMap,
+} from "../admin/i18n.js";
+
+/**
+ * Sérialise un document Firestore pour JSON (timestamps → ISO).
+ * @param {string} id Identifiant du document.
+ * @param {DocumentData} data Données brutes.
+ * @return {Record<string, unknown>} Objet sérialisable.
+ */
+function serializeDoc(
+  id: string,
+  data: DocumentData,
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {id};
+  for (const [k, v] of Object.entries(data)) {
+    if (
+      v &&
+      typeof v === "object" &&
+      typeof (v as {toDate?: () => Date}).toDate === "function"
+    ) {
+      out[k] = (v as {toDate: () => Date}).toDate().toISOString();
+    } else {
+      out[k] = v;
+    }
+  }
+  return out;
+}
+
+/**
+ * Normalise la sortie liste selon la collection (traductions + legacy).
+ * @param {string} collection Nom Firestore.
+ * @param {string} id Id document.
+ * @param {DocumentData} data Données.
+ * @return {Record<string, unknown>} Payload API.
+ */
+function normalizeOut(
+  collection: string,
+  id: string,
+  data: DocumentData,
+): Record<string, unknown> {
+  const base = serializeDoc(id, data);
+  let tr: TranslationsMap;
+  if (collection === "services") {
+    tr = normalizeLegacyServiceTranslations(data);
+  } else if (collection === "countries") {
+    tr = normalizeLegacyCountryTranslations(data);
+  } else {
+    tr = normalizeLegacyLanguageTranslations(data);
+  }
+  base.translations = tr;
+  return base;
+}
+
+/**
+ * Document public si `active` n’est pas explicitement `false`.
+ * @param {Record<string, unknown>} row Ligne normalisée.
+ * @return {boolean} Inclure dans l’API publique.
+ */
+function isActiveRow(row: Record<string, unknown>): boolean {
+  return row.active !== false;
+}
+
+/**
+ * Code ou id pour le tri (repli pickSortLabel).
+ * @param {"countries"|"languages"|"services"} collection Collection.
+ * @param {Record<string, unknown>} row Ligne.
+ * @return {string} Code pays/langue ou id service.
+ */
+function sortKey(
+  collection: "countries" | "languages" | "services",
+  row: Record<string, unknown>,
+): string {
+  if (collection === "countries" || collection === "languages") {
+    return String(row.code ?? row.id);
+  }
+  return String(row.id);
+}
+
+/**
+ * Liste une collection : actifs uniquement, tri par libellé.
+ * @param {string} collection Une des collections référence.
+ * @param {string} sortLocale Locale pour l’ordre d’affichage.
+ * @return {Promise<Record<string, unknown>[]>} Documents actifs triés.
+ */
+async function listActiveByCollection(
+  collection: "countries" | "languages" | "services",
+  sortLocale: string,
+): Promise<Record<string, unknown>[]> {
+  const snap = await db.collection(collection).get();
+  const loc = normLocale(sortLocale) || DEFAULT_LOCALE;
+  const data = snap.docs
+    .map((d) => normalizeOut(collection, d.id, d.data()))
+    .filter(isActiveRow);
+  data.sort((a, b) => {
+    const trA = (a.translations ?? {}) as TranslationsMap;
+    const trB = (b.translations ?? {}) as TranslationsMap;
+    const fa = sortKey(collection, a);
+    const fb = sortKey(collection, b);
+    return pickSortLabel(trA, loc, fa).localeCompare(
+      pickSortLabel(trB, loc, fb),
+      "fr",
+    );
+  });
+  return data;
+}
+
+/**
+ * Paramètre de tri depuis la query (?locale= ou ?sortLocale=).
+ * @param {Request} req Requête Express.
+ * @return {string} Locale normalisée (défaut fr).
+ */
+function readSortLocale(req: Request): string {
+  const q = req.query.locale ?? req.query.sortLocale;
+  const s = Array.isArray(q) ? q[0] : q;
+  return normLocale(String(s ?? "")) || DEFAULT_LOCALE;
+}
+
+/**
+ * GET /public/countries — pays actifs.
+ * @param {Request} req Requête (?locale= pour tri des libellés).
+ * @param {Response} res Réponse JSON.
+ * @return {Promise<void>}
+ */
+export async function getPublicCountries(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  try {
+    const data = await listActiveByCollection(
+      "countries",
+      readSortLocale(req),
+    );
+    res.status(200).json({success: true, data});
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error(e);
+    res.status(500).json({success: false, error: msg});
+  }
+}
+
+/**
+ * GET /public/languages — langues actives (schéma complet Firestore).
+ * @param {Request} req Requête.
+ * @param {Response} res Réponse JSON.
+ * @return {Promise<void>}
+ */
+export async function getPublicLanguages(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  try {
+    const data = await listActiveByCollection(
+      "languages",
+      readSortLocale(req),
+    );
+    res.status(200).json({success: true, data});
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error(e);
+    res.status(500).json({success: false, error: msg});
+  }
+}
+
+/**
+ * GET /public/services — services actifs.
+ * @param {Request} req Requête.
+ * @param {Response} res Réponse JSON.
+ * @return {Promise<void>}
+ */
+export async function getPublicServices(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  try {
+    const data = await listActiveByCollection(
+      "services",
+      readSortLocale(req),
+    );
+    res.status(200).json({success: true, data});
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error(e);
+    res.status(500).json({success: false, error: msg});
+  }
+}
+
+/**
+ * GET /public/catalog — pays, langues et services actifs en un appel.
+ * @param {Request} req Requête.
+ * @param {Response} res Réponse JSON.
+ * @return {Promise<void>}
+ */
+export async function getPublicCatalog(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  try {
+    const sortLocale = readSortLocale(req);
+    const [countries, languages, services] = await Promise.all([
+      listActiveByCollection("countries", sortLocale),
+      listActiveByCollection("languages", sortLocale),
+      listActiveByCollection("services", sortLocale),
+    ]);
+    res.status(200).json({
+      success: true,
+      data: {countries, languages, services},
+    });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error(e);
+    res.status(500).json({success: false, error: msg});
+  }
+}

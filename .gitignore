@@ -66,7 +66,9 @@ node_modules/
 .env
 admin/.env.local
 
-# Build Next admin -> public/admin (généré par npm run admin:build)
+# Export Next admin vers la racine Hosting (sync-admin-hosting.mjs)
+public/_next/
+# Ancien emplacement (/admin) — supprimé au sync suivant
 public/admin/
 
 # dataconnect generated files

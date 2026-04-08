@@ -78,8 +78,13 @@ export function EditorLocaleProvider({children}: {children: ReactNode}) {
 
   const setEditorLocale = useCallback((code: string) => {
     const c = code.trim().toLowerCase();
-    setEditorLocaleState(c);
-    localStorage.setItem(STORAGE_KEY, c);
+    setEditorLocaleState((prev) => {
+      if (prev === c) return prev;
+      if (typeof window !== "undefined") {
+        localStorage.setItem(STORAGE_KEY, c);
+      }
+      return c;
+    });
   }, []);
 
   const value = useMemo(

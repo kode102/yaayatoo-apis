@@ -1,0 +1,12 @@
+{
+  "firebase": {
+    "apiKey": "VOTRE_API_KEY",
+    "authDomain": "votre-projet.firebaseapp.com",
+    "projectId": "votre-projet",
+    "storageBucket": "votre-projet.firebasestorage.app",
+    "messagingSenderId": "000000000000",
+    "appId": "1:000:web:xxxx",
+    "measurementId": "G-XXXX"
+  },
+  "yaayatooApiBase": "https://europe-west1-votre-projet.cloudfunctions.net/yaayatoo"
+}

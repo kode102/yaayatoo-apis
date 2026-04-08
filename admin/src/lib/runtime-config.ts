@@ -1,9 +1,13 @@
 /**
- * Config chargée au runtime (export statique : pas de variables NEXT_PUBLIC au build CI).
- * Ordre : variables d’environnement (.env.local) puis GET /admin/runtime-config.json
+ * Config chargée au runtime (export statique).
+ *
+ * Dans le navigateur : on lit d’abord `/runtime-config.json` (fichier déployé)
+ * pour que la prod puisse corriger l’URL API sans rebuild, même si le build CI
+ * a embarqué une mauvaise NEXT_PUBLIC_YAAYATOO_API_BASE.
+ * Sinon repli sur les variables NEXT_PUBLIC_*.
  */
 
-const CONFIG_PATH = "/admin/runtime-config.json";
+const CONFIG_PATH = "/runtime-config.json";
 
 export type FirebaseWebConfig = {
   apiKey: string;
@@ -23,6 +27,34 @@ export type RuntimeConfig = {
 
 let cache: RuntimeConfig | null = null;
 let loadPromise: Promise<RuntimeConfig> | null = null;
+
+/**
+ * L’API admin doit viser la Cloud Function HTTPS, pas le domaine Hosting (web.app).
+ * @param {string} base URL yaayatooApiBase (sans slash final).
+ */
+function assertYaayatooApiBase(base: string): void {
+  const trimmed = base.trim();
+  if (!trimmed) return;
+  let host: string;
+  try {
+    host = new URL(trimmed).hostname.toLowerCase();
+  } catch {
+    throw new Error(
+      "yaayatooApiBase n’est pas une URL valide (ex. " +
+        "https://europe-west1-PROJET.cloudfunctions.net/yaayatoo).",
+    );
+  }
+  const isFirebaseHostingHost =
+    host.endsWith(".web.app") || host.endsWith(".firebaseapp.com");
+  if (isFirebaseHostingHost) {
+    throw new Error(
+      "L’URL d’API pointe vers Firebase Hosting (site statique), pas vers la Cloud Function. " +
+        "Mettez yaayatooApiBase sur l’URL HTTPS de la fonction « yaayatoo », par ex. " +
+        "https://europe-west1-VOTRE_PROJECT.cloudfunctions.net/yaayatoo " +
+        "(fichier admin/public/runtime-config.json ou variable NEXT_PUBLIC_YAAYATOO_API_BASE au build).",
+    );
+  }
+}
 
 function fromEnv(): RuntimeConfig | null {
   const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
@@ -79,23 +111,19 @@ function parseJson(data: unknown): RuntimeConfig {
   if (!firebase.apiKey || !firebase.authDomain || !firebase.projectId) {
     throw new Error("runtime-config.json : firebase incomplet");
   }
+  const mid = f.measurementId;
+  if (typeof mid === "string" && mid) firebase.measurementId = mid;
   const yaayatooApiBase = String(o.yaayatooApiBase ?? "").trim();
   return {firebase, yaayatooApiBase};
 }
 
-async function loadFromNetwork(): Promise<RuntimeConfig> {
+async function loadFromNetwork(): Promise<RuntimeConfig | null> {
   if (typeof window === "undefined") {
-    throw new Error(
-      "Configuration Firebase indisponible au build : définissez NEXT_PUBLIC_* " +
-        "ou fournissez public/runtime-config.json pour le client.",
-    );
+    return null;
   }
   const res = await fetch(CONFIG_PATH, {cache: "no-store"});
   if (!res.ok) {
-    throw new Error(
-      `Impossible de charger ${CONFIG_PATH} (${res.status}). ` +
-        "Copiez runtime-config.example.json vers runtime-config.json dans admin/public/.",
-    );
+    return null;
   }
   return parseJson(await res.json());
 }
@@ -108,24 +136,41 @@ export async function getRuntimeConfig(): Promise<RuntimeConfig> {
   if (cache) return cache;
   if (!loadPromise) {
     loadPromise = (async () => {
+      const fromFile = await loadFromNetwork();
+      if (fromFile?.yaayatooApiBase) {
+        assertYaayatooApiBase(fromFile.yaayatooApiBase);
+        cache = fromFile;
+        return fromFile;
+      }
+
       const envCfg = fromEnv();
-      if (envCfg) {
-        if (!envCfg.yaayatooApiBase) {
+      if (!envCfg) {
+        if (typeof window === "undefined") {
           throw new Error(
-            "NEXT_PUBLIC_YAAYATOO_API_BASE est requis (ou yaayatooApiBase dans runtime-config.json).",
+            "Configuration Firebase indisponible au build : définissez NEXT_PUBLIC_* " +
+              "ou fournissez public/runtime-config.json pour le client.",
           );
         }
-        return envCfg;
-      }
-      const net = await loadFromNetwork();
-      if (!net.yaayatooApiBase) {
+        if (!fromFile) {
+          throw new Error(
+            `Impossible de charger ${CONFIG_PATH} et variables NEXT_PUBLIC_* incomplètes. ` +
+              "Copiez runtime-config.example.json vers admin/public/runtime-config.json.",
+          );
+        }
         throw new Error(
           "yaayatooApiBase manquant dans runtime-config.json (URL de la fonction yaayatoo).",
         );
       }
-      return net;
+
+      if (!envCfg.yaayatooApiBase) {
+        throw new Error(
+          "NEXT_PUBLIC_YAAYATOO_API_BASE est requis (ou yaayatooApiBase dans runtime-config.json).",
+        );
+      }
+      assertYaayatooApiBase(envCfg.yaayatooApiBase);
+      cache = envCfg;
+      return envCfg;
     })();
   }
-  cache = await loadPromise;
-  return cache;
+  return loadPromise;
 }

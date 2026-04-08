@@ -361,6 +361,13 @@ export function createAdminRouter(): express.Router {
       return;
     }
     const body = req.body as Record<string, unknown>;
+    if (!body || typeof body !== "object" || Array.isArray(body)) {
+      res.status(400).json({
+        success: false,
+        error: "Corps JSON invalide (attendu un objet)",
+      });
+      return;
+    }
     let payload: Record<string, unknown>;
 
     if (collection === "services") {
@@ -477,6 +484,137 @@ export function createAdminRouter(): express.Router {
     }
     try {
       await db.collection(collection).doc(id).delete();
+      res.status(200).json({success: true});
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error(e);
+      res.status(500).json({success: false, error: msg});
+    }
+  });
+
+  /**
+   * Clé de dictionnaire interface admin (a-z, chiffres, ._-).
+   * @param {string} raw Chaîne brute.
+   * @return {string|null} Clé normalisée ou null.
+   */
+  function normUiDictionaryKey(raw: string): string | null {
+    const k = raw.trim().toLowerCase();
+    if (!/^[a-z][a-z0-9_.-]{0,127}$/.test(k)) return null;
+    return k;
+  }
+
+  const UI_DICT_LOCALE_KEY = /^[a-z][a-z0-9_-]{0,31}$/;
+
+  function normUiDictLocaleKey(raw: string): string | null {
+    const k = raw.trim().toLowerCase();
+    if (!UI_DICT_LOCALE_KEY.test(k)) return null;
+    return k;
+  }
+
+  /**
+   * Lit les traductions adminUiDictionary (translations ou legacy fr/en).
+   * @param {Record<string, unknown>} data Données Firestore.
+   * @return {Record<string, string>} Code locale → texte.
+   */
+  function readUiDictionaryTranslations(
+    data: Record<string, unknown>,
+  ): Record<string, string> {
+    const out: Record<string, string> = {};
+    const tr = data.translations;
+    if (tr && typeof tr === "object" && !Array.isArray(tr)) {
+      for (const [k, v] of Object.entries(tr as Record<string, unknown>)) {
+        const nk = normUiDictLocaleKey(k);
+        if (nk && typeof v === "string") out[nk] = v;
+      }
+    }
+    if (typeof data.fr === "string" && out.fr === undefined) out.fr = data.fr;
+    if (typeof data.en === "string" && out.en === undefined) out.en = data.en;
+    return out;
+  }
+
+  router.get("/ui-dictionary", async (_req, res) => {
+    try {
+      const snap = await db.collection("adminUiDictionary").get();
+      const data: Record<string, Record<string, string>> = {};
+      for (const d of snap.docs) {
+        const raw = d.data() as Record<string, unknown>;
+        data[d.id] = readUiDictionaryTranslations(raw);
+      }
+      res.status(200).json({success: true, data});
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error(e);
+      res.status(500).json({success: false, error: msg});
+    }
+  });
+
+  router.put("/ui-dictionary/:key", async (req, res) => {
+    const key = normUiDictionaryKey(req.params.key ?? "");
+    if (!key) {
+      res.status(400).json({success: false, error: "Clé invalide"});
+      return;
+    }
+    const body = req.body as Record<string, unknown>;
+    const incoming: Record<string, string> = {};
+    const trBody = body.translations;
+    if (trBody && typeof trBody === "object" && !Array.isArray(trBody)) {
+      for (const [k, v] of Object.entries(trBody as Record<string, unknown>)) {
+        const nk = normUiDictLocaleKey(k);
+        if (nk && typeof v === "string") incoming[nk] = v;
+      }
+    }
+    if (typeof body.fr === "string") {
+      const nk = normUiDictLocaleKey("fr");
+      if (nk) incoming[nk] = body.fr;
+    }
+    if (typeof body.en === "string") {
+      const nk = normUiDictLocaleKey("en");
+      if (nk) incoming[nk] = body.en;
+    }
+    if (Object.keys(incoming).length === 0) {
+      res.status(400).json({
+        success: false,
+        error: "Fournir translations (objet) et/ou fr / en (chaînes)",
+      });
+      return;
+    }
+    const ref = db.collection("adminUiDictionary").doc(key);
+    const existing = await ref.get();
+    const prev = (existing.data() ?? {}) as Record<string, unknown>;
+    const prevMap = readUiDictionaryTranslations(prev);
+    const merged = {...prevMap, ...incoming};
+    // eslint-disable-next-line new-cap -- FieldValue.serverTimestamp
+    const now = FieldValue.serverTimestamp();
+    const payload: Record<string, unknown> = {
+      translations: merged,
+      updatedAt: now,
+    };
+    if (!existing.exists) {
+      payload.createdAt = now;
+    } else if (prev.createdAt !== undefined) {
+      payload.createdAt = prev.createdAt;
+    }
+    try {
+      await ref.set(payload, {merge: false});
+      res.status(200).json({
+        success: true,
+        data: {key, translations: merged},
+      });
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error(e);
+      res.status(500).json({success: false, error: msg});
+    }
+  });
+
+  router.delete("/ui-dictionary/:key", async (req, res) => {
+    const key = normUiDictionaryKey(req.params.key ?? "");
+    if (!key) {
+      res.status(400).json({success: false, error: "Clé invalide"});
+      return;
+    }
+    try {
+      await db.collection("adminUiDictionary").doc(key).delete();
       res.status(200).json({success: true});
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
