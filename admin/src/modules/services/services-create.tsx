@@ -16,6 +16,7 @@ export default function ServicesCreateView() {
   const router = useRouter();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [imageUrl, setImageUrl] = useState("");
   const [activeNew, setActiveNew] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -36,11 +37,13 @@ export default function ServicesCreateView() {
           locale: editorLocale,
           name,
           description,
+          imageUrl,
           active: activeNew,
         }),
       });
       setName("");
       setDescription("");
+      setImageUrl("");
       setActiveNew(true);
       router.push("/services/list");
     } catch (err: unknown) {
@@ -97,6 +100,13 @@ export default function ServicesCreateView() {
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           rows={3}
+          className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary/70 focus:ring-2 focus:ring-primary/15 focus:outline-none"
+        />
+        <input
+          type="url"
+          placeholder={t("services.create.imageUrlPlaceholder")}
+          value={imageUrl}
+          onChange={(e) => setImageUrl(e.target.value)}
           className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary/70 focus:ring-2 focus:ring-primary/15 focus:outline-none"
         />
         <button

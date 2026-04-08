@@ -63,6 +63,7 @@ export const openApiComponents = {
         code: {type: "string", description: "Pays / langues"},
         flagLink: {type: "string", description: "URL drapeau pays"},
         flagIconUrl: {type: "string", description: "URL icône langue"},
+        imageUrl: {type: "string", description: "URL image service"},
         translations: {
           type: "object",
           additionalProperties: {$ref: "#/components/schemas/TranslationBlock"},

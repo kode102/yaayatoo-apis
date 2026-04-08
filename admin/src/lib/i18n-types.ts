@@ -7,6 +7,8 @@ export type TranslationMap = Record<
 export type ServiceDoc = {
   id: string;
   active: boolean;
+  /** URL image (icône / visuel service), optionnelle */
+  imageUrl?: string;
   translations: TranslationMap;
   createdAt?: string;
   updatedAt?: string;

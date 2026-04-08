@@ -138,16 +138,19 @@ function parseServicePost(body: Record<string, unknown>): {
   active: boolean;
   locale: string;
   translations: TranslationsMap;
+  imageUrl: string;
 } | null {
   const locale = normLocale(String(body.locale ?? ""));
   const name = typeof body.name === "string" ? body.name.trim() : "";
   if (!locale || !name) return null;
   const description =
     typeof body.description === "string" ? body.description : "";
+  const imageUrl =
+    typeof body.imageUrl === "string" ? body.imageUrl.trim() : "";
   const active =
     typeof body.active === "boolean" ? body.active : true;
   const translations = mergeTranslations({}, locale, {name, description});
-  return {active, locale, translations};
+  return {active, locale, translations, imageUrl};
 }
 
 /**
@@ -293,6 +296,12 @@ function buildPutPatch(
     }
   }
 
+  if (collection === "services") {
+    if (typeof body.imageUrl === "string") {
+      patch.imageUrl = body.imageUrl.trim();
+    }
+  }
+
   const keys = Object.keys(patch).filter((k) => k !== "updatedAt");
   if (keys.length === 0) {
     return {patch: {}, error: "Aucun champ à mettre à jour"};
@@ -382,6 +391,7 @@ export function createAdminRouter(): express.Router {
       payload = {
         active: v.active,
         translations: v.translations,
+        imageUrl: v.imageUrl,
       };
     } else if (collection === "countries") {
       const v = parseCountryPost(body);

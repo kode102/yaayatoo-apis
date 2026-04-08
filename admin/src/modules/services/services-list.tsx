@@ -26,6 +26,7 @@ export default function ServicesListView() {
   const [editRow, setEditRow] = useState<ServiceDoc | null>(null);
   const [editName, setEditName] = useState("");
   const [editDescription, setEditDescription] = useState("");
+  const [editImageUrl, setEditImageUrl] = useState("");
 
   const load = useCallback(async () => {
     const token = await getIdToken();
@@ -89,6 +90,7 @@ export default function ServicesListView() {
     const block = row.translations?.[editorLocale];
     setEditName(block?.name ?? "");
     setEditDescription(block?.description ?? "");
+    setEditImageUrl(row.imageUrl ?? "");
   }
 
   async function saveEdit() {
@@ -106,6 +108,7 @@ export default function ServicesListView() {
             locale: editorLocale,
             name: editName.trim(),
             description: editDescription,
+            imageUrl: editImageUrl,
           }),
         },
       );
@@ -131,13 +134,14 @@ export default function ServicesListView() {
         </p>
       : null}
       <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm">
-        <table className="w-full min-w-[720px] text-left text-sm">
+        <table className="w-full min-w-[800px] text-left text-sm">
           <thead className="border-b border-gray-100 bg-gray-50/90 text-gray-500">
             <tr>
               <th className="px-3 py-2 font-medium">
                 {t("services.list.colName", {locale: editorLocale})}
               </th>
               <th className="px-3 py-2 font-medium">{t("services.list.colDesc")}</th>
+              <th className="px-3 py-2 font-medium">{t("services.list.colImage")}</th>
               <th className="px-3 py-2 font-medium">{t("common.locales")}</th>
               <th className="px-3 py-2 font-medium">{t("common.active")}</th>
               <th className="px-3 py-2 font-medium">{t("common.updated")}</th>
@@ -153,6 +157,29 @@ export default function ServicesListView() {
                 </td>
                 <td className="max-w-xs truncate px-3 py-2 text-gray-500">
                   {row.translations?.[editorLocale]?.description ?? ""}
+                </td>
+                <td className="w-14 px-3 py-2 align-middle">
+                  {row.imageUrl ?
+                    <a
+                      href={row.imageUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex h-9 w-9 transition-opacity hover:opacity-80"
+                      title={t("services.list.openImage")}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element -- URL dynamique */}
+                      <img
+                        src={row.imageUrl}
+                        alt=""
+                        width={36}
+                        height={36}
+                        className="h-9 w-9 rounded-md object-cover"
+                        loading="lazy"
+                      />
+                    </a>
+                  : (
+                    <span className="text-gray-400">—</span>
+                  )}
                 </td>
                 <td className="px-3 py-2 text-gray-500">
                   {localeFilledCount(row.translations)}
@@ -278,6 +305,15 @@ export default function ServicesListView() {
             value={editDescription}
             onChange={(e) => setEditDescription(e.target.value)}
             rows={3}
+            className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary/70 focus:ring-2 focus:ring-primary/15 focus:outline-none"
+          />
+        </label>
+        <label className="block text-sm text-gray-700">
+          {t("services.edit.imageUrl")}
+          <input
+            type="url"
+            value={editImageUrl}
+            onChange={(e) => setEditImageUrl(e.target.value)}
             className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary/70 focus:ring-2 focus:ring-primary/15 focus:outline-none"
           />
         </label>

@@ -459,6 +459,7 @@ export const openApiPaths = {
                     locale: {type: "string"},
                     name: {type: "string"},
                     description: {type: "string"},
+                    imageUrl: {type: "string", description: "URL image service"},
                     active: {type: "boolean"},
                   },
                 },
@@ -533,7 +534,7 @@ export const openApiPaths = {
       summary: "Mettre à jour un document",
       description:
         "Au moins un parmi : `active`, `locale`+champs traduction, " +
-        "`code`/`flagLink` (pays), `flagIconUrl` (langue). " +
+        "`imageUrl` (services), `code`/`flagLink` (pays), `flagIconUrl` (langue). " +
         "Avec `locale` : services exigent name ou description ; " +
         "pays/langues exigent `name`.",
       security: [{bearerAuth: []}],
@@ -548,6 +549,7 @@ export const openApiPaths = {
                 locale: {type: "string"},
                 name: {type: "string"},
                 description: {type: "string"},
+                imageUrl: {type: "string"},
                 code: {type: "string"},
                 flagLink: {type: "string"},
                 flagIconUrl: {type: "string"},
