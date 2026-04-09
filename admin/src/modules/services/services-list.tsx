@@ -1,22 +1,25 @@
 "use client";
 
-import {useCallback, useEffect, useState} from "react";
+import {useCallback, useEffect, useMemo, useState} from "react";
 import {ListPageHeader} from "@/components/list-page-header";
 import {useAuth} from "@/contexts/auth-context";
 import {useEditorLocale} from "@/contexts/editor-locale-context";
 import {useUiLocale} from "@/contexts/ui-locale-context";
 import {EditSheet} from "@/components/edit-sheet";
 import {RippleIconButton} from "@/components/ripple-icon-button";
-import {TranslationLocaleTabs} from "@/components/translation-locale-tabs";
+import {RegionalCountryLocaleEditor} from "@/components/regional-locale-editor";
 import {adminFetch, type ApiDocResponse, type ApiListResponse} from "@/lib/api";
 import {
-  buildLocaleDraftsFromTranslations,
-  hasAnyDraftName,
-  labelForLocale,
-  localeFilledCount,
-  pickSortLabel,
+  CMS_DEFAULT_COUNTRY_KEY,
+  type CountryDoc,
+  getCmsLocaleBlock,
+  hasAnyRegionalDraftName,
+  localeFilledCountRegional,
+  mergeRegionalDraftsFromTranslations,
+  pickRegionalSortLabel,
   sortedActiveLanguageCodes,
-  type LocaleTextDraft,
+  type CmsTranslationsByCountry,
+  type RegionalLocaleDrafts,
   type ServiceDoc,
 } from "@/lib/i18n-types";
 import {persistServiceEditDrafts} from "@/lib/translation-persist";
@@ -28,13 +31,33 @@ export default function ServicesListView() {
   const {editorLocale, activeLanguages} = useEditorLocale();
   const {t, locale: uiLocale} = useUiLocale();
   const [items, setItems] = useState<ServiceDoc[]>([]);
+  const [activeCountries, setActiveCountries] = useState<CountryDoc[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [editRow, setEditRow] = useState<ServiceDoc | null>(null);
-  const [editDrafts, setEditDrafts] = useState<Record<string, LocaleTextDraft>>(
-    {},
+  const [editDraftsByCountry, setEditDraftsByCountry] =
+    useState<RegionalLocaleDrafts>({});
+  const [editCountryCode, setEditCountryCode] = useState(
+    CMS_DEFAULT_COUNTRY_KEY,
   );
   const [editImageUrl, setEditImageUrl] = useState("");
+
+  const sortedCodes = useMemo(
+    () => sortedActiveLanguageCodes(activeLanguages),
+    [activeLanguages],
+  );
+
+  const sortedCountryCodes = useMemo(() => {
+    const codes = activeCountries
+      .filter((c) => c.active)
+      .map((c) => c.code.trim().toUpperCase().slice(0, 2))
+      .filter(Boolean);
+    const uniq = [...new Set(codes)].sort((a, b) => a.localeCompare(b));
+    return [
+      CMS_DEFAULT_COUNTRY_KEY,
+      ...uniq.filter((c) => c !== CMS_DEFAULT_COUNTRY_KEY),
+    ];
+  }, [activeCountries]);
 
   const load = useCallback(async () => {
     const token = await getIdToken();
@@ -44,11 +67,18 @@ export default function ServicesListView() {
     }
     setLoadError(null);
     try {
-      const res = await adminFetch<ApiListResponse<ServiceDoc>>(
-        `/admin/documents/services?sortLocale=${encodeURIComponent(editorLocale)}`,
-        token,
-      );
-      setItems((res.data ?? []) as ServiceDoc[]);
+      const [svcRes, cRes] = await Promise.all([
+        adminFetch<ApiListResponse<ServiceDoc>>(
+          `/admin/documents/services?sortLocale=${encodeURIComponent(editorLocale)}`,
+          token,
+        ),
+        adminFetch<ApiListResponse<CountryDoc>>(
+          `/admin/documents/countries?sortLocale=${encodeURIComponent(editorLocale)}`,
+          token,
+        ),
+      ]);
+      setItems((svcRes.data ?? []) as ServiceDoc[]);
+      setActiveCountries((cRes.data ?? []) as CountryDoc[]);
     } catch (e: unknown) {
       setLoadError(e instanceof Error ? e.message : String(e));
     }
@@ -57,6 +87,12 @@ export default function ServicesListView() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    setEditCountryCode((prev) =>
+      sortedCountryCodes.includes(prev) ? prev : CMS_DEFAULT_COUNTRY_KEY,
+    );
+  }, [sortedCountryCodes]);
 
   async function toggleActive(row: ServiceDoc) {
     const token = await getIdToken();
@@ -95,10 +131,23 @@ export default function ServicesListView() {
 
   function openEdit(row: ServiceDoc) {
     setEditRow(row);
-    setEditDrafts(
-      buildLocaleDraftsFromTranslations(row.translations, activeLanguages),
+    setEditDraftsByCountry(
+      mergeRegionalDraftsFromTranslations(
+        row.translations,
+        sortedCountryCodes,
+        sortedCodes,
+      ),
     );
     setEditImageUrl(row.imageUrl ?? "");
+  }
+
+  function tabFilledCountry(cc: string): boolean {
+    return sortedCodes.some((loc) => {
+      const d = editDraftsByCountry[cc]?.[loc];
+      if (!d) return false;
+      if (d.name.trim()) return true;
+      return d.description.trim().length > 0;
+    });
   }
 
   async function saveEdit() {
@@ -107,12 +156,12 @@ export default function ServicesListView() {
     if (!token) return;
     setBusy(true);
     try {
-      const codes = sortedActiveLanguageCodes(activeLanguages);
       await persistServiceEditDrafts(
         token,
         editRow.id,
-        codes,
-        editDrafts,
+        sortedCountryCodes,
+        sortedCodes,
+        editDraftsByCountry,
         editImageUrl,
       );
       setEditRow(null);
@@ -155,11 +204,14 @@ export default function ServicesListView() {
             {items.map((row) => (
               <tr key={row.id} className="text-gray-800">
                 <td className="px-3 py-2 font-medium">
-                  {labelForLocale(row.translations, editorLocale) ||
-                    pickSortLabel(row.translations, editorLocale, row.id)}
+                  {pickRegionalSortLabel(row.translations, editorLocale, row.id)}
                 </td>
                 <td className="max-w-xs truncate px-3 py-2 text-gray-500">
-                  {row.translations?.[editorLocale]?.description ?? ""}
+                  {getCmsLocaleBlock(
+                    row.translations as CmsTranslationsByCountry,
+                    CMS_DEFAULT_COUNTRY_KEY,
+                    editorLocale,
+                  )?.description ?? ""}
                 </td>
                 <td className="w-14 px-3 py-2 align-middle">
                   {row.imageUrl ?
@@ -185,7 +237,7 @@ export default function ServicesListView() {
                   )}
                 </td>
                 <td className="px-3 py-2 text-gray-500">
-                  {localeFilledCount(row.translations)}
+                  {localeFilledCountRegional(row.translations)}
                 </td>
                 <td className="px-3 py-2">
                   <button
@@ -283,7 +335,7 @@ export default function ServicesListView() {
             </button>
             <button
               type="button"
-              disabled={busy || !hasAnyDraftName(editDrafts)}
+              disabled={busy || !hasAnyRegionalDraftName(editDraftsByCountry)}
               onClick={() => void saveEdit()}
               className="rounded-lg bg-primary px-3 py-2 text-sm font-medium text-white hover:bg-primary-hover disabled:opacity-50"
             >
@@ -292,16 +344,27 @@ export default function ServicesListView() {
           </>
         }
       >
-        <TranslationLocaleTabs
+        <RegionalCountryLocaleEditor
+          countryTabsLabel={t("cms.countryTabsLabel")}
+          localesLegend={t("common.locales")}
+          defaultCountryLabel={t("cms.countryTab.default")}
+          activeCountries={activeCountries}
+          sortedCountryCodes={sortedCountryCodes}
+          activeCountryCode={editCountryCode}
+          onCountryChange={setEditCountryCode}
+          tabFilledCountry={tabFilledCountry}
           activeLanguages={activeLanguages}
           editorLocale={editorLocale}
-          drafts={editDrafts}
+          draftsByCountry={editDraftsByCountry}
+          onDraftChange={(country, locale, next) =>
+            setEditDraftsByCountry((p) => ({
+              ...p,
+              [country]: {...(p[country] ?? {}), [locale]: next},
+            }))
+          }
           showDescription
           nameLabel={t("common.name")}
           descriptionLabel={t("common.description")}
-          onDraftChange={(code, next) =>
-            setEditDrafts((prev) => ({...prev, [code]: next}))
-          }
         />
         {editRow ?
           <ServiceImageUploadField

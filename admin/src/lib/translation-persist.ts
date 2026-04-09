@@ -9,31 +9,37 @@ import type {CountryDoc, LanguageDoc, LocaleTextDraft, ServiceDoc} from "@/lib/i
 export async function persistServiceEditDrafts(
   token: string,
   serviceId: string,
-  sortedCodes: string[],
-  drafts: Record<string, LocaleTextDraft>,
+  sortedCountryCodes: string[],
+  sortedLocaleCodes: string[],
+  drafts: Record<string, Record<string, LocaleTextDraft>>,
   imageUrl: string,
 ): Promise<void> {
   let sentLocale = false;
-  for (const code of sortedCodes) {
-    const d = drafts[code];
-    if (!d) continue;
-    const name = d.name.trim();
-    const description = d.description;
-    const hasDesc = description.trim().length > 0;
-    if (!name && !hasDesc) continue;
+  for (const country of sortedCountryCodes) {
+    for (const loc of sortedLocaleCodes) {
+      const d = drafts[country]?.[loc];
+      if (!d) continue;
+      const name = d.name.trim();
+      const description = d.description;
+      const hasDesc = description.trim().length > 0;
+      if (!name && !hasDesc) continue;
 
-    const body: Record<string, unknown> = {locale: code};
-    if (name) body.name = name;
-    body.description = description;
-    if (!sentLocale) {
-      body.imageUrl = imageUrl;
+      const body: Record<string, unknown> = {
+        locale: loc,
+        countryCode: country,
+      };
+      if (name) body.name = name;
+      body.description = description;
+      if (!sentLocale) {
+        body.imageUrl = imageUrl;
+      }
+      sentLocale = true;
+      await adminFetch<ApiDocResponse<ServiceDoc>>(
+        `/admin/documents/services/${serviceId}`,
+        token,
+        {method: "PUT", body: JSON.stringify(body)},
+      );
     }
-    sentLocale = true;
-    await adminFetch<ApiDocResponse<ServiceDoc>>(
-      `/admin/documents/services/${serviceId}`,
-      token,
-      {method: "PUT", body: JSON.stringify(body)},
-    );
   }
   if (!sentLocale) {
     await adminFetch<ApiDocResponse<ServiceDoc>>(
@@ -81,27 +87,34 @@ export async function persistCountryEditDrafts(
 export async function persistLanguageEditDrafts(
   token: string,
   languageId: string,
-  sortedCodes: string[],
-  drafts: Record<string, LocaleTextDraft>,
+  sortedCountryCodes: string[],
+  sortedLocaleCodes: string[],
+  drafts: Record<string, Record<string, LocaleTextDraft>>,
   flagIconUrl: string,
 ): Promise<void> {
   let sentLocale = false;
-  for (const code of sortedCodes) {
-    const d = drafts[code];
-    if (!d) continue;
-    const name = d.name.trim();
-    if (!name) continue;
+  for (const country of sortedCountryCodes) {
+    for (const loc of sortedLocaleCodes) {
+      const d = drafts[country]?.[loc];
+      if (!d) continue;
+      const name = d.name.trim();
+      if (!name) continue;
 
-    const body: Record<string, unknown> = {locale: code, name};
-    if (!sentLocale) {
-      body.flagIconUrl = flagIconUrl;
+      const body: Record<string, unknown> = {
+        locale: loc,
+        countryCode: country,
+        name,
+      };
+      if (!sentLocale) {
+        body.flagIconUrl = flagIconUrl;
+      }
+      sentLocale = true;
+      await adminFetch<ApiDocResponse<LanguageDoc>>(
+        `/admin/documents/languages/${languageId}`,
+        token,
+        {method: "PUT", body: JSON.stringify(body)},
+      );
     }
-    sentLocale = true;
-    await adminFetch<ApiDocResponse<LanguageDoc>>(
-      `/admin/documents/languages/${languageId}`,
-      token,
-      {method: "PUT", body: JSON.stringify(body)},
-    );
   }
   if (!sentLocale) {
     await adminFetch<ApiDocResponse<LanguageDoc>>(

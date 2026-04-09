@@ -2,16 +2,19 @@
 
 import Link from "next/link";
 import {useRouter} from "next/navigation";
-import {useEffect, useState} from "react";
+import {useCallback, useEffect, useMemo, useState} from "react";
 import {useAuth} from "@/contexts/auth-context";
 import {useEditorLocale} from "@/contexts/editor-locale-context";
 import {useUiLocale} from "@/contexts/ui-locale-context";
-import {TranslationLocaleTabs} from "@/components/translation-locale-tabs";
-import {adminFetch, type ApiDocResponse} from "@/lib/api";
+import {RegionalCountryLocaleEditor} from "@/components/regional-locale-editor";
+import {adminFetch, type ApiDocResponse, type ApiListResponse} from "@/lib/api";
 import {
-  hasAnyDraftName,
+  CMS_DEFAULT_COUNTRY_KEY,
+  type CountryDoc,
+  hasAnyRegionalDraftName,
+  mergeRegionalDraftsFromTranslations,
   sortedActiveLanguageCodes,
-  type LocaleTextDraft,
+  type RegionalLocaleDrafts,
   type ServiceDoc,
 } from "@/lib/i18n-types";
 import {ServiceImageUploadField} from "@/components/service-image-upload-field";
@@ -21,32 +24,90 @@ export default function ServicesCreateView() {
   const {editorLocale, activeLanguages} = useEditorLocale();
   const {t} = useUiLocale();
   const router = useRouter();
-  const [drafts, setDrafts] = useState<Record<string, LocaleTextDraft>>({});
+  const [activeCountries, setActiveCountries] = useState<CountryDoc[]>([]);
+  const [draftsByCountry, setDraftsByCountry] = useState<RegionalLocaleDrafts>(
+    {},
+  );
+  const [activeCountryCode, setActiveCountryCode] = useState(
+    CMS_DEFAULT_COUNTRY_KEY,
+  );
   const [imageUrl, setImageUrl] = useState("");
   const [activeNew, setActiveNew] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  const sortedCodes = useMemo(
+    () => sortedActiveLanguageCodes(activeLanguages),
+    [activeLanguages],
+  );
+
+  const sortedCountryCodes = useMemo(() => {
+    const codes = activeCountries
+      .filter((c) => c.active)
+      .map((c) => c.code.trim().toUpperCase().slice(0, 2))
+      .filter(Boolean);
+    const uniq = [...new Set(codes)].sort((a, b) => a.localeCompare(b));
+    return [
+      CMS_DEFAULT_COUNTRY_KEY,
+      ...uniq.filter((c) => c !== CMS_DEFAULT_COUNTRY_KEY),
+    ];
+  }, [activeCountries]);
+
+  const loadCountries = useCallback(async () => {
+    const token = await getIdToken();
+    if (!token) return;
+    try {
+      const res = await adminFetch<ApiListResponse<CountryDoc>>(
+        `/admin/documents/countries?sortLocale=${encodeURIComponent(editorLocale)}`,
+        token,
+      );
+      setActiveCountries((res.data ?? []) as CountryDoc[]);
+    } catch {
+      /* ignore */
+    }
+  }, [editorLocale, getIdToken]);
+
   useEffect(() => {
-    setDrafts((prev) => {
-      const next = {...prev};
-      for (const lang of activeLanguages) {
-        const c = lang.code.trim().toLowerCase();
-        if (!c) continue;
-        if (!(c in next)) next[c] = {name: "", description: ""};
-      }
-      for (const k of Object.keys(next)) {
-        if (!activeLanguages.some((l) => l.code.trim().toLowerCase() === k)) {
-          delete next[k];
+    void loadCountries();
+  }, [loadCountries]);
+
+  useEffect(() => {
+    setActiveCountryCode((prev) =>
+      sortedCountryCodes.includes(prev) ? prev : CMS_DEFAULT_COUNTRY_KEY,
+    );
+  }, [sortedCountryCodes]);
+
+  useEffect(() => {
+    setDraftsByCountry((prev) => {
+      const fresh = mergeRegionalDraftsFromTranslations(
+        undefined,
+        sortedCountryCodes,
+        sortedCodes,
+      );
+      for (const c of sortedCountryCodes) {
+        for (const loc of sortedCodes) {
+          const p = prev[c]?.[loc];
+          if (p) {
+            fresh[c] = {...(fresh[c] ?? {}), [loc]: p};
+          }
         }
       }
-      return next;
+      return fresh;
     });
-  }, [activeLanguages]);
+  }, [sortedCountryCodes, sortedCodes]);
+
+  function tabFilledCountry(cc: string): boolean {
+    return sortedCodes.some((loc) => {
+      const d = draftsByCountry[cc]?.[loc];
+      if (!d) return false;
+      if (d.name.trim()) return true;
+      return d.description.trim().length > 0;
+    });
+  }
 
   async function createRow(e: React.FormEvent) {
     e.preventDefault();
-    if (!hasAnyDraftName(drafts)) {
+    if (!hasAnyRegionalDraftName(draftsByCountry)) {
       setLoadError(t("common.translationTabsHint"));
       return;
     }
@@ -55,13 +116,20 @@ export default function ServicesCreateView() {
       setLoadError(t("errors.session"));
       return;
     }
-    const sortedCodes = sortedActiveLanguageCodes(activeLanguages);
-    const el = editorLocale.trim().toLowerCase();
-    const primaryCode =
-      drafts[el]?.name.trim() ?
-        el
-      : sortedCodes.find((c) => drafts[c]?.name.trim()) ?? "";
-    if (!primaryCode || !drafts[primaryCode]?.name.trim()) {
+    let primaryCountry = CMS_DEFAULT_COUNTRY_KEY;
+    let primaryLocale = "";
+    outer:
+      for (const c of sortedCountryCodes) {
+        for (const loc of sortedCodes) {
+          const n = draftsByCountry[c]?.[loc]?.name.trim();
+          if (n) {
+            primaryCountry = c;
+            primaryLocale = loc;
+            break outer;
+          }
+        }
+      }
+    if (!primaryLocale) {
       setLoadError(t("services.create.errorNeedName"));
       return;
     }
@@ -69,15 +137,17 @@ export default function ServicesCreateView() {
     setBusy(true);
     setLoadError(null);
     try {
+      const primaryDraft = draftsByCountry[primaryCountry]![primaryLocale]!;
       const res = await adminFetch<ApiDocResponse<ServiceDoc>>(
         "/admin/documents/services",
         token,
         {
           method: "POST",
           body: JSON.stringify({
-            locale: primaryCode,
-            name: drafts[primaryCode]!.name.trim(),
-            description: drafts[primaryCode]!.description ?? "",
+            locale: primaryLocale,
+            countryCode: primaryCountry,
+            name: primaryDraft.name.trim(),
+            description: primaryDraft.description ?? "",
             imageUrl,
             active: activeNew,
           }),
@@ -86,24 +156,29 @@ export default function ServicesCreateView() {
       const id = res.data?.id;
       if (!id) throw new Error("Missing id");
 
-      for (const code of sortedCodes) {
-        if (code === primaryCode) continue;
-        const d = drafts[code];
-        if (!d) continue;
-        const n = d.name.trim();
-        const desc = d.description;
-        if (!n && !desc.trim()) continue;
-        const body: Record<string, unknown> = {locale: code};
-        if (n) body.name = n;
-        body.description = desc;
-        await adminFetch<ApiDocResponse<ServiceDoc>>(
-          `/admin/documents/services/${id}`,
-          token,
-          {method: "PUT", body: JSON.stringify(body)},
-        );
+      for (const c of sortedCountryCodes) {
+        for (const loc of sortedCodes) {
+          if (c === primaryCountry && loc === primaryLocale) continue;
+          const d = draftsByCountry[c]?.[loc];
+          if (!d) continue;
+          const name = d.name.trim();
+          const desc = d.description;
+          if (!name && !desc.trim()) continue;
+          const body: Record<string, unknown> = {
+            locale: loc,
+            countryCode: c,
+          };
+          if (name) body.name = name;
+          body.description = desc;
+          await adminFetch<ApiDocResponse<ServiceDoc>>(
+            `/admin/documents/services/${id}`,
+            token,
+            {method: "PUT", body: JSON.stringify(body)},
+          );
+        }
       }
 
-      setDrafts({});
+      setDraftsByCountry({});
       setImageUrl("");
       setActiveNew(true);
       router.push("/services/list");
@@ -139,16 +214,27 @@ export default function ServicesCreateView() {
         onSubmit={(e) => void createRow(e)}
         className="space-y-3 rounded-xl border border-gray-200 bg-white p-5 shadow-sm"
       >
-        <TranslationLocaleTabs
+        <RegionalCountryLocaleEditor
+          countryTabsLabel={t("cms.countryTabsLabel")}
+          localesLegend={t("common.locales")}
+          defaultCountryLabel={t("cms.countryTab.default")}
+          activeCountries={activeCountries}
+          sortedCountryCodes={sortedCountryCodes}
+          activeCountryCode={activeCountryCode}
+          onCountryChange={setActiveCountryCode}
+          tabFilledCountry={tabFilledCountry}
           activeLanguages={activeLanguages}
           editorLocale={editorLocale}
-          drafts={drafts}
+          draftsByCountry={draftsByCountry}
+          onDraftChange={(country, locale, next) =>
+            setDraftsByCountry((p) => ({
+              ...p,
+              [country]: {...(p[country] ?? {}), [locale]: next},
+            }))
+          }
           showDescription
           nameLabel={t("common.name")}
           descriptionLabel={t("common.description")}
-          onDraftChange={(code, next) =>
-            setDrafts((prev) => ({...prev, [code]: next}))
-          }
         />
         <div className="flex items-center gap-2 text-sm text-gray-700">
           <input
@@ -166,7 +252,7 @@ export default function ServicesCreateView() {
         />
         <button
           type="submit"
-          disabled={busy || !hasAnyDraftName(drafts)}
+          disabled={busy || !hasAnyRegionalDraftName(draftsByCountry)}
           className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover disabled:opacity-50"
         >
           {busy ? t("common.saving") : t("services.create.submit")}

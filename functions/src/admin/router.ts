@@ -3,20 +3,26 @@ import express from "express";
 import {FieldValue, type DocumentData} from "firebase-admin/firestore";
 import {admin, db} from "../lib/admin.js";
 import {
+  CMS_DEFAULT_COUNTRY,
   flattenCmsForSort,
   mergeCmsNestedLocaleBlock,
+  mergeTranslationBlockNested,
   normCmsCountryCode,
   readNestedCmsFromDoc,
   toNestedCmsTranslations,
   type CmsNestedTranslations,
 } from "./cms-translations.js";
 import {
+  normUiDictLocaleKey,
+  readUiDictionaryTranslations,
+} from "../lib/ui-dictionary-shared.js";
+import {languageDocToNested, serviceDocToNested} from "./reference-nested.js";
+import {
   DEFAULT_LOCALE,
   mergeTranslations,
   normLocale,
   normalizeLegacyCountryTranslations,
   normalizeLegacyLanguageTranslations,
-  normalizeLegacyServiceTranslations,
   pickSortLabel,
   type TranslationsMap,
 } from "./i18n.js";
@@ -107,12 +113,18 @@ function normalizeOut(
     base.translations = toNestedCmsTranslations(data.translations);
     return base;
   }
-  let tr: TranslationsMap;
   if (collection === "services") {
-    tr = normalizeLegacyServiceTranslations(data);
-  } else if (collection === "countries") {
+    base.translations = serviceDocToNested(data);
+    return base;
+  }
+  if (collection === "languages") {
+    base.translations = languageDocToNested(data);
+    return base;
+  }
+  let tr: TranslationsMap;
+  if (collection === "countries") {
     tr = normalizeLegacyCountryTranslations(data);
-  } else if (collection === "languages" || collection === "cmsNamespaces") {
+  } else if (collection === "cmsNamespaces") {
     tr = normalizeLegacyLanguageTranslations(data);
   } else {
     tr = {};
@@ -211,7 +223,15 @@ function parseServicePost(body: Record<string, unknown>): {
     typeof body.imageUrl === "string" ? body.imageUrl.trim() : "";
   const active =
     typeof body.active === "boolean" ? body.active : true;
-  const translations = mergeTranslations({}, locale, {name, description});
+  const country = normCmsCountryCode(
+    String(body.countryCode ?? body.country ?? ""),
+  );
+  const translations = mergeTranslationBlockNested(
+    {},
+    country,
+    locale,
+    {name, description},
+  );
   return {active, locale, translations, imageUrl};
 }
 
@@ -258,7 +278,12 @@ function parseLanguagePost(body: Record<string, unknown>): {
     typeof body.flagIconUrl === "string" ? body.flagIconUrl : "";
   const active =
     typeof body.active === "boolean" ? body.active : true;
-  const translations = mergeTranslations({}, locale, {name});
+  const country = normCmsCountryCode(
+    String(body.countryCode ?? body.country ?? ""),
+  );
+  const translations = mergeTranslationBlockNested({}, country, locale, {
+    name,
+  });
   return {code, flagIconUrl, active, translations};
 }
 
@@ -375,11 +400,9 @@ function buildPutPatch(
     }
 
     let tr: TranslationsMap;
-    if (collection === "services") {
-      tr = normalizeLegacyServiceTranslations(existing);
-    } else if (collection === "countries") {
+    if (collection === "countries") {
       tr = normalizeLegacyCountryTranslations(existing);
-    } else if (collection === "languages" || collection === "cmsNamespaces") {
+    } else if (collection === "cmsNamespaces") {
       tr = normalizeLegacyLanguageTranslations(existing);
     } else if (collection === "cmsSections") {
       tr = {};
@@ -404,7 +427,16 @@ function buildPutPatch(
       const block: {name?: string; description?: string} = {};
       if (name !== undefined) block.name = name;
       if (description !== undefined) block.description = description;
-      patch.translations = mergeTranslations(tr, locale, block);
+      const nested = serviceDocToNested(existing);
+      const country = normCmsCountryCode(
+        String(body.countryCode ?? body.country ?? ""),
+      );
+      patch.translations = mergeTranslationBlockNested(
+        nested,
+        country,
+        locale,
+        block,
+      );
     } else if (collection === "countries") {
       const name =
         typeof body.name === "string" ? body.name.trim() : undefined;
@@ -424,7 +456,13 @@ function buildPutPatch(
       if (!name) {
         return {patch: {}, error: "name vide"};
       }
-      patch.translations = mergeTranslations(tr, locale, {name});
+      const nested = languageDocToNested(existing);
+      const country = normCmsCountryCode(
+        String(body.countryCode ?? body.country ?? ""),
+      );
+      patch.translations = mergeTranslationBlockNested(nested, country, locale, {
+        name,
+      });
     } else if (collection === "cmsNamespaces") {
       const name =
         typeof body.name === "string" ? body.name.trim() : undefined;
@@ -575,16 +613,18 @@ export function createAdminRouter(): express.Router {
       data.sort((a, b) => {
         let trA: TranslationsMap;
         let trB: TranslationsMap;
-        if (collection === "cmsSections") {
+        if (
+          collection === "cmsSections" ||
+          collection === "services" ||
+          collection === "languages"
+        ) {
           trA = flattenCmsForSort(
-            toNestedCmsTranslations(
-              (a as {translations?: unknown}).translations,
-            ),
+            (a as {translations?: CmsNestedTranslations}).translations ??
+              {[CMS_DEFAULT_COUNTRY]: {}},
           );
           trB = flattenCmsForSort(
-            toNestedCmsTranslations(
-              (b as {translations?: unknown}).translations,
-            ),
+            (b as {translations?: CmsNestedTranslations}).translations ??
+              {[CMS_DEFAULT_COUNTRY]: {}},
           );
         } else {
           trA = (a.translations ?? {}) as TranslationsMap;
@@ -790,35 +830,6 @@ export function createAdminRouter(): express.Router {
     const k = raw.trim().toLowerCase();
     if (!/^[a-z][a-z0-9_.-]{0,127}$/.test(k)) return null;
     return k;
-  }
-
-  const UI_DICT_LOCALE_KEY = /^[a-z][a-z0-9_-]{0,31}$/;
-
-  function normUiDictLocaleKey(raw: string): string | null {
-    const k = raw.trim().toLowerCase();
-    if (!UI_DICT_LOCALE_KEY.test(k)) return null;
-    return k;
-  }
-
-  /**
-   * Lit les traductions adminUiDictionary (translations ou legacy fr/en).
-   * @param {Record<string, unknown>} data Données Firestore.
-   * @return {Record<string, string>} Code locale → texte.
-   */
-  function readUiDictionaryTranslations(
-    data: Record<string, unknown>,
-  ): Record<string, string> {
-    const out: Record<string, string> = {};
-    const tr = data.translations;
-    if (tr && typeof tr === "object" && !Array.isArray(tr)) {
-      for (const [k, v] of Object.entries(tr as Record<string, unknown>)) {
-        const nk = normUiDictLocaleKey(k);
-        if (nk && typeof v === "string") out[nk] = v;
-      }
-    }
-    if (typeof data.fr === "string" && out.fr === undefined) out.fr = data.fr;
-    if (typeof data.en === "string" && out.en === undefined) out.en = data.en;
-    return out;
   }
 
   router.get("/ui-dictionary", async (_req, res) => {

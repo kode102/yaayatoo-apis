@@ -1,23 +1,25 @@
 "use client";
 
 import Link from "next/link";
-import {useCallback, useEffect, useState} from "react";
+import {useCallback, useEffect, useMemo, useState} from "react";
 import {ListPageHeader} from "@/components/list-page-header";
 import {useAuth} from "@/contexts/auth-context";
 import {useEditorLocale} from "@/contexts/editor-locale-context";
 import {useUiLocale} from "@/contexts/ui-locale-context";
 import {EditSheet} from "@/components/edit-sheet";
 import {RippleIconButton} from "@/components/ripple-icon-button";
-import {TranslationLocaleTabs} from "@/components/translation-locale-tabs";
+import {RegionalCountryLocaleEditor} from "@/components/regional-locale-editor";
 import {adminFetch, type ApiDocResponse, type ApiListResponse} from "@/lib/api";
 import {
-  buildLocaleDraftsFromTranslations,
-  hasAnyDraftName,
-  localeFilledCount,
-  pickSortLabel,
+  CMS_DEFAULT_COUNTRY_KEY,
+  type CountryDoc,
+  hasAnyRegionalDraftName,
+  localeFilledCountRegional,
+  mergeRegionalDraftsFromTranslations,
+  pickRegionalSortLabel,
   sortedActiveLanguageCodes,
   type LanguageDoc,
-  type LocaleTextDraft,
+  type RegionalLocaleDrafts,
 } from "@/lib/i18n-types";
 import {persistLanguageEditDrafts} from "@/lib/translation-persist";
 import {uiLocaleFromEditorCode} from "@/lib/ui-locale-constants";
@@ -27,13 +29,33 @@ export default function LanguagesListView() {
   const {editorLocale, activeLanguages, refreshLanguages} = useEditorLocale();
   const {t, locale: uiLocale} = useUiLocale();
   const [items, setItems] = useState<LanguageDoc[]>([]);
+  const [activeCountries, setActiveCountries] = useState<CountryDoc[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [editRow, setEditRow] = useState<LanguageDoc | null>(null);
-  const [editDrafts, setEditDrafts] = useState<Record<string, LocaleTextDraft>>(
-    {},
+  const [editDraftsByCountry, setEditDraftsByCountry] =
+    useState<RegionalLocaleDrafts>({});
+  const [editCountryCode, setEditCountryCode] = useState(
+    CMS_DEFAULT_COUNTRY_KEY,
   );
   const [editFlag, setEditFlag] = useState("");
+
+  const sortedCodes = useMemo(
+    () => sortedActiveLanguageCodes(activeLanguages),
+    [activeLanguages],
+  );
+
+  const sortedCountryCodes = useMemo(() => {
+    const codes = activeCountries
+      .filter((c) => c.active)
+      .map((c) => c.code.trim().toUpperCase().slice(0, 2))
+      .filter(Boolean);
+    const uniq = [...new Set(codes)].sort((a, b) => a.localeCompare(b));
+    return [
+      CMS_DEFAULT_COUNTRY_KEY,
+      ...uniq.filter((c) => c !== CMS_DEFAULT_COUNTRY_KEY),
+    ];
+  }, [activeCountries]);
 
   const load = useCallback(async () => {
     const token = await getIdToken();
@@ -43,11 +65,18 @@ export default function LanguagesListView() {
     }
     setLoadError(null);
     try {
-      const res = await adminFetch<ApiListResponse<LanguageDoc>>(
-        `/admin/documents/languages?sortLocale=${encodeURIComponent(editorLocale)}`,
-        token,
-      );
-      setItems(res.data ?? []);
+      const [langRes, cRes] = await Promise.all([
+        adminFetch<ApiListResponse<LanguageDoc>>(
+          `/admin/documents/languages?sortLocale=${encodeURIComponent(editorLocale)}`,
+          token,
+        ),
+        adminFetch<ApiListResponse<CountryDoc>>(
+          `/admin/documents/countries?sortLocale=${encodeURIComponent(editorLocale)}`,
+          token,
+        ),
+      ]);
+      setItems(langRes.data ?? []);
+      setActiveCountries((cRes.data ?? []) as CountryDoc[]);
     } catch (e: unknown) {
       setLoadError(e instanceof Error ? e.message : String(e));
     }
@@ -56,6 +85,12 @@ export default function LanguagesListView() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    setEditCountryCode((prev) =>
+      sortedCountryCodes.includes(prev) ? prev : CMS_DEFAULT_COUNTRY_KEY,
+    );
+  }, [sortedCountryCodes]);
 
   async function toggleActive(row: LanguageDoc) {
     const token = await getIdToken();
@@ -102,10 +137,21 @@ export default function LanguagesListView() {
 
   function openEdit(row: LanguageDoc) {
     setEditRow(row);
-    setEditDrafts(
-      buildLocaleDraftsFromTranslations(row.translations, activeLanguages),
+    setEditDraftsByCountry(
+      mergeRegionalDraftsFromTranslations(
+        row.translations,
+        sortedCountryCodes,
+        sortedCodes,
+      ),
     );
     setEditFlag(row.flagIconUrl ?? "");
+  }
+
+  function tabFilledCountry(cc: string): boolean {
+    return sortedCodes.some((loc) => {
+      const d = editDraftsByCountry[cc]?.[loc];
+      return Boolean(d?.name.trim());
+    });
   }
 
   async function saveEdit() {
@@ -117,12 +163,12 @@ export default function LanguagesListView() {
     }
     setBusy(true);
     try {
-      const codes = sortedActiveLanguageCodes(activeLanguages);
       await persistLanguageEditDrafts(
         token,
         editRow.id,
-        codes,
-        editDrafts,
+        sortedCountryCodes,
+        sortedCodes,
+        editDraftsByCountry,
         editFlag,
       );
       setEditRow(null);
@@ -178,7 +224,7 @@ export default function LanguagesListView() {
             {items.map((row) => (
               <tr key={row.id} className="text-gray-800">
                 <td className="px-3 py-2 font-medium">
-                  {pickSortLabel(row.translations, editorLocale, row.code)}
+                  {pickRegionalSortLabel(row.translations, editorLocale, row.code)}
                 </td>
                 <td className="px-3 py-2 text-gray-500">{row.code}</td>
                 <td className="w-12 px-3 py-2 align-middle">
@@ -205,7 +251,7 @@ export default function LanguagesListView() {
                   )}
                 </td>
                 <td className="px-3 py-2 text-gray-500">
-                  {localeFilledCount(row.translations)}
+                  {localeFilledCountRegional(row.translations)}
                 </td>
                 <td className="px-3 py-2">
                   <button
@@ -303,7 +349,7 @@ export default function LanguagesListView() {
             </button>
             <button
               type="button"
-              disabled={busy || !hasAnyDraftName(editDrafts)}
+              disabled={busy || !hasAnyRegionalDraftName(editDraftsByCountry)}
               onClick={() => void saveEdit()}
               className="rounded-lg bg-primary px-3 py-2 text-sm font-medium text-white hover:bg-primary-hover disabled:opacity-50"
             >
@@ -315,16 +361,27 @@ export default function LanguagesListView() {
         <p className="text-xs text-gray-500">
           {t("common.code")} : <code className="text-gray-700">{editRow?.code}</code>
         </p>
-        <TranslationLocaleTabs
+        <RegionalCountryLocaleEditor
+          countryTabsLabel={t("cms.countryTabsLabel")}
+          localesLegend={t("common.locales")}
+          defaultCountryLabel={t("cms.countryTab.default")}
+          activeCountries={activeCountries}
+          sortedCountryCodes={sortedCountryCodes}
+          activeCountryCode={editCountryCode}
+          onCountryChange={setEditCountryCode}
+          tabFilledCountry={tabFilledCountry}
           activeLanguages={activeLanguages}
           editorLocale={editorLocale}
-          drafts={editDrafts}
+          draftsByCountry={editDraftsByCountry}
+          onDraftChange={(country, locale, next) =>
+            setEditDraftsByCountry((p) => ({
+              ...p,
+              [country]: {...(p[country] ?? {}), [locale]: next},
+            }))
+          }
           showDescription={false}
           nameLabel={t("languages.list.label")}
           descriptionLabel={t("common.description")}
-          onDraftChange={(code, next) =>
-            setEditDrafts((prev) => ({...prev, [code]: next}))
-          }
         />
         <label className="block text-sm text-gray-700">
           {t("languages.create.flagUrl")}

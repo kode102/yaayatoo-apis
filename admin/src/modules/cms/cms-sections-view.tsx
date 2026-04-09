@@ -818,7 +818,7 @@ export default function CmsSectionsView() {
                           }`}
                         >
                           <span className="truncate">
-                            {pickSortLabel(
+                            {pickSortLabelCms(
                               s.translations,
                               editorLocale,
                               s.subsectionKey,
@@ -855,7 +855,7 @@ export default function CmsSectionsView() {
                         : "text-gray-700 hover:bg-gray-50"
                       }`}
                     >
-                      {pickSortLabel(
+                      {pickSortLabelCms(
                         s.translations,
                         editorLocale,
                         s.subsectionKey,
@@ -876,7 +876,7 @@ export default function CmsSectionsView() {
               <div className="mb-4 flex flex-wrap items-start justify-between gap-2">
                 <div>
                   <h2 className="text-lg font-semibold text-gray-900">
-                    {pickSortLabel(
+                    {pickSortLabelCms(
                       selected.translations,
                       editorLocale,
                       selected.subsectionKey,
@@ -926,6 +926,33 @@ export default function CmsSectionsView() {
                 </select>
               </label>
 
+              <p className="mb-1 text-xs font-medium text-gray-600">
+                {t("cms.countryTabsLabel")}
+              </p>
+              <div className="mb-3 flex flex-wrap gap-1 border-b border-gray-200 pb-2">
+                {sortedCountryCodes.map((cc) => {
+                  const selectedCountry = cc === activeCountryCode;
+                  return (
+                    <button
+                      key={cc}
+                      type="button"
+                      onClick={() => setActiveCountryCode(cc)}
+                      className={`max-w-full truncate rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                        selectedCountry ?
+                          "bg-slate-800 text-white"
+                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                      } ${tabFilledCountry(cc) ? "ring-1 ring-inset ring-emerald-300/80" : ""}`}
+                      title={cc}
+                    >
+                      {countryTabLabel(cc)}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <p className="mb-1 text-xs font-medium text-gray-600">
+                {t("common.locales")}
+              </p>
               <div className="mb-3 flex flex-wrap gap-1 border-b border-gray-200 pb-2">
                 {sortedCodes.map((code) => {
                   const selectedTab = code === activeLocaleCode;
@@ -938,7 +965,7 @@ export default function CmsSectionsView() {
                         selectedTab ?
                           "bg-primary text-white"
                         : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                      } ${tabFilled(code) ? "ring-1 ring-inset ring-emerald-300/80" : ""}`}
+                      } ${tabFilledLocale(code) ? "ring-1 ring-inset ring-emerald-300/80" : ""}`}
                     >
                       {code.toUpperCase()}
                     </button>
@@ -975,13 +1002,7 @@ export default function CmsSectionsView() {
                     <input
                       value={currentWhy.name}
                       onChange={(e) =>
-                        setWhyDrafts((p) => ({
-                          ...p,
-                          [activeLocaleCode]: {
-                            ...(p[activeLocaleCode] ?? emptyWhy()),
-                            name: e.target.value,
-                          },
-                        }))
+                        patchWhy((cur) => ({...cur, name: e.target.value}))
                       }
                       className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
                     />
@@ -991,12 +1012,9 @@ export default function CmsSectionsView() {
                     <input
                       value={currentWhy.section1Title}
                       onChange={(e) =>
-                        setWhyDrafts((p) => ({
-                          ...p,
-                          [activeLocaleCode]: {
-                            ...(p[activeLocaleCode] ?? emptyWhy()),
-                            section1Title: e.target.value,
-                          },
+                        patchWhy((cur) => ({
+                          ...cur,
+                          section1Title: e.target.value,
                         }))
                       }
                       className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
@@ -1006,13 +1024,7 @@ export default function CmsSectionsView() {
                     label={t("cms.why.fieldSection1Items")}
                     items={currentWhy.section1Items}
                     onItemsChange={(next) =>
-                      setWhyDrafts((p) => ({
-                        ...p,
-                        [activeLocaleCode]: {
-                          ...(p[activeLocaleCode] ?? emptyWhy()),
-                          section1Items: next,
-                        },
-                      }))
+                      patchWhy((cur) => ({...cur, section1Items: next}))
                     }
                     addLabel={t("cms.why.addBullet")}
                     removeLabel={t("cms.why.removeBullet")}
@@ -1022,12 +1034,9 @@ export default function CmsSectionsView() {
                     <input
                       value={currentWhy.section2Title}
                       onChange={(e) =>
-                        setWhyDrafts((p) => ({
-                          ...p,
-                          [activeLocaleCode]: {
-                            ...(p[activeLocaleCode] ?? emptyWhy()),
-                            section2Title: e.target.value,
-                          },
+                        patchWhy((cur) => ({
+                          ...cur,
+                          section2Title: e.target.value,
                         }))
                       }
                       className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
@@ -1037,13 +1046,7 @@ export default function CmsSectionsView() {
                     label={t("cms.why.fieldSection2Items")}
                     items={currentWhy.section2Items}
                     onItemsChange={(next) =>
-                      setWhyDrafts((p) => ({
-                        ...p,
-                        [activeLocaleCode]: {
-                          ...(p[activeLocaleCode] ?? emptyWhy()),
-                          section2Items: next,
-                        },
-                      }))
+                      patchWhy((cur) => ({...cur, section2Items: next}))
                     }
                     addLabel={t("cms.why.addBullet")}
                     removeLabel={t("cms.why.removeBullet")}
@@ -1053,12 +1056,9 @@ export default function CmsSectionsView() {
                     <input
                       value={currentWhy.readMoreLabel}
                       onChange={(e) =>
-                        setWhyDrafts((p) => ({
-                          ...p,
-                          [activeLocaleCode]: {
-                            ...(p[activeLocaleCode] ?? emptyWhy()),
-                            readMoreLabel: e.target.value,
-                          },
+                        patchWhy((cur) => ({
+                          ...cur,
+                          readMoreLabel: e.target.value,
                         }))
                       }
                       className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
@@ -1080,13 +1080,7 @@ export default function CmsSectionsView() {
                     <input
                       value={currentBlog.name}
                       onChange={(e) =>
-                        setBlogDrafts((p) => ({
-                          ...p,
-                          [activeLocaleCode]: {
-                            ...(p[activeLocaleCode] ?? emptyBlog()),
-                            name: e.target.value,
-                          },
-                        }))
+                        patchBlog((cur) => ({...cur, name: e.target.value}))
                       }
                       className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
                     />
@@ -1097,12 +1091,9 @@ export default function CmsSectionsView() {
                       rows={3}
                       value={currentBlog.description}
                       onChange={(e) =>
-                        setBlogDrafts((p) => ({
-                          ...p,
-                          [activeLocaleCode]: {
-                            ...(p[activeLocaleCode] ?? emptyBlog()),
-                            description: e.target.value,
-                          },
+                        patchBlog((cur) => ({
+                          ...cur,
+                          description: e.target.value,
                         }))
                       }
                       className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
@@ -1124,13 +1115,7 @@ export default function CmsSectionsView() {
                     <input
                       value={currentSite.name}
                       onChange={(e) =>
-                        setSiteDrafts((p) => ({
-                          ...p,
-                          [activeLocaleCode]: {
-                            ...(p[activeLocaleCode] ?? emptySite()),
-                            name: e.target.value,
-                          },
-                        }))
+                        patchSite((cur) => ({...cur, name: e.target.value}))
                       }
                       className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
                     />
@@ -1140,12 +1125,9 @@ export default function CmsSectionsView() {
                     <input
                       value={currentSite.description}
                       onChange={(e) =>
-                        setSiteDrafts((p) => ({
-                          ...p,
-                          [activeLocaleCode]: {
-                            ...(p[activeLocaleCode] ?? emptySite()),
-                            description: e.target.value,
-                          },
+                        patchSite((cur) => ({
+                          ...cur,
+                          description: e.target.value,
                         }))
                       }
                       className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
@@ -1156,12 +1138,9 @@ export default function CmsSectionsView() {
                     <input
                       value={currentSite.metaKeyword}
                       onChange={(e) =>
-                        setSiteDrafts((p) => ({
-                          ...p,
-                          [activeLocaleCode]: {
-                            ...(p[activeLocaleCode] ?? emptySite()),
-                            metaKeyword: e.target.value,
-                          },
+                        patchSite((cur) => ({
+                          ...cur,
+                          metaKeyword: e.target.value,
                         }))
                       }
                       className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
@@ -1172,12 +1151,9 @@ export default function CmsSectionsView() {
                     <input
                       value={currentSite.metaAuthor}
                       onChange={(e) =>
-                        setSiteDrafts((p) => ({
-                          ...p,
-                          [activeLocaleCode]: {
-                            ...(p[activeLocaleCode] ?? emptySite()),
-                            metaAuthor: e.target.value,
-                          },
+                        patchSite((cur) => ({
+                          ...cur,
+                          metaAuthor: e.target.value,
                         }))
                       }
                       className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
@@ -1189,12 +1165,9 @@ export default function CmsSectionsView() {
                       rows={3}
                       value={currentSite.metaDescription}
                       onChange={(e) =>
-                        setSiteDrafts((p) => ({
-                          ...p,
-                          [activeLocaleCode]: {
-                            ...(p[activeLocaleCode] ?? emptySite()),
-                            metaDescription: e.target.value,
-                          },
+                        patchSite((cur) => ({
+                          ...cur,
+                          metaDescription: e.target.value,
                         }))
                       }
                       className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
@@ -1205,12 +1178,9 @@ export default function CmsSectionsView() {
                     <input
                       value={currentSite.facebookLink}
                       onChange={(e) =>
-                        setSiteDrafts((p) => ({
-                          ...p,
-                          [activeLocaleCode]: {
-                            ...(p[activeLocaleCode] ?? emptySite()),
-                            facebookLink: e.target.value,
-                          },
+                        patchSite((cur) => ({
+                          ...cur,
+                          facebookLink: e.target.value,
                         }))
                       }
                       className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
@@ -1221,12 +1191,9 @@ export default function CmsSectionsView() {
                     <input
                       value={currentSite.twitterLink}
                       onChange={(e) =>
-                        setSiteDrafts((p) => ({
-                          ...p,
-                          [activeLocaleCode]: {
-                            ...(p[activeLocaleCode] ?? emptySite()),
-                            twitterLink: e.target.value,
-                          },
+                        patchSite((cur) => ({
+                          ...cur,
+                          twitterLink: e.target.value,
                         }))
                       }
                       className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
@@ -1237,12 +1204,9 @@ export default function CmsSectionsView() {
                     <input
                       value={currentSite.linkedinLink}
                       onChange={(e) =>
-                        setSiteDrafts((p) => ({
-                          ...p,
-                          [activeLocaleCode]: {
-                            ...(p[activeLocaleCode] ?? emptySite()),
-                            linkedinLink: e.target.value,
-                          },
+                        patchSite((cur) => ({
+                          ...cur,
+                          linkedinLink: e.target.value,
                         }))
                       }
                       className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
@@ -1253,12 +1217,9 @@ export default function CmsSectionsView() {
                     <input
                       value={currentSite.skypeLink}
                       onChange={(e) =>
-                        setSiteDrafts((p) => ({
-                          ...p,
-                          [activeLocaleCode]: {
-                            ...(p[activeLocaleCode] ?? emptySite()),
-                            skypeLink: e.target.value,
-                          },
+                        patchSite((cur) => ({
+                          ...cur,
+                          skypeLink: e.target.value,
                         }))
                       }
                       className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
@@ -1269,12 +1230,9 @@ export default function CmsSectionsView() {
                     <input
                       value={currentSite.instagramLink}
                       onChange={(e) =>
-                        setSiteDrafts((p) => ({
-                          ...p,
-                          [activeLocaleCode]: {
-                            ...(p[activeLocaleCode] ?? emptySite()),
-                            instagramLink: e.target.value,
-                          },
+                        patchSite((cur) => ({
+                          ...cur,
+                          instagramLink: e.target.value,
                         }))
                       }
                       className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
@@ -1285,12 +1243,9 @@ export default function CmsSectionsView() {
                     <input
                       value={currentSite.youtubeLink}
                       onChange={(e) =>
-                        setSiteDrafts((p) => ({
-                          ...p,
-                          [activeLocaleCode]: {
-                            ...(p[activeLocaleCode] ?? emptySite()),
-                            youtubeLink: e.target.value,
-                          },
+                        patchSite((cur) => ({
+                          ...cur,
+                          youtubeLink: e.target.value,
                         }))
                       }
                       className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
@@ -1302,12 +1257,9 @@ export default function CmsSectionsView() {
                       rows={3}
                       value={currentSite.footerLeftText}
                       onChange={(e) =>
-                        setSiteDrafts((p) => ({
-                          ...p,
-                          [activeLocaleCode]: {
-                            ...(p[activeLocaleCode] ?? emptySite()),
-                            footerLeftText: e.target.value,
-                          },
+                        patchSite((cur) => ({
+                          ...cur,
+                          footerLeftText: e.target.value,
                         }))
                       }
                       className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"

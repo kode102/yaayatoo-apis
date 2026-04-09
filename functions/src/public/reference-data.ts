@@ -6,14 +6,20 @@ import type {Request, Response} from "express";
 import type {DocumentData} from "firebase-admin/firestore";
 import {db} from "../lib/admin.js";
 import {
+  CMS_DEFAULT_COUNTRY,
+  flattenCmsForSort,
+  normCmsCountryCode,
+  resolveCmsBlock,
+  type CmsNestedTranslations,
+} from "../admin/cms-translations.js";
+import {
   DEFAULT_LOCALE,
   normLocale,
   normalizeLegacyCountryTranslations,
-  normalizeLegacyLanguageTranslations,
-  normalizeLegacyServiceTranslations,
   pickSortLabel,
   type TranslationsMap,
 } from "../admin/i18n.js";
+import {languageDocToNested, serviceDocToNested} from "../admin/reference-nested.js";
 
 /**
  * Sérialise un document Firestore pour JSON (timestamps → ISO).
@@ -53,15 +59,15 @@ function normalizeOut(
   data: DocumentData,
 ): Record<string, unknown> {
   const base = serializeDoc(id, data);
-  let tr: TranslationsMap;
   if (collection === "services") {
-    tr = normalizeLegacyServiceTranslations(data);
-  } else if (collection === "countries") {
-    tr = normalizeLegacyCountryTranslations(data);
-  } else {
-    tr = normalizeLegacyLanguageTranslations(data);
+    base.translations = serviceDocToNested(data);
+    return base;
   }
-  base.translations = tr;
+  if (collection === "languages") {
+    base.translations = languageDocToNested(data);
+    return base;
+  }
+  base.translations = normalizeLegacyCountryTranslations(data);
   return base;
 }
 
@@ -96,18 +102,46 @@ function sortKey(
  * @param {string} sortLocale Locale pour l’ordre d’affichage.
  * @return {Promise<Record<string, unknown>[]>} Documents actifs triés.
  */
+function attachResolvedTranslation(
+  collection: "countries" | "languages" | "services",
+  row: Record<string, unknown>,
+  countryCode: string,
+  locale: string,
+): void {
+  if (collection !== "languages" && collection !== "services") return;
+  const nested = row.translations as CmsNestedTranslations;
+  const resolved =
+    resolveCmsBlock(nested, countryCode, locale) ?? {};
+  row.resolvedTranslation = resolved;
+}
+
 async function listActiveByCollection(
   collection: "countries" | "languages" | "services",
   sortLocale: string,
+  countryForResolve: string,
 ): Promise<Record<string, unknown>[]> {
   const snap = await db.collection(collection).get();
   const loc = normLocale(sortLocale) || DEFAULT_LOCALE;
+  const cc = normCmsCountryCode(countryForResolve);
   const data = snap.docs
     .map((d) => normalizeOut(collection, d.id, d.data()))
     .filter(isActiveRow);
   data.sort((a, b) => {
-    const trA = (a.translations ?? {}) as TranslationsMap;
-    const trB = (b.translations ?? {}) as TranslationsMap;
+    let trA: TranslationsMap;
+    let trB: TranslationsMap;
+    if (collection === "services" || collection === "languages") {
+      trA = flattenCmsForSort(
+        (a as {translations?: CmsNestedTranslations}).translations ??
+          {[CMS_DEFAULT_COUNTRY]: {}},
+      );
+      trB = flattenCmsForSort(
+        (b as {translations?: CmsNestedTranslations}).translations ??
+          {[CMS_DEFAULT_COUNTRY]: {}},
+      );
+    } else {
+      trA = (a.translations ?? {}) as TranslationsMap;
+      trB = (b.translations ?? {}) as TranslationsMap;
+    }
     const fa = sortKey(collection, a);
     const fb = sortKey(collection, b);
     return pickSortLabel(trA, loc, fa).localeCompare(
@@ -115,6 +149,9 @@ async function listActiveByCollection(
       "fr",
     );
   });
+  for (const row of data) {
+    attachResolvedTranslation(collection, row, cc, loc);
+  }
   return data;
 }
 
@@ -127,6 +164,17 @@ function readSortLocale(req: Request): string {
   const q = req.query.locale ?? req.query.sortLocale;
   const s = Array.isArray(q) ? q[0] : q;
   return normLocale(String(s ?? "")) || DEFAULT_LOCALE;
+}
+
+/**
+ * Pays pour résoudre services/langues (?country= ou ?countryCode=, défaut __).
+ * @param {Request} req Requête.
+ * @return {string} Code pays normalisé.
+ */
+function readCountryForResolve(req: Request): string {
+  const q = req.query.country ?? req.query.countryCode;
+  const s = Array.isArray(q) ? q[0] : q;
+  return normCmsCountryCode(String(s ?? ""));
 }
 
 /**
@@ -143,6 +191,7 @@ export async function getPublicCountries(
     const data = await listActiveByCollection(
       "countries",
       readSortLocale(req),
+      "",
     );
     res.status(200).json({success: true, data});
   } catch (e: unknown) {
@@ -166,6 +215,7 @@ export async function getPublicLanguages(
     const data = await listActiveByCollection(
       "languages",
       readSortLocale(req),
+      readCountryForResolve(req),
     );
     res.status(200).json({success: true, data});
   } catch (e: unknown) {
@@ -189,6 +239,7 @@ export async function getPublicServices(
     const data = await listActiveByCollection(
       "services",
       readSortLocale(req),
+      readCountryForResolve(req),
     );
     res.status(200).json({success: true, data});
   } catch (e: unknown) {
@@ -210,10 +261,11 @@ export async function getPublicCatalog(
 ): Promise<void> {
   try {
     const sortLocale = readSortLocale(req);
+    const country = readCountryForResolve(req);
     const [countries, languages, services] = await Promise.all([
-      listActiveByCollection("countries", sortLocale),
-      listActiveByCollection("languages", sortLocale),
-      listActiveByCollection("services", sortLocale),
+      listActiveByCollection("countries", sortLocale, ""),
+      listActiveByCollection("languages", sortLocale, country),
+      listActiveByCollection("services", sortLocale, country),
     ]);
     res.status(200).json({
       success: true,

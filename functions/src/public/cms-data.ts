@@ -16,7 +16,6 @@ import {
   normLocale,
   normalizeLegacyLanguageTranslations,
   pickSortLabel,
-  type TranslationsMap,
 } from "../admin/i18n.js";
 
 /**

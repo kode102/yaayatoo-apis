@@ -39,6 +39,29 @@ export function isLegacyFlatCmsTranslations(
 }
 
 /**
+ * Au moins une entrée pays → map(locale → bloc), ex. `{ CM: { fr: {...} } }`.
+ * Évite d’interpréter un code pays ISO2 (ex. CM) comme une locale legacy.
+ * @param {Record<string, unknown>} t Champ translations brut.
+ * @return {boolean} True si structure pays → locales.
+ */
+export function isNestedCountryLocaleTranslations(
+  t: Record<string, unknown>,
+): boolean {
+  for (const localesVal of Object.values(t)) {
+    if (!localesVal || typeof localesVal !== "object" || Array.isArray(localesVal)) {
+      continue;
+    }
+    const inner = localesVal as Record<string, unknown>;
+    const iks = Object.keys(inner);
+    if (iks.length === 0) continue;
+    if (iks.every((k) => isLikelyLocaleKey(k))) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
  * @param {string} raw Code pays ou "__".
  * @return {string} "__" ou ISO2 majuscules.
  */
@@ -62,6 +85,23 @@ export function toNestedCmsTranslations(raw: unknown): CmsNestedTranslations {
     return {[CMS_DEFAULT_COUNTRY]: {}};
   }
   const t = raw as Record<string, unknown>;
+  if (isNestedCountryLocaleTranslations(t)) {
+    const out: CmsNestedTranslations = {};
+    for (const [country, locales] of Object.entries(t)) {
+      if (!locales || typeof locales !== "object" || Array.isArray(locales)) {
+        continue;
+      }
+      const cc = normCmsCountryCode(country);
+      const lm: TranslationsMap = {};
+      for (const [loc, block] of Object.entries(locales as Record<string, unknown>)) {
+        if (block && typeof block === "object" && !Array.isArray(block)) {
+          lm[normLocale(loc)] = block as TranslationBlock;
+        }
+      }
+      out[cc] = lm;
+    }
+    return Object.keys(out).length > 0 ? out : {[CMS_DEFAULT_COUNTRY]: {}};
+  }
   if (isLegacyFlatCmsTranslations(t)) {
     const map: TranslationsMap = {};
     for (const [k, v] of Object.entries(t)) {
@@ -147,6 +187,33 @@ export function mergeCmsNestedLocaleBlock(
     [c]: {
       ...prevCountry,
       [loc]: nextFields as TranslationBlock,
+    },
+  };
+}
+
+/**
+ * Fusionne un bloc name/description (services, langues) pour (pays, locale).
+ * @param {CmsNestedTranslations} nested Carte existante.
+ * @param {string} country Code pays.
+ * @param {string} locale Locale.
+ * @param {TranslationBlock} partial Champs à fusionner.
+ * @return {CmsNestedTranslations} Nouvelle carte.
+ */
+export function mergeTranslationBlockNested(
+  nested: CmsNestedTranslations,
+  country: string,
+  locale: string,
+  partial: TranslationBlock,
+): CmsNestedTranslations {
+  const c = normCmsCountryCode(country);
+  const loc = normLocale(locale);
+  const prevCountry: TranslationsMap = {...(nested[c] || {})};
+  const prevBlock = (prevCountry[loc] || {}) as TranslationBlock;
+  return {
+    ...nested,
+    [c]: {
+      ...prevCountry,
+      [loc]: {...prevBlock, ...partial},
     },
   };
 }

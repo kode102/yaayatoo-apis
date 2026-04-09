@@ -8,7 +8,7 @@ import {useUiLocale} from "@/contexts/ui-locale-context";
 import {EditSheet} from "@/components/edit-sheet";
 import {adminFetch, type ApiOkResponse} from "@/lib/api";
 import {DEFAULT_MESSAGES} from "@/lib/default-messages";
-import {labelForLocale, type LanguageDoc} from "@/lib/i18n-types";
+import {labelForRegionalLanguage, type LanguageDoc} from "@/lib/i18n-types";
 import {uiLocaleFromEditorCode} from "@/lib/ui-locale-constants";
 
 const KEY_RE = /^[a-z][a-z0-9_.-]{0,127}$/;
@@ -21,8 +21,11 @@ function defaultBuiltIn(localeCode: string, messageKey: string): string {
 }
 
 function langColumnLabel(lang: LanguageDoc, editorLocale: string): string {
-  const n = labelForLocale(lang.translations, editorLocale).trim();
-  return n || lang.code.toUpperCase();
+  return labelForRegionalLanguage(
+    lang.translations,
+    editorLocale,
+    lang.code.toUpperCase(),
+  );
 }
 
 type Row = {

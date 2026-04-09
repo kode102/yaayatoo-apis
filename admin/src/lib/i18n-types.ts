@@ -6,12 +6,18 @@ export type TranslationMap = Record<
   {name?: string; description?: string}
 >;
 
+/**
+ * Traductions par pays puis par langue (services, langues, CMS).
+ * Clé pays : ISO2 majuscules ou `__` (défaut / tous pays).
+ */
+export type RegionalTranslationMap = Record<string, TranslationMap>;
+
 export type ServiceDoc = {
   id: string;
   active: boolean;
   /** URL image (icône / visuel service), optionnelle */
   imageUrl?: string;
-  translations: TranslationMap;
+  translations: RegionalTranslationMap;
   createdAt?: string;
   updatedAt?: string;
 };
@@ -31,7 +37,7 @@ export type LanguageDoc = {
   code: string;
   flagIconUrl: string;
   active: boolean;
-  translations: TranslationMap;
+  translations: RegionalTranslationMap;
   createdAt?: string;
   updatedAt?: string;
 };
@@ -114,6 +120,22 @@ export function pickSortLabelCms(
     }
   }
   return fallback;
+}
+
+/** Libellé d’une langue (document `languages`) pour l’UI admin : priorité `__` + locale d’édition. */
+export function labelForRegionalLanguage(
+  translations: RegionalTranslationMap | undefined,
+  editorLocale: string,
+  codeFallback: string,
+): string {
+  const n =
+    getCmsLocaleBlock(
+      translations as CmsTranslationsByCountry,
+      CMS_DEFAULT_COUNTRY_KEY,
+      editorLocale,
+    )?.name?.trim() ?? "";
+  if (n) return n;
+  return pickSortLabelCms(translations as CmsTranslationsByCountry, editorLocale, codeFallback);
 }
 
 /** Types de section gérés par l’admin (clé stockée dans Firestore). */
@@ -225,6 +247,12 @@ export function pickSortLabel(
 /** Brouillon nom + description par code locale (clé = minuscules). */
 export type LocaleTextDraft = {name: string; description: string};
 
+/** Brouillons édition : pays → locale → texte. */
+export type RegionalLocaleDrafts = Record<
+  string,
+  Record<string, LocaleTextDraft>
+>;
+
 export type LanguageDocLike = {code: string};
 
 /**
@@ -250,6 +278,60 @@ export function buildLocaleDraftsFromTranslations(
 /** Vrai si au moins une langue a un nom non vide. */
 export function hasAnyDraftName(drafts: Record<string, LocaleTextDraft>): boolean {
   return Object.values(drafts).some((d) => d.name.trim().length > 0);
+}
+
+/**
+ * Lit les cellules (pays × langue) pour l’édition (chemins exacts Firestore, sans héritage).
+ */
+export function mergeRegionalDraftsFromTranslations(
+  translations: RegionalTranslationMap | undefined,
+  sortedCountryCodes: string[],
+  sortedLocaleCodes: string[],
+): RegionalLocaleDrafts {
+  const out: RegionalLocaleDrafts = {};
+  for (const c of sortedCountryCodes) {
+    out[c] = {};
+    for (const loc of sortedLocaleCodes) {
+      const b = translations?.[c]?.[loc];
+      out[c][loc] = {
+        name: (b?.name ?? "").trim(),
+        description: typeof b?.description === "string" ? b.description : "",
+      };
+    }
+  }
+  return out;
+}
+
+export function hasAnyRegionalDraftName(drafts: RegionalLocaleDrafts): boolean {
+  for (const byLoc of Object.values(drafts)) {
+    for (const d of Object.values(byLoc)) {
+      if (d.name.trim()) return true;
+    }
+  }
+  return false;
+}
+
+/** Nombre de langues distinctes ayant au moins un nom pour un pays quelconque. */
+export function localeFilledCountRegional(
+  translations: RegionalTranslationMap | undefined,
+): number {
+  if (!translations) return 0;
+  const langs = new Set<string>();
+  for (const map of Object.values(translations)) {
+    if (!map) continue;
+    for (const [loc, b] of Object.entries(map)) {
+      if (b?.name?.trim()) langs.add(loc);
+    }
+  }
+  return langs.size;
+}
+
+export function pickRegionalSortLabel(
+  translations: RegionalTranslationMap | undefined,
+  locale: string,
+  fallback: string,
+): string {
+  return pickSortLabelCms(translations as CmsTranslationsByCountry, locale, fallback);
 }
 
 export function sortedActiveLanguageCodes(langs: LanguageDocLike[]): string[] {

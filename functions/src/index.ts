@@ -15,6 +15,14 @@ import {
   getPublicLanguages,
   getPublicServices,
 } from "./public/reference-data.js";
+import {getPublicUiDictionary} from "./public/ui-dictionary-public.js";
+import {
+  CMS_DEFAULT_COUNTRY,
+  normCmsCountryCode,
+  resolveCmsBlock,
+} from "./admin/cms-translations.js";
+import {DEFAULT_LOCALE, normLocale} from "./admin/i18n.js";
+import {languageDocToNested} from "./admin/reference-nested.js";
 import {runSearchData} from "./search/handler.js";
 import {mountSwagger} from "./swagger/setup-swagger.js";
 
@@ -154,28 +162,36 @@ app.all("/get", (req, res) => {
  * Langues actives (site vitrine + admin) — sans authentification.
  * Libellés Firestore (priorité fr, en, puis première dispo).
  */
-app.get("/public/active-languages", async (_req, res) => {
+app.get("/public/active-languages", async (req, res) => {
   try {
+    const qLoc = req.query.locale ?? req.query.sortLocale;
+    const locRaw = Array.isArray(qLoc) ? qLoc[0] : qLoc;
+    const sortLocale = normLocale(String(locRaw ?? "")) || DEFAULT_LOCALE;
+    const qCc = req.query.country ?? req.query.countryCode;
+    const ccRaw = Array.isArray(qCc) ? qCc[0] : qCc;
+    const country = normCmsCountryCode(String(ccRaw ?? ""));
     const snap = await db.collection("languages").get();
-    type Tr = Record<string, {name?: string} | undefined> | undefined;
     const rows = snap.docs
       .map((d) => {
         const x = d.data() as {
           active?: boolean;
           code?: string;
           flagIconUrl?: string;
-          translations?: Tr;
         };
         if (x.active === false) return null;
         const code = String(x.code ?? d.id)
           .trim()
           .toLowerCase();
         if (!code) return null;
-        const tr = x.translations ?? {};
+        const nested = languageDocToNested(d.data());
+        const resolved = resolveCmsBlock(nested, country, sortLocale);
+        const defMap = nested[CMS_DEFAULT_COUNTRY] ?? {};
         const label =
-          tr.fr?.name?.trim() ||
-          tr.en?.name?.trim() ||
-          Object.values(tr).find((b) => b?.name?.trim())?.name?.trim() ||
+          resolved?.name?.trim() ||
+          defMap[sortLocale]?.name?.trim() ||
+          defMap.fr?.name?.trim() ||
+          defMap.en?.name?.trim() ||
+          Object.values(defMap).find((b) => b?.name?.trim())?.name?.trim() ||
           code.toUpperCase();
         return {
           id: d.id,
@@ -229,6 +245,11 @@ app.get("/public/cms", (req, res) => {
 });
 app.post("/public/cms", (req, res) => {
   void getPublicCms(req, res);
+});
+
+/** Dictionnaire UI (clés type `Header.login` → textes par locale) — vitrine Next.js. */
+app.get("/public/ui-dictionary", (req, res) => {
+  void getPublicUiDictionary(req, res);
 });
 
 /** CRUD admin (Auth Firebase + option ADMIN_ALLOWED_EMAILS). */

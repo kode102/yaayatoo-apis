@@ -4,11 +4,14 @@ import {useCallback, useEffect, useRef, useState, type ReactNode} from "react";
 import {useAuth} from "@/contexts/auth-context";
 import {useEditorLocale} from "@/contexts/editor-locale-context";
 import {useUiLocale} from "@/contexts/ui-locale-context";
-import {labelForLocale, type LanguageDoc} from "@/lib/i18n-types";
+import {labelForRegionalLanguage, type LanguageDoc} from "@/lib/i18n-types";
 
 function contentLangLabel(lang: LanguageDoc, editorLocale: string): string {
-  const n = labelForLocale(lang.translations, editorLocale).trim();
-  return n || lang.code.toUpperCase();
+  return labelForRegionalLanguage(
+    lang.translations,
+    editorLocale,
+    lang.code.toUpperCase(),
+  );
 }
 
 function userDisplayName(
