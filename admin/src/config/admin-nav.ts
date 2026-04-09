@@ -43,4 +43,13 @@ export const ADMIN_NAV_MODULES: AdminNavModule[] = [
       {href: "/locale/dictionary", labelKey: "nav.locale.dictionary"},
     ],
   },
+  {
+    id: "cms",
+    labelKey: "nav.module.cms",
+    pathPrefix: "/cms",
+    items: [
+      {href: "/cms/namespaces/list", labelKey: "nav.cms.namespaces"},
+      {href: "/cms/sections", labelKey: "nav.cms.sections"},
+    ],
+  },
 ];

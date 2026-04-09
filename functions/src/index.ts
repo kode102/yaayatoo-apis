@@ -8,6 +8,7 @@ import {setGlobalOptions} from "firebase-functions";
 import {onRequest} from "firebase-functions/v2/https";
 import {createAdminRouter} from "./admin/router.js";
 import {db} from "./lib/admin.js";
+import {getPublicCms} from "./public/cms-data.js";
 import {
   getPublicCatalog,
   getPublicCountries,
@@ -217,6 +218,17 @@ app.get("/public/services", (req, res) => {
 /** Catalogue : pays + langues + services actifs en un GET. */
 app.get("/public/catalog", (req, res) => {
   void getPublicCatalog(req, res);
+});
+
+/**
+ * CMS vitrine : espaces + sections pour un ou plusieurs namespaces
+ * (?namespaceKeys=home,contact ou ?namespaceIds=…). POST JSON équivalent.
+ */
+app.get("/public/cms", (req, res) => {
+  void getPublicCms(req, res);
+});
+app.post("/public/cms", (req, res) => {
+  void getPublicCms(req, res);
 });
 
 /** CRUD admin (Auth Firebase + option ADMIN_ALLOWED_EMAILS). */

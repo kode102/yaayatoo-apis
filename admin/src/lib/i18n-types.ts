@@ -36,6 +36,59 @@ export type LanguageDoc = {
   updatedAt?: string;
 };
 
+export type CmsLocaleBlock = {
+  name?: string;
+  description?: string;
+  metaKeyword?: string;
+  metaAuthor?: string;
+  metaDescription?: string;
+  facebookLink?: string;
+  twitterLink?: string;
+  linkedinLink?: string;
+  skypeLink?: string;
+  instagramLink?: string;
+  youtubeLink?: string;
+  footerLeftText?: string;
+  /** Bloc « Pourquoi nous choisir » : une ligne = une puce */
+  section1Title?: string;
+  section1Items?: string;
+  section2Title?: string;
+  section2Items?: string;
+  readMoreLabel?: string;
+};
+
+export type CmsTranslationMap = Record<string, CmsLocaleBlock>;
+
+/** Types de section gérés par l’admin (clé stockée dans Firestore). */
+export type CmsSectionTypeId = "why_choose_us" | "site_settings" | "blog_section";
+
+export type CmsSectionDoc = {
+  id: string;
+  sectionKey: string;
+  subsectionKey: string;
+  /** Référence document `cmsNamespaces` */
+  namespaceId?: string;
+  sectionType?: CmsSectionTypeId | string;
+  active: boolean;
+  registrationActive?: boolean;
+  /** Médias / liens communs à toutes les langues */
+  videoImageUrl?: string;
+  videoLink?: string;
+  readMoreUrl?: string;
+  translations: CmsTranslationMap;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type CmsNamespaceDoc = {
+  id: string;
+  namespaceKey: string;
+  active: boolean;
+  translations: TranslationMap;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
 export function localeFilledCount(translations: TranslationMap | undefined): number {
   if (!translations) return 0;
   return Object.keys(translations).filter((k) => translations[k]?.name?.trim()).length;
@@ -147,4 +200,17 @@ export function sortedActiveLanguageCodes(langs: LanguageDocLike[]): string[] {
     .map((l) => l.code.trim().toLowerCase())
     .filter(Boolean)
     .sort((a, b) => a.localeCompare(b));
+}
+
+/** Déduit le type de section si le document date d’avant `sectionType`. */
+export function inferCmsSectionType(doc: CmsSectionDoc): CmsSectionTypeId {
+  const raw = doc.sectionType?.trim();
+  if (raw === "why_choose_us" || raw === "site_settings" || raw === "blog_section") {
+    return raw;
+  }
+  const sub = doc.subsectionKey?.trim().toLowerCase() ?? "";
+  if (sub === "blog-section") return "blog_section";
+  if (sub === "user-interface-settings") return "site_settings";
+  if (sub.startsWith("why-choose")) return "why_choose_us";
+  return "site_settings";
 }

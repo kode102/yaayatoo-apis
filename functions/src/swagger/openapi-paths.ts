@@ -425,6 +425,140 @@ export const openApiPaths = {
       },
     },
   },
+  "/public/cms": {
+    get: {
+      tags: ["Public"],
+      summary: "Contenu CMS par espaces (namespaces)",
+      description:
+        "Retourne les espaces actifs demandés et leurs sections actives. " +
+        "Passer `namespaceKeys` (ex. home,contact) et/ou `namespaceIds` " +
+        "(ids Firestore). Union des deux. Tri des sections : `locale` / " +
+        "`sortLocale`.",
+      parameters: [
+        {
+          name: "namespaceKeys",
+          in: "query" as const,
+          schema: {type: "string" as const, example: "home,contact"},
+          description: "Clés techniques des espaces, séparées par des virgules",
+        },
+        {
+          name: "namespaceIds",
+          in: "query" as const,
+          schema: {type: "string" as const},
+          description: "Ids documents `cmsNamespaces`, séparés par des virgules",
+        },
+        localeQuery,
+        sortLocaleQuery,
+      ],
+      responses: {
+        "200": {
+          description: "OK",
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  success: {type: "boolean"},
+                  data: {
+                    type: "object",
+                    properties: {
+                      namespaces: {type: "array", items: {type: "object"}},
+                      sections: {type: "array", items: {type: "object"}},
+                      byNamespace: {type: "object", additionalProperties: true},
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+        "400": {
+          description: "Paramètres manquants",
+          content: {
+            "application/json": {
+              schema: {$ref: "#/components/schemas/ApiError"},
+            },
+          },
+        },
+        "500": {
+          content: {
+            "application/json": {
+              schema: {$ref: "#/components/schemas/ApiError"},
+            },
+          },
+        },
+      },
+    },
+    post: {
+      tags: ["Public"],
+      summary: "Contenu CMS (même logique que GET, corps JSON)",
+      description:
+        "Corps JSON : `{ \"namespaceKeys\": [\"home\"], \"namespaceIds\": [] }` " +
+        "ou chaînes séparées par virgules acceptées comme tableaux de strings.",
+      parameters: [localeQuery, sortLocaleQuery],
+      requestBody: {
+        content: {
+          "application/json": {
+            schema: {
+              type: "object",
+              properties: {
+                namespaceKeys: {
+                  oneOf: [
+                    {type: "array", items: {type: "string"}},
+                    {type: "string"},
+                  ],
+                },
+                namespaceIds: {
+                  oneOf: [
+                    {type: "array", items: {type: "string"}},
+                    {type: "string"},
+                  ],
+                },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        "200": {
+          description: "OK",
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  success: {type: "boolean"},
+                  data: {
+                    type: "object",
+                    properties: {
+                      namespaces: {type: "array", items: {type: "object"}},
+                      sections: {type: "array", items: {type: "object"}},
+                      byNamespace: {type: "object", additionalProperties: true},
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+        "400": {
+          description: "Paramètres manquants",
+          content: {
+            "application/json": {
+              schema: {$ref: "#/components/schemas/ApiError"},
+            },
+          },
+        },
+        "500": {
+          content: {
+            "application/json": {
+              schema: {$ref: "#/components/schemas/ApiError"},
+            },
+          },
+        },
+      },
+    },
+  },
   "/admin/documents/{collection}": {
     get: {
       tags: ["Admin — Documents"],

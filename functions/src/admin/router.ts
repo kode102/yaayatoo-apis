@@ -13,7 +13,33 @@ import {
   type TranslationsMap,
 } from "./i18n.js";
 
-const ALLOWED = new Set(["services", "countries", "languages"]);
+const ALLOWED = new Set([
+  "services",
+  "countries",
+  "languages",
+  "cmsSections",
+  "cmsNamespaces",
+]);
+
+const CMS_TRANSLATABLE_FIELDS = [
+  "name",
+  "description",
+  "metaKeyword",
+  "metaAuthor",
+  "metaDescription",
+  "facebookLink",
+  "twitterLink",
+  "linkedinLink",
+  "skypeLink",
+  "instagramLink",
+  "youtubeLink",
+  "footerLeftText",
+  "section1Title",
+  "section1Items",
+  "section2Title",
+  "section2Items",
+  "readMoreLabel",
+] as const;
 
 /**
  * En-têtes CORS pour les routes admin.
@@ -74,11 +100,69 @@ function normalizeOut(
     tr = normalizeLegacyServiceTranslations(data);
   } else if (collection === "countries") {
     tr = normalizeLegacyCountryTranslations(data);
-  } else {
+  } else if (collection === "languages" || collection === "cmsNamespaces") {
     tr = normalizeLegacyLanguageTranslations(data);
+  } else {
+    if (
+      data.translations &&
+      typeof data.translations === "object" &&
+      !Array.isArray(data.translations)
+    ) {
+      tr = data.translations as TranslationsMap;
+    } else {
+      tr = {};
+    }
   }
   base.translations = tr;
   return base;
+}
+
+/**
+ * Identifiant de secours pour trier les listes admin par libellé traduit.
+ * @param {string} collection Nom Firestore.
+ * @param {Record<string, unknown>} row Document sérialisé.
+ * @return {string} Chaîne de secours pour pickSortLabel.
+ */
+function sortListFallback(
+  collection: string,
+  row: Record<string, unknown>,
+): string {
+  if (collection === "countries" || collection === "languages") {
+    return String(row.code ?? row.id);
+  }
+  if (collection === "cmsNamespaces") {
+    return String(row.namespaceKey ?? row.id);
+  }
+  if (collection === "cmsSections") {
+    return String(row.subsectionKey ?? row.id);
+  }
+  return String(row.id);
+}
+
+function mergeCmsTranslations(
+  existing: TranslationsMap,
+  locale: string,
+  block: Record<string, string>,
+): TranslationsMap {
+  let prev: Record<string, unknown> = {};
+  if (
+    existing[locale] &&
+    typeof existing[locale] === "object" &&
+    !Array.isArray(existing[locale])
+  ) {
+    prev = existing[locale] as Record<string, unknown>;
+  }
+  const next: Record<string, string> = {};
+  for (const f of CMS_TRANSLATABLE_FIELDS) {
+    const incoming = block[f];
+    const old =
+      typeof prev[f] === "string" ? String(prev[f]) : "";
+    next[f] = incoming ?? old;
+  }
+  return {
+    ...existing,
+    [locale]: next as {name?: string; description?: string},
+  };
 }
 
 /**
@@ -201,6 +285,83 @@ function parseLanguagePost(body: Record<string, unknown>): {
 }
 
 /**
+ * Corps POST espace CMS (clé technique + libellés traduits).
+ * @param {Record<string, unknown>} body JSON.
+ * @return {object|null} Payload ou null.
+ */
+function parseNamespacePost(body: Record<string, unknown>): {
+  namespaceKey: string;
+  active: boolean;
+  translations: TranslationsMap;
+} | null {
+  const locale = normLocale(String(body.locale ?? ""));
+  const name = typeof body.name === "string" ? body.name.trim() : "";
+  const rawKey =
+    typeof body.namespaceKey === "string" ? body.namespaceKey.trim() : "";
+  const namespaceKey = rawKey.toLowerCase();
+  if (!locale || !name || !namespaceKey) return null;
+  if (!/^[a-z][a-z0-9_-]{0,63}$/.test(namespaceKey)) return null;
+  const active = typeof body.active === "boolean" ? body.active : true;
+  const translations = mergeTranslations({}, locale, {name});
+  return {namespaceKey, active, translations};
+}
+
+function parseCmsSectionPost(body: Record<string, unknown>): {
+  sectionKey: string;
+  subsectionKey: string;
+  namespaceId: string;
+  sectionType: string;
+  active: boolean;
+  registrationActive: boolean;
+  translations: TranslationsMap;
+  videoImageUrl: string;
+  videoLink: string;
+  readMoreUrl: string;
+} | null {
+  const locale = normLocale(String(body.locale ?? ""));
+  const name = typeof body.name === "string" ? body.name.trim() : "";
+  const sectionKey =
+    typeof body.sectionKey === "string" ? body.sectionKey.trim() : "";
+  const subsectionKey =
+    typeof body.subsectionKey === "string" ? body.subsectionKey.trim() : "";
+  if (!locale || !name || !sectionKey || !subsectionKey) return null;
+  const namespaceId =
+    typeof body.namespaceId === "string" ? body.namespaceId.trim() : "";
+  const sectionTypeRaw =
+    typeof body.sectionType === "string" ? body.sectionType.trim() : "";
+  const sectionType = sectionTypeRaw || "site_settings";
+  const active = typeof body.active === "boolean" ? body.active : true;
+  const registrationActive = typeof body.registrationActive === "boolean" ?
+    body.registrationActive :
+    false;
+  const videoImageUrl =
+    typeof body.videoImageUrl === "string" ? body.videoImageUrl.trim() : "";
+  const videoLink =
+    typeof body.videoLink === "string" ? body.videoLink.trim() : "";
+  const readMoreUrl =
+    typeof body.readMoreUrl === "string" ? body.readMoreUrl.trim() : "";
+  const block: Record<string, string> = {};
+  for (const f of CMS_TRANSLATABLE_FIELDS) {
+    const raw = body[f];
+    if (typeof raw === "string") block[f] = raw;
+  }
+  if (!block.name) block.name = name;
+  const translations = mergeCmsTranslations({}, locale, block);
+  return {
+    sectionKey,
+    subsectionKey,
+    namespaceId,
+    sectionType,
+    active,
+    registrationActive,
+    translations,
+    videoImageUrl,
+    videoLink,
+    readMoreUrl,
+  };
+}
+
+/**
  * Fusionne un PATCH sur translations + champs scalaires.
  * @param {string} collection Collection.
  * @param {DocumentData} existing Doc existant.
@@ -232,8 +393,18 @@ function buildPutPatch(
       tr = normalizeLegacyServiceTranslations(existing);
     } else if (collection === "countries") {
       tr = normalizeLegacyCountryTranslations(existing);
-    } else {
+    } else if (collection === "languages" || collection === "cmsNamespaces") {
       tr = normalizeLegacyLanguageTranslations(existing);
+    } else {
+      if (
+        existing.translations &&
+        typeof existing.translations === "object" &&
+        !Array.isArray(existing.translations)
+      ) {
+        tr = existing.translations as TranslationsMap;
+      } else {
+        tr = {};
+      }
     }
 
     if (collection === "services") {
@@ -264,7 +435,7 @@ function buildPutPatch(
         return {patch: {}, error: "name vide"};
       }
       patch.translations = mergeTranslations(tr, locale, {name});
-    } else {
+    } else if (collection === "languages") {
       const name =
         typeof body.name === "string" ? body.name.trim() : undefined;
       if (name === undefined) {
@@ -274,6 +445,32 @@ function buildPutPatch(
         return {patch: {}, error: "name vide"};
       }
       patch.translations = mergeTranslations(tr, locale, {name});
+    } else if (collection === "cmsNamespaces") {
+      const name =
+        typeof body.name === "string" ? body.name.trim() : undefined;
+      if (name === undefined) {
+        return {patch: {}, error: "name requis avec locale"};
+      }
+      if (!name) {
+        return {patch: {}, error: "name vide"};
+      }
+      patch.translations = mergeTranslations(tr, locale, {name});
+    } else {
+      const incoming: Record<string, string> = {};
+      for (const f of CMS_TRANSLATABLE_FIELDS) {
+        const raw = body[f];
+        if (typeof raw === "string") incoming[f] = raw;
+      }
+      if (Object.keys(incoming).length === 0) {
+        return {
+          patch: {},
+          error: "Au moins un champ traduisible requis avec locale",
+        };
+      }
+      if (incoming.name !== undefined && !incoming.name.trim()) {
+        return {patch: {}, error: "name vide"};
+      }
+      patch.translations = mergeCmsTranslations(tr, locale, incoming);
     }
   }
 
@@ -299,6 +496,49 @@ function buildPutPatch(
   if (collection === "services") {
     if (typeof body.imageUrl === "string") {
       patch.imageUrl = body.imageUrl.trim();
+    }
+  }
+
+  if (collection === "cmsSections") {
+    if (typeof body.sectionKey === "string") {
+      const v = body.sectionKey.trim();
+      if (!v) return {patch: {}, error: "sectionKey vide"};
+      patch.sectionKey = v;
+    }
+    if (typeof body.subsectionKey === "string") {
+      const v = body.subsectionKey.trim();
+      if (!v) return {patch: {}, error: "subsectionKey vide"};
+      patch.subsectionKey = v;
+    }
+    if (typeof body.namespaceId === "string") {
+      patch.namespaceId = body.namespaceId.trim();
+    }
+    if (typeof body.sectionType === "string") {
+      const v = body.sectionType.trim();
+      if (!v) return {patch: {}, error: "sectionType vide"};
+      patch.sectionType = v;
+    }
+    if (typeof body.videoImageUrl === "string") {
+      patch.videoImageUrl = body.videoImageUrl.trim();
+    }
+    if (typeof body.videoLink === "string") {
+      patch.videoLink = body.videoLink.trim();
+    }
+    if (typeof body.readMoreUrl === "string") {
+      patch.readMoreUrl = body.readMoreUrl.trim();
+    }
+    if (typeof body.registrationActive === "boolean") {
+      patch.registrationActive = body.registrationActive;
+    }
+  }
+
+  if (collection === "cmsNamespaces") {
+    if (typeof body.namespaceKey === "string") {
+      const raw = body.namespaceKey.trim().toLowerCase();
+      if (!/^[a-z][a-z0-9_-]{0,63}$/.test(raw)) {
+        return {patch: {}, error: "namespaceKey invalide"};
+      }
+      patch.namespaceKey = raw;
     }
   }
 
@@ -344,12 +584,8 @@ export function createAdminRouter(): express.Router {
       data.sort((a, b) => {
         const trA = (a.translations ?? {}) as TranslationsMap;
         const trB = (b.translations ?? {}) as TranslationsMap;
-        const fa =
-          collection === "countries" || collection === "languages" ?
-            String(a.code ?? a.id) : String(a.id);
-        const fb =
-          collection === "countries" || collection === "languages" ?
-            String(b.code ?? b.id) : String(b.id);
+        const fa = sortListFallback(collection, a as Record<string, unknown>);
+        const fb = sortListFallback(collection, b as Record<string, unknown>);
         return pickSortLabel(trA, sortLocale, fa).localeCompare(
           pickSortLabel(trB, sortLocale, fb),
           "fr",
@@ -408,7 +644,7 @@ export function createAdminRouter(): express.Router {
         active: v.active,
         translations: v.translations,
       };
-    } else {
+    } else if (collection === "languages") {
       const v = parseLanguagePost(body);
       if (!v) {
         res.status(400).json({
@@ -422,6 +658,43 @@ export function createAdminRouter(): express.Router {
         flagIconUrl: v.flagIconUrl,
         active: v.active,
         translations: v.translations,
+      };
+    } else if (collection === "cmsNamespaces") {
+      const v = parseNamespacePost(body);
+      if (!v) {
+        res.status(400).json({
+          success: false,
+          error:
+            "Champs invalides (locale, name, namespaceKey requis)",
+        });
+        return;
+      }
+      payload = {
+        namespaceKey: v.namespaceKey,
+        active: v.active,
+        translations: v.translations,
+      };
+    } else {
+      const v = parseCmsSectionPost(body);
+      if (!v) {
+        res.status(400).json({
+          success: false,
+          error:
+            "Champs invalides (sectionKey, subsectionKey, locale, name requis)",
+        });
+        return;
+      }
+      payload = {
+        sectionKey: v.sectionKey,
+        subsectionKey: v.subsectionKey,
+        namespaceId: v.namespaceId,
+        sectionType: v.sectionType,
+        active: v.active,
+        registrationActive: v.registrationActive,
+        translations: v.translations,
+        videoImageUrl: v.videoImageUrl,
+        videoLink: v.videoLink,
+        readMoreUrl: v.readMoreUrl,
       };
     }
 
