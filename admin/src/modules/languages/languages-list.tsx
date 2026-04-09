@@ -1,7 +1,9 @@
 "use client";
 
+import {createColumnHelper, type ColumnDef} from "@tanstack/react-table";
 import Link from "next/link";
 import {useCallback, useEffect, useMemo, useState} from "react";
+import {AdminDataTable, SortableHeader} from "@/components/admin-data-table";
 import {ListPageHeader} from "@/components/list-page-header";
 import {useAuth} from "@/contexts/auth-context";
 import {useEditorLocale} from "@/contexts/editor-locale-context";
@@ -23,6 +25,8 @@ import {
 } from "@/lib/i18n-types";
 import {persistLanguageEditDrafts} from "@/lib/translation-persist";
 import {uiLocaleFromEditorCode} from "@/lib/ui-locale-constants";
+
+const languageColumnHelper = createColumnHelper<LanguageDoc>();
 
 export default function LanguagesListView() {
   const {getIdToken} = useAuth();
@@ -92,60 +96,69 @@ export default function LanguagesListView() {
     );
   }, [sortedCountryCodes]);
 
-  async function toggleActive(row: LanguageDoc) {
-    const token = await getIdToken();
-    if (!token) {
-      setLoadError(t("errors.session"));
-      return;
-    }
-    setBusy(true);
-    try {
-      await adminFetch<ApiDocResponse<LanguageDoc>>(
-        `/admin/documents/languages/${row.id}`,
-        token,
-        {method: "PUT", body: JSON.stringify({active: !row.active})},
+  const toggleActive = useCallback(
+    async (row: LanguageDoc) => {
+      const token = await getIdToken();
+      if (!token) {
+        setLoadError(t("errors.session"));
+        return;
+      }
+      setBusy(true);
+      try {
+        await adminFetch<ApiDocResponse<LanguageDoc>>(
+          `/admin/documents/languages/${row.id}`,
+          token,
+          {method: "PUT", body: JSON.stringify({active: !row.active})},
+        );
+        await load();
+        await refreshLanguages();
+      } catch (err: unknown) {
+        setLoadError(err instanceof Error ? err.message : String(err));
+      } finally {
+        setBusy(false);
+      }
+    },
+    [getIdToken, load, refreshLanguages, t],
+  );
+
+  const removeRow = useCallback(
+    async (id: string) => {
+      if (!confirm(t("languages.deleteConfirm"))) return;
+      const token = await getIdToken();
+      if (!token) {
+        setLoadError(t("errors.session"));
+        return;
+      }
+      setBusy(true);
+      try {
+        await adminFetch(`/admin/documents/languages/${id}`, token, {
+          method: "DELETE",
+        });
+        await load();
+        await refreshLanguages();
+      } catch (err: unknown) {
+        setLoadError(err instanceof Error ? err.message : String(err));
+      } finally {
+        setBusy(false);
+      }
+    },
+    [getIdToken, load, refreshLanguages, t],
+  );
+
+  const openEdit = useCallback(
+    (row: LanguageDoc) => {
+      setEditRow(row);
+      setEditDraftsByCountry(
+        mergeRegionalDraftsFromTranslations(
+          row.translations,
+          sortedCountryCodes,
+          sortedCodes,
+        ),
       );
-      await load();
-      await refreshLanguages();
-    } catch (err: unknown) {
-      setLoadError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function removeRow(id: string) {
-    if (!confirm(t("languages.deleteConfirm"))) return;
-    const token = await getIdToken();
-    if (!token) {
-      setLoadError(t("errors.session"));
-      return;
-    }
-    setBusy(true);
-    try {
-      await adminFetch(`/admin/documents/languages/${id}`, token, {
-        method: "DELETE",
-      });
-      await load();
-      await refreshLanguages();
-    } catch (err: unknown) {
-      setLoadError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  function openEdit(row: LanguageDoc) {
-    setEditRow(row);
-    setEditDraftsByCountry(
-      mergeRegionalDraftsFromTranslations(
-        row.translations,
-        sortedCountryCodes,
-        sortedCodes,
-      ),
-    );
-    setEditFlag(row.flagIconUrl ?? "");
-  }
+      setEditFlag(row.flagIconUrl ?? "");
+    },
+    [sortedCountryCodes, sortedCodes],
+  );
 
   function tabFilledCountry(cc: string): boolean {
     return sortedCodes.some((loc) => {
@@ -181,6 +194,181 @@ export default function LanguagesListView() {
     }
   }
 
+  const dateLocale =
+    uiLocaleFromEditorCode(uiLocale) === "en" ? "en-GB" : "fr-FR";
+
+  const columns = useMemo(
+    () =>
+      [
+      languageColumnHelper.accessor(
+        (row) => pickRegionalSortLabel(row.translations, editorLocale, row.code),
+        {
+          id: "name",
+          header: ({column}) => (
+            <SortableHeader column={column}>
+              {t("languages.list.colName", {locale: editorLocale})}
+            </SortableHeader>
+          ),
+          cell: (info) => (
+            <span className="font-medium">{String(info.getValue() ?? "")}</span>
+          ),
+        },
+      ),
+      languageColumnHelper.accessor("code", {
+        header: ({column}) => (
+          <SortableHeader column={column}>
+            {t("languages.list.colCode")}
+          </SortableHeader>
+        ),
+        cell: (info) => (
+          <span className="text-gray-500">{String(info.getValue() ?? "")}</span>
+        ),
+      }),
+      languageColumnHelper.display({
+        id: "icon",
+        enableSorting: false,
+        enableGlobalFilter: false,
+        header: () => (
+          <span className="font-medium">{t("languages.list.icon")}</span>
+        ),
+        cell: ({row}) =>
+          row.original.flagIconUrl ?
+            <a
+              href={row.original.flagIconUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex h-6 w-6 transition-opacity hover:opacity-80"
+              title={t("languages.list.openIcon")}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={row.original.flagIconUrl}
+                alt={t("languages.list.iconAlt", {
+                  code: row.original.code,
+                })}
+                width={24}
+                height={24}
+                className="h-6 w-6 object-contain"
+                loading="lazy"
+              />
+            </a>
+          : <span className="text-gray-400">—</span>,
+      }),
+      languageColumnHelper.accessor(
+        (row) => localeFilledCountRegional(row.translations),
+        {
+          id: "locales",
+          header: ({column}) => (
+            <SortableHeader column={column}>{t("common.locales")}</SortableHeader>
+          ),
+          cell: (info) => (
+            <span className="text-gray-500">{String(info.getValue() ?? "")}</span>
+          ),
+        },
+      ),
+      languageColumnHelper.accessor("active", {
+        header: ({column}) => (
+          <SortableHeader column={column}>{t("common.active")}</SortableHeader>
+        ),
+        cell: ({row}) => (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void toggleActive(row.original)}
+            className={`rounded-lg px-2.5 py-1 text-xs font-medium ${
+              row.original.active ?
+                "bg-emerald-100 text-emerald-800"
+              : "bg-gray-100 text-gray-500"
+            }`}
+          >
+            {row.original.active ? t("common.yes") : t("common.no")}
+          </button>
+        ),
+        sortingFn: (a, b) =>
+          Number(a.original.active) - Number(b.original.active),
+      }),
+      languageColumnHelper.accessor(
+        (row) => (row.updatedAt ? new Date(row.updatedAt).getTime() : 0),
+        {
+          id: "updatedAt",
+          header: ({column}) => (
+            <SortableHeader column={column}>{t("common.updated")}</SortableHeader>
+          ),
+          cell: ({row}) => (
+            <span className="text-xs text-gray-500">
+              {row.original.updatedAt ?
+                new Date(row.original.updatedAt).toLocaleString(dateLocale)
+              : "—"}
+            </span>
+          ),
+        },
+      ),
+      languageColumnHelper.display({
+        id: "actions",
+        enableSorting: false,
+        enableGlobalFilter: false,
+        header: () => <span className="font-medium" />,
+        cell: ({row}) => (
+          <div className="inline-flex items-center justify-end gap-1 whitespace-nowrap">
+            <RippleIconButton
+              label={t("common.edit")}
+              disabled={busy}
+              onClick={() => openEdit(row.original)}
+              className="text-primary hover:bg-primary/12"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                strokeWidth={1.5}
+                stroke="currentColor"
+                className="h-[18px] w-[18px]"
+                aria-hidden
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10"
+                />
+              </svg>
+            </RippleIconButton>
+            <RippleIconButton
+              label={t("common.delete")}
+              disabled={busy}
+              onClick={() => void removeRow(row.original.id)}
+              className="text-red-600 hover:bg-red-50"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                strokeWidth={1.5}
+                stroke="currentColor"
+                className="h-[18px] w-[18px]"
+                aria-hidden
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0"
+                />
+              </svg>
+            </RippleIconButton>
+          </div>
+        ),
+      }),
+    ] as ColumnDef<LanguageDoc, unknown>[],
+    [
+      busy,
+      dateLocale,
+      editorLocale,
+      openEdit,
+      removeRow,
+      t,
+      toggleActive,
+    ],
+  );
+
   return (
     <div className="space-y-6">
       <ListPageHeader
@@ -205,135 +393,13 @@ export default function LanguagesListView() {
           {loadError}
         </p>
       : null}
-      <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm">
-        <table className="w-full min-w-[720px] text-left text-sm">
-          <thead className="border-b border-gray-100 bg-gray-50/90 text-gray-500">
-            <tr>
-              <th className="px-3 py-2 font-medium">
-                {t("languages.list.colName", {locale: editorLocale})}
-              </th>
-              <th className="px-3 py-2 font-medium">{t("languages.list.colCode")}</th>
-              <th className="px-3 py-2 font-medium">{t("languages.list.icon")}</th>
-              <th className="px-3 py-2 font-medium">{t("common.locales")}</th>
-              <th className="px-3 py-2 font-medium">{t("common.active")}</th>
-              <th className="px-3 py-2 font-medium">{t("common.updated")}</th>
-              <th className="px-3 py-2 font-medium" />
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {items.map((row) => (
-              <tr key={row.id} className="text-gray-800">
-                <td className="px-3 py-2 font-medium">
-                  {pickRegionalSortLabel(row.translations, editorLocale, row.code)}
-                </td>
-                <td className="px-3 py-2 text-gray-500">{row.code}</td>
-                <td className="w-12 px-3 py-2 align-middle">
-                  {row.flagIconUrl ?
-                    <a
-                      href={row.flagIconUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex h-6 w-6 transition-opacity hover:opacity-80"
-                      title={t("languages.list.openIcon")}
-                    >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={row.flagIconUrl}
-                        alt={t("languages.list.iconAlt", {code: row.code})}
-                        width={24}
-                        height={24}
-                        className="h-6 w-6 object-contain"
-                        loading="lazy"
-                      />
-                    </a>
-                  : (
-                    <span className="text-gray-400">—</span>
-                  )}
-                </td>
-                <td className="px-3 py-2 text-gray-500">
-                  {localeFilledCountRegional(row.translations)}
-                </td>
-                <td className="px-3 py-2">
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => void toggleActive(row)}
-                    className={`rounded-lg px-2.5 py-1 text-xs font-medium ${
-                      row.active ?
-                        "bg-emerald-100 text-emerald-800"
-                      : "bg-gray-100 text-gray-500"
-                    }`}
-                  >
-                    {row.active ? t("common.yes") : t("common.no")}
-                  </button>
-                </td>
-                <td className="px-3 py-2 text-xs text-gray-500">
-                  {row.updatedAt ?
-                    new Date(row.updatedAt).toLocaleString(
-                      uiLocaleFromEditorCode(uiLocale) === "en" ?
-                        "en-GB"
-                      : "fr-FR",
-                    )
-                  : "—"}
-                </td>
-                <td className="px-3 py-2 text-right whitespace-nowrap">
-                  <div className="inline-flex items-center gap-1">
-                    <RippleIconButton
-                      label={t("common.edit")}
-                      disabled={busy}
-                      onClick={() => openEdit(row)}
-                      className="text-primary hover:bg-primary/12"
-                    >
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        strokeWidth={1.5}
-                        stroke="currentColor"
-                        className="h-[18px] w-[18px]"
-                        aria-hidden
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10"
-                        />
-                      </svg>
-                    </RippleIconButton>
-                    <RippleIconButton
-                      label={t("common.delete")}
-                      disabled={busy}
-                      onClick={() => void removeRow(row.id)}
-                      className="text-red-600 hover:bg-red-50"
-                    >
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        strokeWidth={1.5}
-                        stroke="currentColor"
-                        className="h-[18px] w-[18px]"
-                        aria-hidden
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0"
-                        />
-                      </svg>
-                    </RippleIconButton>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {items.length === 0 ?
-          <p className="px-3 py-6 text-center text-sm text-gray-500">
-            {t("languages.list.empty")}
-          </p>
-        : null}
-      </div>
+      <AdminDataTable
+        data={items}
+        columns={columns}
+        getRowId={(row) => row.id}
+        emptyLabel={t("languages.list.empty")}
+        minTableWidth={720}
+      />
       <EditSheet
         open={!!editRow}
         title={t("languages.edit.sheetTitle")}

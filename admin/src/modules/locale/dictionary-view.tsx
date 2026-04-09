@@ -1,7 +1,9 @@
 "use client";
 
+import {createColumnHelper, type ColumnDef} from "@tanstack/react-table";
 import Link from "next/link";
 import {useCallback, useEffect, useMemo, useState} from "react";
+import {AdminDataTable, SortableHeader} from "@/components/admin-data-table";
 import {useAuth} from "@/contexts/auth-context";
 import {useEditorLocale} from "@/contexts/editor-locale-context";
 import {useUiLocale} from "@/contexts/ui-locale-context";
@@ -33,6 +35,8 @@ type Row = {
   values: Record<string, string>;
   hasOverride: boolean;
 };
+
+const dictRowColumnHelper = createColumnHelper<Row>();
 
 export default function DictionaryView() {
   const {t, refreshDictionary, defaultKeys, locale: uiLocale} = useUiLocale();
@@ -106,10 +110,10 @@ export default function DictionaryView() {
       });
   }, [defaultKeys, overrides, columnCodes]);
 
-  function openEdit(row: Row) {
+  const openEdit = useCallback((row: Row) => {
     setEditKey(row.key);
     setEditDraft({...row.values});
-  }
+  }, []);
 
   function setEditField(code: string, value: string) {
     setEditDraft((d) => ({...d, [code]: value}));
@@ -181,28 +185,109 @@ export default function DictionaryView() {
     }
   }
 
-  async function deleteOverride(key: string) {
-    if (!overrides[key]) return;
-    if (!confirm(t("dictionary.deleteConfirm"))) return;
-    const token = await getIdToken();
-    if (!token) return;
-    setBusy(true);
-    try {
-      await adminFetch<ApiOkResponse>(
-        `/admin/ui-dictionary/${encodeURIComponent(key)}`,
-        token,
-        {method: "DELETE"},
-      );
-      await load();
-      await refreshDictionary();
-    } catch (e: unknown) {
-      setLoadError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
-  }
+  const deleteOverride = useCallback(
+    async (key: string) => {
+      if (!overrides[key]) return;
+      if (!confirm(t("dictionary.deleteConfirm"))) return;
+      const token = await getIdToken();
+      if (!token) return;
+      setBusy(true);
+      try {
+        await adminFetch<ApiOkResponse>(
+          `/admin/ui-dictionary/${encodeURIComponent(key)}`,
+          token,
+          {method: "DELETE"},
+        );
+        await load();
+        await refreshDictionary();
+      } catch (e: unknown) {
+        setLoadError(e instanceof Error ? e.message : String(e));
+      } finally {
+        setBusy(false);
+      }
+    },
+    [getIdToken, load, overrides, refreshDictionary, t],
+  );
 
   const minTableWidth = 280 + columnCodes.length * 160;
+
+  const columns = useMemo(
+    () =>
+      [
+      dictRowColumnHelper.accessor("key", {
+        header: ({column}) => (
+          <SortableHeader column={column}>
+            {t("dictionary.columnKey")}
+          </SortableHeader>
+        ),
+        cell: ({row}) => (
+          <>
+            <span className="align-middle font-mono text-xs text-gray-700">
+              {row.original.key}
+            </span>
+            {row.original.hasOverride ?
+              <span className="ml-2 inline-block rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-900">
+                {t("dictionary.badgeOverride")}
+              </span>
+            : null}
+          </>
+        ),
+      }),
+      ...columnLangs.map((lang) => {
+        const code = lang.code.trim().toLowerCase();
+        return dictRowColumnHelper.accessor((r) => r.values[code] ?? "", {
+          id: `lang_${code}`,
+          header: ({column}) => (
+            <SortableHeader column={column}>
+              <span>
+                {langColumnLabel(lang, editorLocale)}
+                <span className="ml-1 font-mono text-[10px] font-normal text-gray-400">
+                  {code}
+                </span>
+              </span>
+            </SortableHeader>
+          ),
+          cell: (info) => {
+            const raw = String(info.getValue() ?? "").trim();
+            return (
+              <span className="max-w-[200px] truncate text-gray-600">
+                {raw ? String(info.getValue()) : t("dictionary.emptyCol")}
+              </span>
+            );
+          },
+        });
+      }),
+      dictRowColumnHelper.display({
+        id: "actions",
+        enableSorting: false,
+        enableGlobalFilter: false,
+        header: () => <span className="font-medium" />,
+        cell: ({row}) => (
+          <div className="space-x-2 text-right whitespace-nowrap">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => openEdit(row.original)}
+              className="text-xs font-medium text-primary hover:text-secondary"
+            >
+              {t("common.edit")}
+            </button>
+            {row.original.hasOverride ?
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void deleteOverride(row.original.key)}
+                className="text-xs font-medium text-red-600 hover:text-red-800"
+              >
+                {t("common.delete")}
+              </button>
+            : null}
+          </div>
+        ),
+      }),
+    ] as ColumnDef<Row, unknown>[],
+    [busy, columnLangs, deleteOverride, editorLocale, openEdit, t],
+  );
 
   return (
     <div className="space-y-6">
@@ -277,71 +362,13 @@ export default function DictionaryView() {
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm">
-        <table
-          className="w-full text-left text-sm"
-          style={{minWidth: minTableWidth}}
-        >
-          <thead className="border-b border-gray-100 bg-gray-50/90 text-gray-500">
-            <tr>
-              <th className="px-3 py-2 font-medium">{t("dictionary.columnKey")}</th>
-              {columnLangs.map((lang) => (
-                <th key={lang.id} className="px-3 py-2 font-medium">
-                  {langColumnLabel(lang, editorLocale)}
-                  <span className="ml-1 font-mono text-[10px] font-normal text-gray-400">
-                    {lang.code.trim().toLowerCase()}
-                  </span>
-                </th>
-              ))}
-              <th className="px-3 py-2 font-medium" />
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {rows.map((row) => (
-              <tr key={row.key} className="text-gray-800">
-                <td className="px-3 py-2 font-mono text-xs text-gray-700">
-                  <span className="align-middle">{row.key}</span>
-                  {row.hasOverride ?
-                    <span className="ml-2 inline-block rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-900">
-                      {t("dictionary.badgeOverride")}
-                    </span>
-                  : null}
-                </td>
-                {columnCodes.map((code) => (
-                  <td
-                    key={code}
-                    className="max-w-[200px] truncate px-3 py-2 text-gray-600"
-                  >
-                    {row.values[code]?.trim() ?
-                      row.values[code]
-                    : t("dictionary.emptyCol")}
-                  </td>
-                ))}
-                <td className="space-x-2 px-3 py-2 text-right whitespace-nowrap">
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => openEdit(row)}
-                    className="text-xs font-medium text-primary hover:text-secondary"
-                  >
-                    {t("common.edit")}
-                  </button>
-                  {row.hasOverride ?
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() => void deleteOverride(row.key)}
-                      className="text-xs font-medium text-red-600 hover:text-red-800"
-                    >
-                      {t("common.delete")}
-                    </button>
-                  : null}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <AdminDataTable
+        data={rows}
+        columns={columns}
+        getRowId={(row) => row.key}
+        emptyLabel={t("dictionary.tableEmpty")}
+        minTableWidth={minTableWidth}
+      />
 
       <EditSheet
         open={!!editKey}
