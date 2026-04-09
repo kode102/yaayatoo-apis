@@ -1,8 +1,10 @@
 /**
  * CMS sections : traductions par pays puis par langue.
  * Forme stockée : { [countryCode]: { [locale]: CmsLocaleBlock } }
- * - countryCode : ISO 3166-1 alpha-2 majuscules (ex. CM, FR) ou "__" = défaut / tous pays.
- * Legacy : { fr: {...}, en: {...} } (locale au premier niveau) → traité comme { __: { fr, en } }.
+ * - countryCode : ISO 3166-1 alpha-2 majuscules (ex. CM, FR) ou "__" =
+ *   défaut / tous pays.
+ * Legacy : { fr: {...}, en: {...} } (locale au premier niveau) → traité
+ * comme { __: { fr, en } }.
  */
 
 import type {DocumentData} from "firebase-admin/firestore";
@@ -12,7 +14,10 @@ import {
   type TranslationsMap,
 } from "./i18n.js";
 
-/** Pays « global » : texte par défaut quand aucune variante pays n’est définie. */
+/**
+ * Pays « global » : texte par défaut quand aucune variante pays n’est
+ * définie.
+ */
 export const CMS_DEFAULT_COUNTRY = "__";
 
 const LOCALE_KEY_RE = /^[a-z]{2}(-[a-z0-9]+)?$/;
@@ -48,7 +53,11 @@ export function isNestedCountryLocaleTranslations(
   t: Record<string, unknown>,
 ): boolean {
   for (const localesVal of Object.values(t)) {
-    if (!localesVal || typeof localesVal !== "object" || Array.isArray(localesVal)) {
+    if (
+      !localesVal ||
+      typeof localesVal !== "object" ||
+      Array.isArray(localesVal)
+    ) {
       continue;
     }
     const inner = localesVal as Record<string, unknown>;
@@ -93,7 +102,10 @@ export function toNestedCmsTranslations(raw: unknown): CmsNestedTranslations {
       }
       const cc = normCmsCountryCode(country);
       const lm: TranslationsMap = {};
-      for (const [loc, block] of Object.entries(locales as Record<string, unknown>)) {
+      const locEntries = Object.entries(
+        locales as Record<string, unknown>,
+      );
+      for (const [loc, block] of locEntries) {
         if (block && typeof block === "object" && !Array.isArray(block)) {
           lm[normLocale(loc)] = block as TranslationBlock;
         }
@@ -118,7 +130,8 @@ export function toNestedCmsTranslations(raw: unknown): CmsNestedTranslations {
     }
     const cc = normCmsCountryCode(country);
     const lm: TranslationsMap = {};
-    for (const [loc, block] of Object.entries(locales as Record<string, unknown>)) {
+    const locEntries = Object.entries(locales as Record<string, unknown>);
+    for (const [loc, block] of locEntries) {
       if (block && typeof block === "object" && !Array.isArray(block)) {
         lm[normLocale(loc)] = block as TranslationBlock;
       }
@@ -132,7 +145,9 @@ export function toNestedCmsTranslations(raw: unknown): CmsNestedTranslations {
  * @param {DocumentData} data Document Firestore.
  * @return {CmsNestedTranslations} Forme imbriquée.
  */
-export function readNestedCmsFromDoc(data: DocumentData): CmsNestedTranslations {
+export function readNestedCmsFromDoc(
+  data: DocumentData,
+): CmsNestedTranslations {
   return toNestedCmsTranslations(data.translations);
 }
 
@@ -223,9 +238,12 @@ export function mergeTranslationBlockNested(
  * @param {CmsNestedTranslations} nested Carte imbriquée.
  * @return {TranslationsMap} locale → bloc pour pickSortLabel.
  */
-export function flattenCmsForSort(nested: CmsNestedTranslations): TranslationsMap {
-  if (nested[CMS_DEFAULT_COUNTRY] && Object.keys(nested[CMS_DEFAULT_COUNTRY]).length) {
-    return nested[CMS_DEFAULT_COUNTRY]!;
+export function flattenCmsForSort(
+  nested: CmsNestedTranslations,
+): TranslationsMap {
+  const def = nested[CMS_DEFAULT_COUNTRY];
+  if (def && Object.keys(def).length) {
+    return def;
   }
   for (const [k, map] of Object.entries(nested)) {
     if (k !== CMS_DEFAULT_COUNTRY && map && Object.keys(map).length > 0) {

@@ -4,7 +4,10 @@
 
 const UI_DICT_LOCALE_KEY = /^[a-z][a-z0-9_-]{0,31}$/;
 
-/** @param {string} raw Clé locale brute. @return {string|null} Normalisée ou null. */
+/**
+ * @param {string} raw Clé locale brute.
+ * @return {string|null} Normalisée ou null.
+ */
 export function normUiDictLocaleKey(raw: string): string | null {
   const k = raw.trim().toLowerCase();
   if (!UI_DICT_LOCALE_KEY.test(k)) return null;

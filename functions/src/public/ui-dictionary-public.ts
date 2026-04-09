@@ -1,5 +1,6 @@
 /**
- * Dictionnaire interface (Firestore `adminUiDictionary`) — lecture publique pour la vitrine.
+ * Dictionnaire interface (Firestore `adminUiDictionary`) — lecture publique
+ * pour la vitrine.
  */
 
 import type {Request, Response} from "express";
@@ -9,7 +10,8 @@ import {readUiDictionaryTranslations} from "../lib/ui-dictionary-shared.js";
 /**
  * GET /public/ui-dictionary — toutes les clés, par locale (sans auth).
  * @param {Request} _req Requête.
- * @param {Response} res Réponse JSON `{ success, data: { [key]: { [locale]: string } } }`.
+ * @param {Response} res Réponse JSON
+ *     `{ success, data: { [key]: { [locale]: string } } }`.
  * @return {Promise<void>}
  */
 export async function getPublicUiDictionary(

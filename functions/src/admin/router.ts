@@ -460,9 +460,12 @@ function buildPutPatch(
       const country = normCmsCountryCode(
         String(body.countryCode ?? body.country ?? ""),
       );
-      patch.translations = mergeTranslationBlockNested(nested, country, locale, {
-        name,
-      });
+      patch.translations = mergeTranslationBlockNested(
+        nested,
+        country,
+        locale,
+        {name},
+      );
     } else if (collection === "cmsNamespaces") {
       const name =
         typeof body.name === "string" ? body.name.trim() : undefined;

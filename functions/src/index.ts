@@ -247,7 +247,10 @@ app.post("/public/cms", (req, res) => {
   void getPublicCms(req, res);
 });
 
-/** Dictionnaire UI (clés type `Header.login` → textes par locale) — vitrine Next.js. */
+/**
+ * Dictionnaire UI (clés type `Header.login` → textes par locale) — vitrine
+ * Next.js.
+ */
 app.get("/public/ui-dictionary", (req, res) => {
   void getPublicUiDictionary(req, res);
 });

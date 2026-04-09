@@ -19,7 +19,10 @@ import {
   pickSortLabel,
   type TranslationsMap,
 } from "../admin/i18n.js";
-import {languageDocToNested, serviceDocToNested} from "../admin/reference-nested.js";
+import {
+  languageDocToNested,
+  serviceDocToNested,
+} from "../admin/reference-nested.js";
 
 /**
  * Sérialise un document Firestore pour JSON (timestamps → ISO).
@@ -97,10 +100,12 @@ function sortKey(
 }
 
 /**
- * Liste une collection : actifs uniquement, tri par libellé.
- * @param {string} collection Une des collections référence.
- * @param {string} sortLocale Locale pour l’ordre d’affichage.
- * @return {Promise<Record<string, unknown>[]>} Documents actifs triés.
+ * Attache `resolvedTranslation` sur une ligne services/langues.
+ * @param {"countries"|"languages"|"services"} collection Collection.
+ * @param {Record<string, unknown>} row Ligne normalisée.
+ * @param {string} countryCode Pays pour la résolution.
+ * @param {string} locale Locale pour la résolution.
+ * @return {void}
  */
 function attachResolvedTranslation(
   collection: "countries" | "languages" | "services",
@@ -115,6 +120,13 @@ function attachResolvedTranslation(
   row.resolvedTranslation = resolved;
 }
 
+/**
+ * Liste une collection : actifs uniquement, tri par libellé.
+ * @param {"countries"|"languages"|"services"} collection Collection.
+ * @param {string} sortLocale Locale pour l’ordre d’affichage.
+ * @param {string} countryForResolve Pays pour resolvedTranslation.
+ * @return {Promise<Record<string, unknown>[]>} Documents actifs triés.
+ */
 async function listActiveByCollection(
   collection: "countries" | "languages" | "services",
   sortLocale: string,
