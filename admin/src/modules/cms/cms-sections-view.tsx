@@ -15,6 +15,7 @@ import {
   pickSortLabel,
   sortedActiveLanguageCodes,
 } from "@/lib/i18n-types";
+import {CmsVideoThumbnailField} from "@/components/cms-video-thumbnail-field";
 
 type SiteLocaleDraft = {
   name: string;
@@ -830,14 +831,12 @@ export default function CmsSectionsView() {
                 <div className="space-y-4">
                   <p className="text-xs text-gray-500">{t("cms.why.itemsHintDynamic")}</p>
                   <div className="grid gap-3 md:grid-cols-2">
-                    <label className="block text-sm text-gray-700 md:col-span-2">
-                      {t("cms.why.fieldVideoImage")}
-                      <input
-                        value={videoImageUrl}
-                        onChange={(e) => setVideoImageUrl(e.target.value)}
-                        className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
-                      />
-                    </label>
+                    <CmsVideoThumbnailField
+                      value={videoImageUrl}
+                      onChange={setVideoImageUrl}
+                      sectionId={selectedId ?? undefined}
+                      disabled={saving}
+                    />
                     <label className="block text-sm text-gray-700 md:col-span-2">
                       {t("cms.why.fieldVideoLink")}
                       <input

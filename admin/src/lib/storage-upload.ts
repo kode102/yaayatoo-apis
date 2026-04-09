@@ -25,6 +25,28 @@ function randomId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
 }
 
+async function uploadValidatedImageToFolder(
+  file: File,
+  folder: string,
+): Promise<string> {
+  if (file.size > MAX_BYTES) {
+    throw new Error("IMAGE_TOO_LARGE");
+  }
+  if (!ALLOWED_TYPES.has(file.type)) {
+    throw new Error("IMAGE_TYPE");
+  }
+  const ext = extFromMime(file.type);
+  const id = randomId();
+  const path = `${folder}/${Date.now()}_${id}.${ext}`;
+  const storage = getFirebaseStorage();
+  const storageRef = ref(storage, path);
+  await uploadBytes(storageRef, file, {
+    contentType: file.type,
+    cacheControl: "public,max-age=31536000",
+  });
+  return getDownloadURL(storageRef);
+}
+
 /**
  * Envoie une image service dans Firebase Storage et retourne l’URL de téléchargement.
  * Chemin : `admin/services/{serviceId|uploads}/{timestamp}_{uuid}.ext`
@@ -39,26 +61,25 @@ export async function uploadServiceImageToStorage(
   file: File,
   opts: {serviceId?: string},
 ): Promise<string> {
-  if (file.size > MAX_BYTES) {
-    throw new Error("IMAGE_TOO_LARGE");
-  }
-  if (!ALLOWED_TYPES.has(file.type)) {
-    throw new Error("IMAGE_TYPE");
-  }
-  const ext = extFromMime(file.type);
-  const id = randomId();
   const folder =
     opts.serviceId?.trim() ?
       `admin/services/${opts.serviceId.trim()}`
     : "admin/services/uploads";
-  const path = `${folder}/${Date.now()}_${id}.${ext}`;
-  const storage = getFirebaseStorage();
-  const storageRef = ref(storage, path);
-  await uploadBytes(storageRef, file, {
-    contentType: file.type,
-    cacheControl: "public,max-age=31536000",
-  });
-  return getDownloadURL(storageRef);
+  return uploadValidatedImageToFolder(file, folder);
+}
+
+/**
+ * Miniature vidéo CMS (« Why choose us ») : `admin/cms/video-thumbnails/{sectionId|uploads}/…`
+ */
+export async function uploadCmsVideoThumbnailToStorage(
+  file: File,
+  opts: {sectionId?: string},
+): Promise<string> {
+  const folder =
+    opts.sectionId?.trim() ?
+      `admin/cms/video-thumbnails/${opts.sectionId.trim()}`
+    : "admin/cms/video-thumbnails/uploads";
+  return uploadValidatedImageToFolder(file, folder);
 }
 
 export const SERVICE_IMAGE_MAX_BYTES = MAX_BYTES;
