@@ -7,12 +7,15 @@ import {useEditorLocale} from "@/contexts/editor-locale-context";
 import {useUiLocale} from "@/contexts/ui-locale-context";
 import {adminFetch, type ApiDocResponse, type ApiListResponse} from "@/lib/api";
 import {
+  CMS_DEFAULT_COUNTRY_KEY,
+  type CountryDoc,
   type CmsNamespaceDoc,
   type CmsSectionDoc,
   type CmsSectionTypeId,
   inferCmsSectionType,
   labelForLocale,
   pickSortLabel,
+  pickSortLabelCms,
   sortedActiveLanguageCodes,
 } from "@/lib/i18n-types";
 import {CmsVideoThumbnailField} from "@/components/cms-video-thumbnail-field";
@@ -234,18 +237,24 @@ export default function CmsSectionsView() {
   const [saving, setSaving] = useState(false);
   const [namespaces, setNamespaces] = useState<CmsNamespaceDoc[]>([]);
   const [sections, setSections] = useState<CmsSectionDoc[]>([]);
+  const [activeCountries, setActiveCountries] = useState<CountryDoc[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [activeCountryCode, setActiveCountryCode] = useState(
+    CMS_DEFAULT_COUNTRY_KEY,
+  );
   const [activeLocaleCode, setActiveLocaleCode] = useState(
     editorLocale.trim().toLowerCase(),
   );
 
-  const [siteDrafts, setSiteDrafts] = useState<Record<string, SiteLocaleDraft>>(
-    {},
-  );
-  const [whyDrafts, setWhyDrafts] = useState<Record<string, WhyLocaleDraft>>({});
-  const [blogDrafts, setBlogDrafts] = useState<Record<string, BlogLocaleDraft>>(
-    {},
-  );
+  const [siteDraftsByCountry, setSiteDraftsByCountry] = useState<
+    Record<string, Record<string, SiteLocaleDraft>>
+  >({});
+  const [whyDraftsByCountry, setWhyDraftsByCountry] = useState<
+    Record<string, Record<string, WhyLocaleDraft>>
+  >({});
+  const [blogDraftsByCountry, setBlogDraftsByCountry] = useState<
+    Record<string, Record<string, BlogLocaleDraft>>
+  >({});
   const [active, setActive] = useState(true);
   const [registrationActive, setRegistrationActive] = useState(false);
   const [videoImageUrl, setVideoImageUrl] = useState("");
@@ -264,6 +273,18 @@ export default function CmsSectionsView() {
     [activeLanguages],
   );
 
+  const sortedCountryCodes = useMemo(() => {
+    const codes = activeCountries
+      .filter((c) => c.active)
+      .map((c) => c.code.trim().toUpperCase().slice(0, 2))
+      .filter(Boolean);
+    const uniq = [...new Set(codes)].sort((a, b) => a.localeCompare(b));
+    return [
+      CMS_DEFAULT_COUNTRY_KEY,
+      ...uniq.filter((c) => c !== CMS_DEFAULT_COUNTRY_KEY),
+    ];
+  }, [activeCountries]);
+
   const selected = useMemo(
     () => sections.find((s) => s.id === selectedId) ?? null,
     [sections, selectedId],
@@ -279,7 +300,7 @@ export default function CmsSectionsView() {
     }
     setLoadError(null);
     try {
-      const [nsRes, secRes] = await Promise.all([
+      const [nsRes, secRes, countriesRes] = await Promise.all([
         adminFetch<ApiListResponse<CmsNamespaceDoc>>(
           `/admin/documents/cmsNamespaces?sortLocale=${encodeURIComponent(editorLocale)}`,
           token,
@@ -288,9 +309,14 @@ export default function CmsSectionsView() {
           `/admin/documents/cmsSections?sortLocale=${encodeURIComponent(editorLocale)}`,
           token,
         ),
+        adminFetch<ApiListResponse<CountryDoc>>(
+          `/admin/documents/countries?sortLocale=${encodeURIComponent(editorLocale)}`,
+          token,
+        ),
       ]);
       setNamespaces((nsRes.data ?? []) as CmsNamespaceDoc[]);
       setSections((secRes.data ?? []) as CmsSectionDoc[]);
+      setActiveCountries((countriesRes.data ?? []) as CountryDoc[]);
     } catch (e: unknown) {
       setLoadError(e instanceof Error ? e.message : String(e));
     }
@@ -306,32 +332,90 @@ export default function CmsSectionsView() {
   }, [editorLocale, sortedCodes]);
 
   useEffect(() => {
+    setActiveCountryCode((prev) =>
+      sortedCountryCodes.includes(prev) ? prev : CMS_DEFAULT_COUNTRY_KEY,
+    );
+  }, [sortedCountryCodes]);
+
+  useEffect(() => {
     if (!selected) {
-      setSiteDrafts({});
-      setWhyDrafts({});
-      setBlogDrafts({});
+      setSiteDraftsByCountry({});
+      setWhyDraftsByCountry({});
+      setBlogDraftsByCountry({});
       setAssignNamespaceId("");
       return;
     }
-    const nextSite: Record<string, SiteLocaleDraft> = {};
-    const nextWhy: Record<string, WhyLocaleDraft> = {};
-    const nextBlog: Record<string, BlogLocaleDraft> = {};
-    for (const code of sortedCodes) {
-      const block = selected.translations?.[code] as Record<string, unknown> | undefined;
-      nextSite[code] = siteFromBlock(block);
-      nextWhy[code] = whyFromBlock(block);
-      nextBlog[code] = blogFromBlock(block);
+    const nextSite: Record<string, Record<string, SiteLocaleDraft>> = {};
+    const nextWhy: Record<string, Record<string, WhyLocaleDraft>> = {};
+    const nextBlog: Record<string, Record<string, BlogLocaleDraft>> = {};
+    for (const country of sortedCountryCodes) {
+      for (const code of sortedCodes) {
+        const block = selected.translations?.[country]?.[code] as
+          | Record<string, unknown>
+          | undefined;
+        if (!nextSite[country]) nextSite[country] = {};
+        if (!nextWhy[country]) nextWhy[country] = {};
+        if (!nextBlog[country]) nextBlog[country] = {};
+        nextSite[country][code] = siteFromBlock(block);
+        nextWhy[country][code] = whyFromBlock(block);
+        nextBlog[country][code] = blogFromBlock(block);
+      }
     }
-    setSiteDrafts(nextSite);
-    setWhyDrafts(nextWhy);
-    setBlogDrafts(nextBlog);
+    setSiteDraftsByCountry(nextSite);
+    setWhyDraftsByCountry(nextWhy);
+    setBlogDraftsByCountry(nextBlog);
     setActive(selected.active ?? true);
     setRegistrationActive(Boolean(selected.registrationActive));
     setVideoImageUrl(selected.videoImageUrl ?? "");
     setVideoLink(selected.videoLink ?? "");
     setReadMoreUrl(selected.readMoreUrl ?? "");
     setAssignNamespaceId(selected.namespaceId ?? "");
-  }, [selected, sortedCodes]);
+  }, [selected, sortedCodes, sortedCountryCodes]);
+
+  const patchWhy = useCallback(
+    (fn: (d: WhyLocaleDraft) => WhyLocaleDraft) => {
+      const c = activeCountryCode;
+      const loc = activeLocaleCode;
+      setWhyDraftsByCountry((p) => {
+        const cur = p[c]?.[loc] ?? emptyWhy();
+        return {
+          ...p,
+          [c]: {...(p[c] ?? {}), [loc]: fn(cur)},
+        };
+      });
+    },
+    [activeCountryCode, activeLocaleCode],
+  );
+
+  const patchSite = useCallback(
+    (fn: (d: SiteLocaleDraft) => SiteLocaleDraft) => {
+      const c = activeCountryCode;
+      const loc = activeLocaleCode;
+      setSiteDraftsByCountry((p) => {
+        const cur = p[c]?.[loc] ?? emptySite();
+        return {
+          ...p,
+          [c]: {...(p[c] ?? {}), [loc]: fn(cur)},
+        };
+      });
+    },
+    [activeCountryCode, activeLocaleCode],
+  );
+
+  const patchBlog = useCallback(
+    (fn: (d: BlogLocaleDraft) => BlogLocaleDraft) => {
+      const c = activeCountryCode;
+      const loc = activeLocaleCode;
+      setBlogDraftsByCountry((p) => {
+        const cur = p[c]?.[loc] ?? emptyBlog();
+        return {
+          ...p,
+          [c]: {...(p[c] ?? {}), [loc]: fn(cur)},
+        };
+      });
+    },
+    [activeCountryCode, activeLocaleCode],
+  );
 
   const grouped = useMemo(() => {
     const orphan: CmsSectionDoc[] = [];
@@ -357,16 +441,23 @@ export default function CmsSectionsView() {
     const token = await getIdToken();
     if (!token) return;
     const kind = inferCmsSectionType(selected);
-    const filledCodes = sortedCodes.filter((code) => {
-      if (kind === "why_choose_us") {
-        return filledWhy(whyDrafts[code] ?? emptyWhy());
+    const filledPairs: {country: string; locale: string}[] = [];
+    for (const country of sortedCountryCodes) {
+      for (const code of sortedCodes) {
+        if (kind === "why_choose_us") {
+          if (filledWhy(whyDraftsByCountry[country]?.[code] ?? emptyWhy())) {
+            filledPairs.push({country, locale: code});
+          }
+        } else if (kind === "blog_section") {
+          if (filledBlog(blogDraftsByCountry[country]?.[code] ?? emptyBlog())) {
+            filledPairs.push({country, locale: code});
+          }
+        } else if (filledSite(siteDraftsByCountry[country]?.[code] ?? emptySite())) {
+          filledPairs.push({country, locale: code});
+        }
       }
-      if (kind === "blog_section") {
-        return filledBlog(blogDrafts[code] ?? emptyBlog());
-      }
-      return filledSite(siteDrafts[code] ?? emptySite());
-    });
-    if (filledCodes.length === 0) {
+    }
+    if (filledPairs.length === 0) {
       setLoadError(t("cms.errorNeedTranslation"));
       return;
     }
@@ -391,10 +482,13 @@ export default function CmsSectionsView() {
         },
       );
 
-      for (const code of filledCodes) {
-        const body: Record<string, unknown> = {locale: code};
+      for (const {country, locale: code} of filledPairs) {
+        const body: Record<string, unknown> = {
+          locale: code,
+          countryCode: country,
+        };
         if (kind === "why_choose_us") {
-          const d = whyDrafts[code] ?? emptyWhy();
+          const d = whyDraftsByCountry[country]?.[code] ?? emptyWhy();
           if (!d.name.trim()) {
             setLoadError(t("cms.why.errorNeedHeading"));
             setSaving(false);
@@ -409,7 +503,7 @@ export default function CmsSectionsView() {
             readMoreLabel: d.readMoreLabel,
           });
         } else if (kind === "blog_section") {
-          const d = blogDrafts[code] ?? emptyBlog();
+          const d = blogDraftsByCountry[country]?.[code] ?? emptyBlog();
           Object.assign(body, {
             name: d.name.trim(),
             description: d.description,
@@ -420,7 +514,7 @@ export default function CmsSectionsView() {
             return;
           }
         } else {
-          const d = siteDrafts[code] ?? emptySite();
+          const d = siteDraftsByCountry[country]?.[code] ?? emptySite();
           if (!d.name.trim()) {
             setLoadError(t("cms.errorNeedTranslation"));
             setSaving(false);
@@ -505,6 +599,7 @@ export default function CmsSectionsView() {
           method: "POST",
           body: JSON.stringify({
             locale: primary,
+            countryCode: CMS_DEFAULT_COUNTRY_KEY,
             name: cTitle.trim(),
             sectionKey: ns.namespaceKey,
             subsectionKey: cSub.trim().toLowerCase().replace(/\s+/g, "-"),
@@ -531,21 +626,50 @@ export default function CmsSectionsView() {
     }
   }
 
-  const currentSite = siteDrafts[activeLocaleCode] ?? emptySite();
-  const currentWhy = whyDrafts[activeLocaleCode] ?? emptyWhy();
-  const currentBlog = blogDrafts[activeLocaleCode] ?? emptyBlog();
+  const currentSite =
+    siteDraftsByCountry[activeCountryCode]?.[activeLocaleCode] ?? emptySite();
+  const currentWhy =
+    whyDraftsByCountry[activeCountryCode]?.[activeLocaleCode] ?? emptyWhy();
+  const currentBlog =
+    blogDraftsByCountry[activeCountryCode]?.[activeLocaleCode] ?? emptyBlog();
   const hasLocales = sortedCodes.length > 0;
 
-  function tabFilled(code: string): boolean {
+  function tabFilledLocale(code: string): boolean {
     if (!selected) return false;
     const k = inferCmsSectionType(selected);
+    const c = activeCountryCode;
     if (k === "why_choose_us") {
-      return filledWhy(whyDrafts[code] ?? emptyWhy());
+      return filledWhy(whyDraftsByCountry[c]?.[code] ?? emptyWhy());
     }
     if (k === "blog_section") {
-      return filledBlog(blogDrafts[code] ?? emptyBlog());
+      return filledBlog(blogDraftsByCountry[c]?.[code] ?? emptyBlog());
     }
-    return filledSite(siteDrafts[code] ?? emptySite());
+    return filledSite(siteDraftsByCountry[c]?.[code] ?? emptySite());
+  }
+
+  function tabFilledCountry(cc: string): boolean {
+    if (!selected) return false;
+    const k = inferCmsSectionType(selected);
+    return sortedCodes.some((loc) => {
+      if (k === "why_choose_us") {
+        return filledWhy(whyDraftsByCountry[cc]?.[loc] ?? emptyWhy());
+      }
+      if (k === "blog_section") {
+        return filledBlog(blogDraftsByCountry[cc]?.[loc] ?? emptyBlog());
+      }
+      return filledSite(siteDraftsByCountry[cc]?.[loc] ?? emptySite());
+    });
+  }
+
+  function countryTabLabel(cc: string): string {
+    if (cc === CMS_DEFAULT_COUNTRY_KEY) return t("cms.countryTab.default");
+    const doc = activeCountries.find(
+      (x) => x.code.trim().toUpperCase().slice(0, 2) === cc,
+    );
+    const name =
+      labelForLocale(doc?.translations, editorLocale) ||
+      pickSortLabel(doc?.translations, editorLocale, cc);
+    return name ? `${cc} — ${name}` : cc;
   }
 
   return (

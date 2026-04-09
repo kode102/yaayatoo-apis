@@ -6,6 +6,12 @@ import type {Request, Response} from "express";
 import type {DocumentData} from "firebase-admin/firestore";
 import {db} from "../lib/admin.js";
 import {
+  flattenCmsForSort,
+  normCmsCountryCode,
+  resolveCmsBlock,
+  toNestedCmsTranslations,
+} from "../admin/cms-translations.js";
+import {
   DEFAULT_LOCALE,
   normLocale,
   normalizeLegacyLanguageTranslations,
@@ -49,12 +55,7 @@ function normalizeCmsSection(
   data: DocumentData,
 ): Record<string, unknown> {
   const base = serializeDoc(id, data);
-  const t = data.translations;
-  if (t && typeof t === "object" && !Array.isArray(t)) {
-    base.translations = {...(t as Record<string, unknown>)};
-  } else {
-    base.translations = {};
-  }
+  base.translations = toNestedCmsTranslations(data.translations);
   return base;
 }
 
@@ -132,6 +133,17 @@ function readSortLocale(req: Request): string {
   const q = req.query.locale ?? req.query.sortLocale;
   const s = Array.isArray(q) ? q[0] : q;
   return normLocale(String(s ?? "")) || DEFAULT_LOCALE;
+}
+
+/**
+ * Pays pour résoudre `resolvedTranslation` (?country= ou ?countryCode=, ISO2).
+ * @param {Request} req Requête.
+ * @return {string} Code normalisé ou défaut CMS.
+ */
+function readCmsCountry(req: Request): string {
+  const q = req.query.country ?? req.query.countryCode;
+  const s = Array.isArray(q) ? q[0] : q;
+  return normCmsCountryCode(String(s ?? ""));
 }
 
 const FIRESTORE_IN_MAX = 30;
@@ -227,6 +239,7 @@ export async function getPublicCms(req: Request, res: Response): Promise<void> {
     }
 
     const sortLocale = readSortLocale(req);
+    const cmsCountry = readCmsCountry(req);
     const namespaces: Record<string, unknown>[] = [];
     for (const nid of targetIds) {
       const data = byId.get(nid);
@@ -246,13 +259,23 @@ export async function getPublicCms(req: Request, res: Response): Promise<void> {
       for (const d of secSnap.docs) {
         const row = normalizeCmsSection(d.id, d.data());
         if (!isActiveRow(row)) continue;
+        const nested = toNestedCmsTranslations(row.translations);
+        row.resolvedTranslation = resolveCmsBlock(
+          nested,
+          cmsCountry,
+          sortLocale,
+        ) ?? null;
         sectionRows.push(row);
       }
     }
 
     sectionRows.sort((a, b) => {
-      const trA = (a.translations ?? {}) as TranslationsMap;
-      const trB = (b.translations ?? {}) as TranslationsMap;
+      const trA = flattenCmsForSort(
+        toNestedCmsTranslations(a.translations),
+      );
+      const trB = flattenCmsForSort(
+        toNestedCmsTranslations(b.translations),
+      );
       const fa = String(a.subsectionKey ?? a.id);
       const fb = String(b.subsectionKey ?? b.id);
       return pickSortLabel(trA, sortLocale, fa).localeCompare(

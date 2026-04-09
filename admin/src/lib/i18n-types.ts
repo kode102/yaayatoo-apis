@@ -59,6 +59,63 @@ export type CmsLocaleBlock = {
 
 export type CmsTranslationMap = Record<string, CmsLocaleBlock>;
 
+/**
+ * Traductions CMS par pays puis par langue.
+ * Clé pays : ISO 3166-1 alpha-2 majuscules (CM, FR) ou `__` = défaut / tous pays.
+ */
+export type CmsTranslationsByCountry = Record<string, CmsTranslationMap>;
+
+/** Clé Firestore/API pour le contenu « tous pays » / héritage. */
+export const CMS_DEFAULT_COUNTRY_KEY = "__";
+
+/**
+ * Bloc pour un couple pays + langue (données API déjà normalisées pays → locale).
+ */
+export function getCmsLocaleBlock(
+  translations: CmsTranslationsByCountry | undefined,
+  countryCode: string,
+  locale: string,
+): CmsLocaleBlock | undefined {
+  if (!translations || typeof translations !== "object") return undefined;
+  const loc = locale.trim().toLowerCase();
+  const cc =
+    !countryCode.trim() || countryCode.trim() === CMS_DEFAULT_COUNTRY_KEY
+      ? CMS_DEFAULT_COUNTRY_KEY
+      : countryCode.trim().toUpperCase().slice(0, 2);
+  const per = translations[cc]?.[loc];
+  if (per) return per;
+  return translations[CMS_DEFAULT_COUNTRY_KEY]?.[loc];
+}
+
+/** Libellé de section CMS (liste / en-tête) : priorité pays défaut + locale, puis autres pays, puis premier nom trouvé. */
+export function pickSortLabelCms(
+  translations: CmsTranslationsByCountry | undefined,
+  locale: string,
+  fallback: string,
+): string {
+  if (!translations || typeof translations !== "object") return fallback;
+  const loc = locale.trim().toLowerCase();
+  const orderedCountries = [
+    CMS_DEFAULT_COUNTRY_KEY,
+    ...Object.keys(translations)
+      .filter((k) => k !== CMS_DEFAULT_COUNTRY_KEY)
+      .sort((a, b) => a.localeCompare(b)),
+  ];
+  for (const cc of orderedCountries) {
+    const n = (translations[cc]?.[loc]?.name ?? "").trim();
+    if (n) return n;
+  }
+  for (const cc of orderedCountries) {
+    const map = translations[cc];
+    if (!map || typeof map !== "object") continue;
+    for (const b of Object.values(map)) {
+      const n = (b?.name ?? "").trim();
+      if (n) return n;
+    }
+  }
+  return fallback;
+}
+
 /** Types de section gérés par l’admin (clé stockée dans Firestore). */
 export type CmsSectionTypeId = "why_choose_us" | "site_settings" | "blog_section";
 
@@ -75,7 +132,7 @@ export type CmsSectionDoc = {
   videoImageUrl?: string;
   videoLink?: string;
   readMoreUrl?: string;
-  translations: CmsTranslationMap;
+  translations: CmsTranslationsByCountry;
   createdAt?: string;
   updatedAt?: string;
 };

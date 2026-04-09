@@ -3,6 +3,14 @@ import express from "express";
 import {FieldValue, type DocumentData} from "firebase-admin/firestore";
 import {admin, db} from "../lib/admin.js";
 import {
+  flattenCmsForSort,
+  mergeCmsNestedLocaleBlock,
+  normCmsCountryCode,
+  readNestedCmsFromDoc,
+  toNestedCmsTranslations,
+  type CmsNestedTranslations,
+} from "./cms-translations.js";
+import {
   DEFAULT_LOCALE,
   mergeTranslations,
   normLocale,
@@ -95,6 +103,10 @@ function normalizeOut(
   data: DocumentData,
 ): Record<string, unknown> {
   const base = serializeDoc(id, data);
+  if (collection === "cmsSections") {
+    base.translations = toNestedCmsTranslations(data.translations);
+    return base;
+  }
   let tr: TranslationsMap;
   if (collection === "services") {
     tr = normalizeLegacyServiceTranslations(data);
@@ -103,15 +115,7 @@ function normalizeOut(
   } else if (collection === "languages" || collection === "cmsNamespaces") {
     tr = normalizeLegacyLanguageTranslations(data);
   } else {
-    if (
-      data.translations &&
-      typeof data.translations === "object" &&
-      !Array.isArray(data.translations)
-    ) {
-      tr = data.translations as TranslationsMap;
-    } else {
-      tr = {};
-    }
+    tr = {};
   }
   base.translations = tr;
   return base;
@@ -137,32 +141,6 @@ function sortListFallback(
     return String(row.subsectionKey ?? row.id);
   }
   return String(row.id);
-}
-
-function mergeCmsTranslations(
-  existing: TranslationsMap,
-  locale: string,
-  block: Record<string, string>,
-): TranslationsMap {
-  let prev: Record<string, unknown> = {};
-  if (
-    existing[locale] &&
-    typeof existing[locale] === "object" &&
-    !Array.isArray(existing[locale])
-  ) {
-    prev = existing[locale] as Record<string, unknown>;
-  }
-  const next: Record<string, string> = {};
-  for (const f of CMS_TRANSLATABLE_FIELDS) {
-    const incoming = block[f];
-    const old =
-      typeof prev[f] === "string" ? String(prev[f]) : "";
-    next[f] = incoming ?? old;
-  }
-  return {
-    ...existing,
-    [locale]: next as {name?: string; description?: string},
-  };
 }
 
 /**
@@ -313,7 +291,7 @@ function parseCmsSectionPost(body: Record<string, unknown>): {
   sectionType: string;
   active: boolean;
   registrationActive: boolean;
-  translations: TranslationsMap;
+  translations: CmsNestedTranslations;
   videoImageUrl: string;
   videoLink: string;
   readMoreUrl: string;
@@ -346,7 +324,15 @@ function parseCmsSectionPost(body: Record<string, unknown>): {
     if (typeof raw === "string") block[f] = raw;
   }
   if (!block.name) block.name = name;
-  const translations = mergeCmsTranslations({}, locale, block);
+  const country = normCmsCountryCode(
+    String(body.countryCode ?? body.country ?? ""),
+  );
+  const translations = mergeCmsNestedLocaleBlock(
+    {},
+    country,
+    locale,
+    block,
+  );
   return {
     sectionKey,
     subsectionKey,
@@ -395,16 +381,10 @@ function buildPutPatch(
       tr = normalizeLegacyCountryTranslations(existing);
     } else if (collection === "languages" || collection === "cmsNamespaces") {
       tr = normalizeLegacyLanguageTranslations(existing);
+    } else if (collection === "cmsSections") {
+      tr = {};
     } else {
-      if (
-        existing.translations &&
-        typeof existing.translations === "object" &&
-        !Array.isArray(existing.translations)
-      ) {
-        tr = existing.translations as TranslationsMap;
-      } else {
-        tr = {};
-      }
+      tr = {};
     }
 
     if (collection === "services") {
@@ -455,7 +435,7 @@ function buildPutPatch(
         return {patch: {}, error: "name vide"};
       }
       patch.translations = mergeTranslations(tr, locale, {name});
-    } else {
+    } else if (collection === "cmsSections") {
       const incoming: Record<string, string> = {};
       for (const f of CMS_TRANSLATABLE_FIELDS) {
         const raw = body[f];
@@ -470,7 +450,18 @@ function buildPutPatch(
       if (incoming.name !== undefined && !incoming.name.trim()) {
         return {patch: {}, error: "name vide"};
       }
-      patch.translations = mergeCmsTranslations(tr, locale, incoming);
+      const country = normCmsCountryCode(
+        String(body.countryCode ?? body.country ?? ""),
+      );
+      const nested = readNestedCmsFromDoc(existing);
+      patch.translations = mergeCmsNestedLocaleBlock(
+        nested,
+        country,
+        locale,
+        incoming,
+      );
+    } else {
+      return {patch: {}, error: "Collection inconnue pour locale"};
     }
   }
 
@@ -582,8 +573,23 @@ export function createAdminRouter(): express.Router {
         normalizeOut(collection, d.id, d.data()),
       );
       data.sort((a, b) => {
-        const trA = (a.translations ?? {}) as TranslationsMap;
-        const trB = (b.translations ?? {}) as TranslationsMap;
+        let trA: TranslationsMap;
+        let trB: TranslationsMap;
+        if (collection === "cmsSections") {
+          trA = flattenCmsForSort(
+            toNestedCmsTranslations(
+              (a as {translations?: unknown}).translations,
+            ),
+          );
+          trB = flattenCmsForSort(
+            toNestedCmsTranslations(
+              (b as {translations?: unknown}).translations,
+            ),
+          );
+        } else {
+          trA = (a.translations ?? {}) as TranslationsMap;
+          trB = (b.translations ?? {}) as TranslationsMap;
+        }
         const fa = sortListFallback(collection, a as Record<string, unknown>);
         const fb = sortListFallback(collection, b as Record<string, unknown>);
         return pickSortLabel(trA, sortLocale, fa).localeCompare(
