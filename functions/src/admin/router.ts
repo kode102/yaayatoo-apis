@@ -680,8 +680,8 @@ function parseCmsSectionPost(body: Record<string, unknown>): {
     typeof body.videoImageUrl === "string" ? body.videoImageUrl.trim() : "";
   const profileListingImageUrl =
     typeof body.profileListingImageUrl === "string" ?
-      body.profileListingImageUrl.trim()
-    : "";
+      body.profileListingImageUrl.trim() :
+      "";
   const videoLink =
     typeof body.videoLink === "string" ? body.videoLink.trim() : "";
   const readMoreUrl =
