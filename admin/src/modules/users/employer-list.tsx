@@ -5,6 +5,7 @@ import {useCallback, useEffect, useMemo, useState} from "react";
 import {EmployerProfileImageField} from "@/components/employer-profile-image-field";
 import {AdminDataTable, SortableHeader} from "@/components/admin-data-table";
 import {EditSheet} from "@/components/edit-sheet";
+import {ProfileWizardStepIndicator} from "@/components/profile-form-wizard";
 import {ListPageHeader} from "@/components/list-page-header";
 import {RippleIconButton} from "@/components/ripple-icon-button";
 import {useAuth} from "@/contexts/auth-context";
@@ -30,6 +31,7 @@ export default function EmployerListView() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [editRow, setEditRow] = useState<EmployerDoc | null>(null);
+  const [editStep, setEditStep] = useState(0);
   const [draftCompany, setDraftCompany] = useState("");
   const [draftContact, setDraftContact] = useState("");
   const [draftNotes, setDraftNotes] = useState("");
@@ -60,7 +62,13 @@ export default function EmployerListView() {
     void load();
   }, [load]);
 
+  const closeEdit = useCallback(() => {
+    setEditRow(null);
+    setEditStep(0);
+  }, []);
+
   const openEdit = useCallback((row: EmployerDoc) => {
+    setEditStep(0);
     setEditRow(row);
     setDraftCompany(row.companyName ?? "");
     setDraftContact(row.contactName ?? "");
@@ -94,6 +102,7 @@ export default function EmployerListView() {
         },
       );
       setEditRow(null);
+      setEditStep(0);
       await load();
     } catch (e: unknown) {
       setLoadError(e instanceof Error ? e.message : String(e));
@@ -319,99 +328,136 @@ export default function EmployerListView() {
       <EditSheet
         open={!!editRow}
         title={t("users.employer.editTitle")}
-        onClose={() => setEditRow(null)}
+        onClose={closeEdit}
+        panelClassName="max-w-xl"
         footer={
           <>
             <button
               type="button"
-              onClick={() => setEditRow(null)}
+              onClick={closeEdit}
               className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
             >
               {t("common.cancel")}
             </button>
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => void saveEdit()}
-              className="rounded-lg bg-primary px-3 py-2 text-sm font-medium text-white hover:bg-primary-hover disabled:opacity-50"
-            >
-              {t("common.save")}
-            </button>
+            <div className="flex flex-wrap justify-end gap-2">
+              {editStep > 0 ?
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => setEditStep((s) => Math.max(0, s - 1))}
+                  className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                >
+                  {t("users.wizard.back")}
+                </button>
+              : null}
+              {editStep < 2 ?
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() =>
+                    setEditStep((s) => Math.min(2, s + 1))
+                  }
+                  className="rounded-lg bg-primary px-3 py-2 text-sm font-medium text-white hover:bg-primary-hover disabled:opacity-50"
+                >
+                  {t("users.wizard.next")}
+                </button>
+              : <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void saveEdit()}
+                  className="rounded-lg bg-primary px-3 py-2 text-sm font-medium text-white hover:bg-primary-hover disabled:opacity-50"
+                >
+                  {t("common.save")}
+                </button>
+              }
+            </div>
           </>
         }
       >
-        <div className="max-h-[min(70vh,560px)] space-y-3 overflow-y-auto pr-1">
+        <ProfileWizardStepIndicator currentStep={editStep} />
+        <div className="max-h-[min(70vh,520px)] space-y-3 overflow-y-auto pr-1">
           <p className="text-xs text-gray-500">
             UID :{" "}
             <code className="text-gray-800">{editRow?.firebaseUid}</code>
           </p>
-          <label className="block text-sm text-gray-700">
-            {t("users.employer.colCompany")}
-            <input
-              value={draftCompany}
-              onChange={(e) => setDraftCompany(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary/70 focus:ring-2 focus:ring-primary/15 focus:outline-none"
-            />
-          </label>
-          <label className="block text-sm text-gray-700">
-            {t("users.employer.colContact")}
-            <input
-              value={draftContact}
-              onChange={(e) => setDraftContact(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary/70 focus:ring-2 focus:ring-primary/15 focus:outline-none"
-            />
-          </label>
-          <label className="block text-sm text-gray-700">
-            {t("users.employer.occupation")}
-            <input
-              value={draftOccupation}
-              onChange={(e) => setDraftOccupation(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary/70 focus:ring-2 focus:ring-primary/15 focus:outline-none"
-            />
-          </label>
-          <label className="block text-sm text-gray-700">
-            {t("users.employer.joinedAt")}
-            <input
-              type="date"
-              value={draftJoined}
-              onChange={(e) => setDraftJoined(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary/70 focus:ring-2 focus:ring-primary/15 focus:outline-none"
-            />
-          </label>
-          {tenureEdit !== null ?
-            <p className="text-sm text-gray-600">
-              {t("users.employer.memberYears", {years: String(tenureEdit)})}
-            </p>
-          : null}
-          <label className="block text-sm text-gray-700">
-            {t("users.employer.badge")}
-            <select
-              value={draftBadge}
-              onChange={(e) => setDraftBadge(e.target.value as EmployerBadge)}
-              className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary/70 focus:ring-2 focus:ring-primary/15 focus:outline-none"
-            >
-              {EMPLOYER_BADGE_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {t(o.labelKey)}
-                </option>
-              ))}
-            </select>
-          </label>
-          <EmployerProfileImageField
-            value={draftImage}
-            onChange={setDraftImage}
-            employerUid={editRow?.firebaseUid}
-            disabled={busy}
-          />
-          <label className="block text-sm text-gray-700">
-            {t("users.employer.colNotes")}
-            <textarea
-              value={draftNotes}
-              onChange={(e) => setDraftNotes(e.target.value)}
-              rows={4}
-              className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary/70 focus:ring-2 focus:ring-primary/15 focus:outline-none"
-            />
-          </label>
+          {editStep === 0 ?
+            <>
+              <label className="block text-sm text-gray-700">
+                {t("users.employer.colCompany")}
+                <input
+                  value={draftCompany}
+                  onChange={(e) => setDraftCompany(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary/70 focus:ring-2 focus:ring-primary/15 focus:outline-none"
+                />
+              </label>
+              <label className="block text-sm text-gray-700">
+                {t("users.employer.colContact")}
+                <input
+                  value={draftContact}
+                  onChange={(e) => setDraftContact(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary/70 focus:ring-2 focus:ring-primary/15 focus:outline-none"
+                />
+              </label>
+              <label className="block text-sm text-gray-700">
+                {t("users.employer.occupation")}
+                <input
+                  value={draftOccupation}
+                  onChange={(e) => setDraftOccupation(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary/70 focus:ring-2 focus:ring-primary/15 focus:outline-none"
+                />
+              </label>
+            </>
+          : editStep === 1 ?
+            <>
+              <label className="block text-sm text-gray-700">
+                {t("users.employer.joinedAt")}
+                <input
+                  type="date"
+                  value={draftJoined}
+                  onChange={(e) => setDraftJoined(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary/70 focus:ring-2 focus:ring-primary/15 focus:outline-none"
+                />
+              </label>
+              {tenureEdit !== null ?
+                <p className="text-sm text-gray-600">
+                  {t("users.employer.memberYears", {
+                    years: String(tenureEdit),
+                  })}
+                </p>
+              : null}
+              <label className="block text-sm text-gray-700">
+                {t("users.employer.badge")}
+                <select
+                  value={draftBadge}
+                  onChange={(e) =>
+                    setDraftBadge(e.target.value as EmployerBadge)
+                  }
+                  className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary/70 focus:ring-2 focus:ring-primary/15 focus:outline-none"
+                >
+                  {EMPLOYER_BADGE_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {t(o.labelKey)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <EmployerProfileImageField
+                value={draftImage}
+                onChange={setDraftImage}
+                employerUid={editRow?.firebaseUid}
+                disabled={busy}
+              />
+            </>
+          : <label className="block text-sm text-gray-700">
+              {t("users.employer.colNotes")}
+              <textarea
+                value={draftNotes}
+                onChange={(e) => setDraftNotes(e.target.value)}
+                rows={5}
+                className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary/70 focus:ring-2 focus:ring-primary/15 focus:outline-none"
+              />
+            </label>
+          }
         </div>
       </EditSheet>
     </div>

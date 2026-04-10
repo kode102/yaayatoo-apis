@@ -118,7 +118,11 @@ function normalizeOut(
   data: DocumentData,
 ): Record<string, unknown> {
   const base = serializeDoc(id, data);
-  if (collection === "employee" || collection === "employer") {
+  if (collection === "employee") {
+    base.status = normalizeEmployeeStatus(base.status);
+    return base;
+  }
+  if (collection === "employer") {
     return base;
   }
   if (collection === "cmsSections") {
@@ -236,6 +240,21 @@ function normalizeEmployeeBadge(v: unknown): EmployeeBadge {
   return "NONE";
 }
 
+/** Statut disponibilité employé (Firestore `status`). */
+const EMPLOYEE_STATUSES = new Set(["FREE", "BUSY", "BLOCKED"]);
+
+type EmployeeStatus = "FREE" | "BUSY" | "BLOCKED";
+
+/**
+ * @param {unknown} v Valeur brute.
+ * @return {EmployeeStatus} Statut normalisé.
+ */
+function normalizeEmployeeStatus(v: unknown): EmployeeStatus {
+  const s = String(v ?? "FREE").trim().toUpperCase();
+  if (EMPLOYEE_STATUSES.has(s)) return s as EmployeeStatus;
+  return "FREE";
+}
+
 /** Badges profil employeur (Firestore `badge`). */
 const EMPLOYER_BADGES = new Set(["NONE", "TRUSTED"]);
 
@@ -312,6 +331,7 @@ function parseEmployeePost(body: Record<string, unknown>): {
   notes: string;
   startedWorkingAt: string;
   badge: EmployeeBadge;
+  status: EmployeeStatus;
   profileImageUrl: string;
   offeredServiceIds: string[];
 } | null {
@@ -323,6 +343,7 @@ function parseEmployeePost(body: Record<string, unknown>): {
   const notes = typeof body.notes === "string" ? body.notes : "";
   const startedWorkingAt = normalizeStartedWorkingAt(body.startedWorkingAt);
   const badge = normalizeEmployeeBadge(body.badge);
+  const status = normalizeEmployeeStatus(body.status);
   let profileImageUrl = "";
   if (typeof body.profileImageUrl === "string") {
     profileImageUrl = body.profileImageUrl.trim();
@@ -334,6 +355,7 @@ function parseEmployeePost(body: Record<string, unknown>): {
     notes,
     startedWorkingAt,
     badge,
+    status,
     profileImageUrl,
     offeredServiceIds,
   };
@@ -604,6 +626,9 @@ function buildPutPatch(
       }
       if (body.badge !== undefined) {
         patch.badge = normalizeEmployeeBadge(body.badge);
+      }
+      if (body.status !== undefined) {
+        patch.status = normalizeEmployeeStatus(body.status);
       }
       if (typeof body.profileImageUrl === "string") {
         patch.profileImageUrl = body.profileImageUrl.trim();
@@ -1065,6 +1090,7 @@ export function createAdminRouter(): express.Router {
           fullName: v.fullName,
           notes: v.notes,
           badge: v.badge,
+          status: v.status,
           profileImageUrl: v.profileImageUrl,
           offeredServiceIds: v.offeredServiceIds,
           createdAt: now,

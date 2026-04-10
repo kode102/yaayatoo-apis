@@ -1,6 +1,9 @@
 /** Badge profil employé (aligné API / Firestore). */
 export type EmployeeBadge = "NONE" | "BLUE" | "GREEN" | "YELLOW";
 
+/** Disponibilité / statut contrat employé (Firestore `status`). */
+export type EmployeeStatus = "FREE" | "BUSY" | "BLOCKED";
+
 /** Document Firestore collection `employee` (id = firebaseUid). */
 export type EmployeeDoc = {
   id: string;
@@ -10,6 +13,8 @@ export type EmployeeDoc = {
   /** Début d’activité (YYYY-MM-DD) pour calculer l’ancienneté. */
   startedWorkingAt?: string;
   badge?: EmployeeBadge;
+  /** Disponibilité (défaut API / affichage : FREE si absent en base). */
+  status?: EmployeeStatus;
   profileImageUrl?: string;
   /** Ids documents collection `services`. */
   offeredServiceIds?: string[];
