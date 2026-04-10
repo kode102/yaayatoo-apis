@@ -14,6 +14,8 @@ export type EmployeeDoc = {
   notes?: string;
   /** Début d’activité (YYYY-MM-DD) pour calculer l’ancienneté. */
   startedWorkingAt?: string;
+  /** Date de naissance (YYYY-MM-DD). */
+  dateOfBirth?: string;
   badge?: EmployeeBadge;
   /** Disponibilité (défaut API / affichage : FREE si absent en base). */
   status?: EmployeeStatus;

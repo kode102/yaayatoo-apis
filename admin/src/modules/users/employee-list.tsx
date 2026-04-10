@@ -77,6 +77,7 @@ export default function EmployeeListView() {
   const [draftName, setDraftName] = useState("");
   const [draftNotes, setDraftNotes] = useState("");
   const [draftStarted, setDraftStarted] = useState("");
+  const [draftDateOfBirth, setDraftDateOfBirth] = useState("");
   const [draftBadge, setDraftBadge] = useState<EmployeeBadge>("NONE");
   const [draftStatus, setDraftStatus] = useState<EmployeeStatus>("FREE");
   const [draftImage, setDraftImage] = useState("");
@@ -176,6 +177,7 @@ export default function EmployeeListView() {
     setDraftName(row.fullName ?? "");
     setDraftNotes(row.notes ?? "");
     setDraftStarted(row.startedWorkingAt ?? "");
+    setDraftDateOfBirth(row.dateOfBirth ?? "");
     setDraftBadge(row.badge ?? "NONE");
     setDraftStatus(employeeStatusOrDefault(row.status));
     setDraftImage(row.profileImageUrl ?? "");
@@ -207,6 +209,7 @@ export default function EmployeeListView() {
             fullName: draftName.trim(),
             notes: draftNotes,
             startedWorkingAt: draftStarted.trim(),
+            dateOfBirth: draftDateOfBirth.trim(),
             badge: draftBadge,
             status: draftStatus,
             countryCode: draftCountryCode,
@@ -232,6 +235,7 @@ export default function EmployeeListView() {
     draftNotes,
     draftServiceIds,
     draftStarted,
+    draftDateOfBirth,
     editRow,
     getIdToken,
     load,
@@ -259,6 +263,7 @@ export default function EmployeeListView() {
   );
 
   const expPreviewEdit = yearsOfExperienceFromStartDate(draftStarted);
+  const agePreviewEdit = yearsOfExperienceFromStartDate(draftDateOfBirth);
 
   const columns = useMemo(
     () =>
@@ -367,6 +372,29 @@ export default function EmployeeListView() {
             return (
               <span className="text-sm text-gray-700">
                 {t("users.employee.experienceYears", {years: String(y)})}
+              </span>
+            );
+          },
+        }),
+        col.accessor("dateOfBirth", {
+          id: "dob",
+          header: ({column}) => (
+            <SortableHeader column={column}>
+              {t("users.employee.colDateOfBirth")}
+            </SortableHeader>
+          ),
+          cell: ({row}) => {
+            const raw = row.original.dateOfBirth?.trim();
+            if (!raw) return <span className="text-gray-400">—</span>;
+            const age = yearsOfExperienceFromStartDate(raw);
+            return (
+              <span className="text-sm text-gray-700">
+                {raw}
+                {age !== null ?
+                  <span className="ml-1 text-xs text-gray-500">
+                    ({t("users.employee.ageYearsShort", {years: String(age)})})
+                  </span>
+                : null}
               </span>
             );
           },
@@ -482,7 +510,7 @@ export default function EmployeeListView() {
         columns={columns}
         getRowId={(row) => row.id}
         emptyLabel={t("users.employee.list.empty")}
-        minTableWidth={1180}
+        minTableWidth={1280}
       />
       <EditSheet
         open={!!editRow}
@@ -596,6 +624,22 @@ export default function EmployeeListView() {
                 <p className="text-sm text-gray-600">
                   {t("users.employee.experienceYears", {
                     years: String(expPreviewEdit),
+                  })}
+                </p>
+              : null}
+              <label className="block text-sm text-gray-700">
+                {t("users.employee.dateOfBirth")}
+                <input
+                  type="date"
+                  value={draftDateOfBirth}
+                  onChange={(e) => setDraftDateOfBirth(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary/70 focus:ring-2 focus:ring-primary/15 focus:outline-none"
+                />
+              </label>
+              {agePreviewEdit !== null ?
+                <p className="text-sm text-gray-600">
+                  {t("users.employee.agePreview", {
+                    years: String(agePreviewEdit),
                   })}
                 </p>
               : null}

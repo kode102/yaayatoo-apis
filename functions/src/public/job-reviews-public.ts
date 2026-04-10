@@ -29,6 +29,8 @@ export type PublicJobReviewCard = {
     subtitle: string;
     imageUrl: string;
     experienceYears: number | null;
+    /** Âge affichable (années depuis `dateOfBirth` employé), ou null. */
+    ageYears: number | null;
     verified: boolean;
     badge: string;
   };
@@ -191,6 +193,7 @@ export async function getPublicJobReviews(
       let empVerified = false;
       let empBadge = "NONE";
       let experienceYears: number | null = null;
+      let ageYears: number | null = null;
       if (employeeId) {
         const wSnap = await db.collection("employee").doc(employeeId).get();
         if (wSnap.exists) {
@@ -202,6 +205,8 @@ export async function getPublicJobReviews(
           empVerified = empBadge !== "NONE";
           const startYmd = employeeStartedAtToYmd(w.startedWorkingAt);
           experienceYears = fullYearsSinceYmd(startYmd);
+          const dobYmd = employeeStartedAtToYmd(w.dateOfBirth);
+          ageYears = fullYearsSinceYmd(dobYmd);
         }
       }
 
@@ -225,6 +230,7 @@ export async function getPublicJobReviews(
           subtitle: empSubtitle,
           imageUrl: empImage,
           experienceYears,
+          ageYears,
           verified: empVerified,
           badge: empBadge,
         },

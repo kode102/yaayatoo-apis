@@ -395,6 +395,7 @@ function parseEmployeePost(body: Record<string, unknown>): {
   fullName: string;
   notes: string;
   startedWorkingAt: string;
+  dateOfBirth: string;
   badge: EmployeeBadge;
   status: EmployeeStatus;
   countryCode: string;
@@ -408,6 +409,7 @@ function parseEmployeePost(body: Record<string, unknown>): {
     typeof body.fullName === "string" ? body.fullName.trim() : "";
   const notes = typeof body.notes === "string" ? body.notes : "";
   const startedWorkingAt = normalizeStartedWorkingAt(body.startedWorkingAt);
+  const dateOfBirth = normalizeStartedWorkingAt(body.dateOfBirth);
   const badge = normalizeEmployeeBadge(body.badge);
   const status = normalizeEmployeeStatus(body.status);
   let profileImageUrl = "";
@@ -421,6 +423,7 @@ function parseEmployeePost(body: Record<string, unknown>): {
     fullName,
     notes,
     startedWorkingAt,
+    dateOfBirth,
     badge,
     status,
     countryCode,
@@ -765,6 +768,21 @@ function buildPutPatch(
         } else {
           // eslint-disable-next-line new-cap -- FieldValue.delete()
           patch.startedWorkingAt = FieldValue.delete();
+        }
+      }
+      if (body.dateOfBirth !== undefined) {
+        if (typeof body.dateOfBirth !== "string") {
+          return {
+            patch: {},
+            error: "dateOfBirth doit être une chaîne (date)",
+          };
+        }
+        const dob = normalizeStartedWorkingAt(body.dateOfBirth);
+        if (dob) {
+          patch.dateOfBirth = dob;
+        } else {
+          // eslint-disable-next-line new-cap -- FieldValue.delete()
+          patch.dateOfBirth = FieldValue.delete();
         }
       }
       if (body.badge !== undefined) {
@@ -1375,6 +1393,9 @@ export function createAdminRouter(): express.Router {
         };
         if (v.startedWorkingAt) {
           empDoc.startedWorkingAt = v.startedWorkingAt;
+        }
+        if (v.dateOfBirth) {
+          empDoc.dateOfBirth = v.dateOfBirth;
         }
         await ref.set(empDoc);
         const created = await ref.get();

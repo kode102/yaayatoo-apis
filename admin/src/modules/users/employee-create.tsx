@@ -35,6 +35,7 @@ export default function EmployeeCreateView() {
   const [fullName, setFullName] = useState("");
   const [notes, setNotes] = useState("");
   const [startedWorkingAt, setStartedWorkingAt] = useState("");
+  const [dateOfBirth, setDateOfBirth] = useState("");
   const [badge, setBadge] = useState<EmployeeBadge>("NONE");
   const [status, setStatus] = useState<EmployeeStatus>("FREE");
   const [profileImageUrl, setProfileImageUrl] = useState("");
@@ -101,6 +102,7 @@ export default function EmployeeCreateView() {
   }, [countryCode, services]);
 
   const expPreview = yearsOfExperienceFromStartDate(startedWorkingAt);
+  const agePreview = yearsOfExperienceFromStartDate(dateOfBirth);
 
   function goNext() {
     if (step === 0 && !firebaseUid.trim()) {
@@ -150,6 +152,7 @@ export default function EmployeeCreateView() {
             fullName: fullName.trim(),
             notes,
             startedWorkingAt: startedWorkingAt.trim() || undefined,
+            dateOfBirth: dateOfBirth.trim() || undefined,
             badge,
             status,
             countryCode,
@@ -251,6 +254,20 @@ export default function EmployeeCreateView() {
                   {t("users.employee.experienceYears", {
                     years: String(expPreview),
                   })}
+                </p>
+              : null}
+              <label className="block text-sm text-gray-700">
+                {t("users.employee.dateOfBirth")}
+                <input
+                  type="date"
+                  value={dateOfBirth}
+                  onChange={(e) => setDateOfBirth(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary/70 focus:ring-2 focus:ring-primary/15 focus:outline-none"
+                />
+              </label>
+              {agePreview !== null ?
+                <p className="text-sm text-gray-600">
+                  {t("users.employee.agePreview", {years: String(agePreview)})}
                 </p>
               : null}
               <label className="block text-sm text-gray-700">
