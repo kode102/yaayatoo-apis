@@ -142,9 +142,11 @@ export async function getPublicJobReviews(
           const e = emSnap.data()!;
           const cn = String(e.contactName ?? "").trim();
           const comp = String(e.companyName ?? "").trim();
-          reviewerName = cn || comp || employerId;
+          const occ = String(e.occupation ?? "").trim();
+          // Nom affiché : employeur (companyName), pas l’e-mail (contactName).
+          reviewerName = comp || cn || employerId;
           reviewerSubtitle =
-            String(e.occupation ?? "").trim() || comp || "";
+            occ || (reviewerName !== comp ? comp : "");
           reviewerImage = String(e.profileImageUrl ?? "").trim();
           reviewerVerified = String(e.badge ?? "") === "TRUSTED";
         }
