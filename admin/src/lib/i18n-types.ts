@@ -143,6 +143,7 @@ export type CmsSectionTypeId =
   | "why_choose_us"
   | "site_settings"
   | "blog_section"
+  | "profile_listing"
   | "banner"
   | "stat"
   | "features";
@@ -158,6 +159,8 @@ export type CmsSectionDoc = {
   registrationActive?: boolean;
   /** Médias / liens communs à toutes les langues */
   videoImageUrl?: string;
+  /** Image d’en-tête « Profile listing » (hors traductions). */
+  profileListingImageUrl?: string;
   videoLink?: string;
   readMoreUrl?: string;
   translations: CmsTranslationsByCountry;
@@ -355,6 +358,7 @@ export function inferCmsSectionType(doc: CmsSectionDoc): CmsSectionTypeId {
     raw === "why_choose_us" ||
     raw === "site_settings" ||
     raw === "blog_section" ||
+    raw === "profile_listing" ||
     raw === "banner" ||
     raw === "stat" ||
     raw === "features"
@@ -363,6 +367,8 @@ export function inferCmsSectionType(doc: CmsSectionDoc): CmsSectionTypeId {
   }
   const sub = doc.subsectionKey?.trim().toLowerCase() ?? "";
   if (sub === "blog-section") return "blog_section";
+  if (sub === "profile-listing" || sub.startsWith("profile-listing"))
+    return "profile_listing";
   if (sub === "user-interface-settings") return "site_settings";
   if (sub.startsWith("why-choose")) return "why_choose_us";
   if (sub === "banner" || sub.startsWith("banner-")) return "banner";

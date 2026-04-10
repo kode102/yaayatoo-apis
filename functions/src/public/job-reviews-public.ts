@@ -14,6 +14,8 @@ export type PublicJobReviewCard = {
   reviewedAt: string;
   jobTitle: string;
   reviewer: {
+    /** Id document Firestore `employer`. */
+    id: string;
     name: string;
     subtitle: string;
     imageUrl: string;
@@ -21,6 +23,8 @@ export type PublicJobReviewCard = {
     badge: string;
   };
   matchedProfile: {
+    /** Id document Firestore `employee`. */
+    id: string;
     name: string;
     subtitle: string;
     imageUrl: string;
@@ -208,6 +212,7 @@ export async function getPublicJobReviews(
         reviewedAt,
         jobTitle,
         reviewer: {
+          id: employerId,
           name: reviewerName,
           subtitle: reviewerSubtitle,
           imageUrl: reviewerImage,
@@ -215,6 +220,7 @@ export async function getPublicJobReviews(
           badge: reviewerBadge,
         },
         matchedProfile: {
+          id: employeeId,
           name: empName,
           subtitle: empSubtitle,
           imageUrl: empImage,

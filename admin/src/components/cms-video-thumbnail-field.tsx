@@ -14,6 +14,10 @@ type Props = {
   /** Section Firestore sélectionnée : sous-dossier dédié dans Storage. */
   sectionId?: string;
   disabled?: boolean;
+  /** Libellé du champ (défaut : image vidéo « Why »). */
+  label?: string;
+  /** Sous-texte sous le libellé (défaut : même aide que l’image vidéo). */
+  hint?: string;
 };
 
 export function CmsVideoThumbnailField({
@@ -21,6 +25,8 @@ export function CmsVideoThumbnailField({
   onChange,
   sectionId,
   disabled,
+  label,
+  hint,
 }: Props) {
   const {t} = useUiLocale();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -60,14 +66,13 @@ export function CmsVideoThumbnailField({
   const busy = Boolean(disabled || uploading);
   const maxMb = String(Math.round(SERVICE_IMAGE_MAX_BYTES / (1024 * 1024)));
 
+  const labelText = label ?? t("cms.why.fieldVideoImage");
+  const hintText = hint ?? t("cms.why.thumbnailHint", {maxMb});
+
   return (
     <div className="space-y-2 md:col-span-2">
-      <span className="block text-sm text-gray-700">
-        {t("cms.why.fieldVideoImage")}
-      </span>
-      <p className="text-xs text-gray-500">
-        {t("cms.why.thumbnailHint", {maxMb})}
-      </p>
+      <span className="block text-sm text-gray-700">{labelText}</span>
+      <p className="text-xs text-gray-500">{hintText}</p>
       <input
         value={value}
         onChange={(e) => onChange(e.target.value)}

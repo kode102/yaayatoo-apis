@@ -81,6 +81,7 @@ const SECTION_TYPES: {id: CmsSectionTypeId; labelKey: string}[] = [
   {id: "stat", labelKey: "cms.sectionType.stat"},
   {id: "features", labelKey: "cms.sectionType.features"},
   {id: "blog_section", labelKey: "cms.sectionType.blogSection"},
+  {id: "profile_listing", labelKey: "cms.sectionType.profileListing"},
   {id: "site_settings", labelKey: "cms.sectionType.siteSettings"},
 ];
 
@@ -661,6 +662,7 @@ export default function CmsSectionsView() {
   const [active, setActive] = useState(true);
   const [registrationActive, setRegistrationActive] = useState(false);
   const [videoImageUrl, setVideoImageUrl] = useState("");
+  const [profileListingImageUrl, setProfileListingImageUrl] = useState("");
   const [videoLink, setVideoLink] = useState("");
   const [readMoreUrl, setReadMoreUrl] = useState("");
   const [assignNamespaceId, setAssignNamespaceId] = useState("");
@@ -758,6 +760,16 @@ export default function CmsSectionsView() {
     ) {
       setCSub("features");
     }
+    if (
+      cType === "profile_listing" &&
+      (cSub === "why-choose-us" ||
+        cSub === "banner" ||
+        cSub === "stat" ||
+        cSub === "features" ||
+        cSub === "blog-section")
+    ) {
+      setCSub("profile-listing");
+    }
   }, [cType, cSub]);
 
   useEffect(() => {
@@ -806,6 +818,7 @@ export default function CmsSectionsView() {
     setActive(selected.active ?? true);
     setRegistrationActive(Boolean(selected.registrationActive));
     setVideoImageUrl(selected.videoImageUrl ?? "");
+    setProfileListingImageUrl(selected.profileListingImageUrl ?? "");
     setVideoLink(selected.videoLink ?? "");
     setReadMoreUrl(selected.readMoreUrl ?? "");
     setAssignNamespaceId(selected.namespaceId ?? "");
@@ -947,7 +960,7 @@ export default function CmsSectionsView() {
           if (filledWhy(whyDraftsByCountry[country]?.[code] ?? emptyWhy())) {
             filledPairs.push({country, locale: code});
           }
-        } else if (kind === "blog_section") {
+        } else if (kind === "blog_section" || kind === "profile_listing") {
           if (filledBlog(blogDraftsByCountry[country]?.[code] ?? emptyBlog())) {
             filledPairs.push({country, locale: code});
           }
@@ -991,6 +1004,7 @@ export default function CmsSectionsView() {
             active,
             registrationActive,
             videoImageUrl,
+            profileListingImageUrl,
             videoLink,
             readMoreUrl,
           }),
@@ -1017,7 +1031,7 @@ export default function CmsSectionsView() {
             section2Items: linesToStored(d.section2Items),
             readMoreLabel: d.readMoreLabel,
           });
-        } else if (kind === "blog_section") {
+        } else if (kind === "blog_section" || kind === "profile_listing") {
           const d = blogDraftsByCountry[country]?.[code] ?? emptyBlog();
           Object.assign(body, {
             name: d.name.trim(),
@@ -1159,6 +1173,7 @@ export default function CmsSectionsView() {
             active: true,
             registrationActive: false,
             videoImageUrl: "",
+            profileListingImageUrl: "",
             videoLink: "",
             readMoreUrl: "",
           }),
@@ -1201,7 +1216,7 @@ export default function CmsSectionsView() {
     if (k === "why_choose_us") {
       return filledWhy(whyDraftsByCountry[c]?.[code] ?? emptyWhy());
     }
-    if (k === "blog_section") {
+    if (k === "blog_section" || k === "profile_listing") {
       return filledBlog(blogDraftsByCountry[c]?.[code] ?? emptyBlog());
     }
     if (k === "banner") {
@@ -1225,7 +1240,7 @@ export default function CmsSectionsView() {
       if (k === "why_choose_us") {
         return filledWhy(whyDraftsByCountry[cc]?.[loc] ?? emptyWhy());
       }
-      if (k === "blog_section") {
+      if (k === "blog_section" || k === "profile_listing") {
         return filledBlog(blogDraftsByCountry[cc]?.[loc] ?? emptyBlog());
       }
       if (k === "banner") {
@@ -1661,10 +1676,14 @@ export default function CmsSectionsView() {
                     />
                   </label>
                 </div>
-              : sectionKind === "blog_section" ?
+              : sectionKind === "blog_section" ||
+                  sectionKind === "profile_listing" ?
                 <div className="grid gap-3 md:grid-cols-2">
                   <label className="block text-sm text-gray-700">
-                    {t("common.name")} *
+                    {(sectionKind === "profile_listing" ?
+                      t("cms.profileListing.fieldTitle")
+                    : t("common.name"))}{" "}
+                    *
                     <input
                       value={currentBlog.name}
                       onChange={(e) =>
@@ -1674,7 +1693,9 @@ export default function CmsSectionsView() {
                     />
                   </label>
                   <label className="block text-sm text-gray-700 md:col-span-2">
-                    {t("common.description")}
+                    {sectionKind === "profile_listing" ?
+                      t("cms.profileListing.fieldSubtitle")
+                    : t("common.description")}
                     <textarea
                       rows={3}
                       value={currentBlog.description}
@@ -1687,6 +1708,15 @@ export default function CmsSectionsView() {
                       className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
                     />
                   </label>
+                  {sectionKind === "profile_listing" ?
+                    <CmsVideoThumbnailField
+                      label={t("cms.profileListing.fieldImage")}
+                      value={profileListingImageUrl}
+                      onChange={setProfileListingImageUrl}
+                      sectionId={selectedId ?? undefined}
+                      disabled={saving}
+                    />
+                  : null}
                 </div>
               : sectionKind === "stat" ?
                 <div className="space-y-4">

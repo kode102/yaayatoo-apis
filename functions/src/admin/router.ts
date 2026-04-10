@@ -656,6 +656,7 @@ function parseCmsSectionPost(body: Record<string, unknown>): {
   registrationActive: boolean;
   translations: CmsNestedTranslations;
   videoImageUrl: string;
+  profileListingImageUrl: string;
   videoLink: string;
   readMoreUrl: string;
 } | null {
@@ -677,6 +678,10 @@ function parseCmsSectionPost(body: Record<string, unknown>): {
     false;
   const videoImageUrl =
     typeof body.videoImageUrl === "string" ? body.videoImageUrl.trim() : "";
+  const profileListingImageUrl =
+    typeof body.profileListingImageUrl === "string" ?
+      body.profileListingImageUrl.trim()
+    : "";
   const videoLink =
     typeof body.videoLink === "string" ? body.videoLink.trim() : "";
   const readMoreUrl =
@@ -705,6 +710,7 @@ function parseCmsSectionPost(body: Record<string, unknown>): {
     registrationActive,
     translations,
     videoImageUrl,
+    profileListingImageUrl,
     videoLink,
     readMoreUrl,
   };
@@ -1097,6 +1103,9 @@ function buildPutPatch(
     if (typeof body.videoImageUrl === "string") {
       patch.videoImageUrl = body.videoImageUrl.trim();
     }
+    if (typeof body.profileListingImageUrl === "string") {
+      patch.profileListingImageUrl = body.profileListingImageUrl.trim();
+    }
     if (typeof body.videoLink === "string") {
       patch.videoLink = body.videoLink.trim();
     }
@@ -1287,6 +1296,7 @@ export function createAdminRouter(): express.Router {
         registrationActive: v.registrationActive,
         translations: v.translations,
         videoImageUrl: v.videoImageUrl,
+        profileListingImageUrl: v.profileListingImageUrl,
         videoLink: v.videoLink,
         readMoreUrl: v.readMoreUrl,
       };

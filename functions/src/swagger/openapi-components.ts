@@ -101,6 +101,7 @@ export const openApiComponents = {
       description:
         "Employeur lié à l’offre (nom affiché : companyName en priorité)",
       properties: {
+        id: {type: "string", description: "Id document Firestore employer"},
         name: {type: "string"},
         subtitle: {type: "string"},
         imageUrl: {type: "string"},
@@ -119,6 +120,7 @@ export const openApiComponents = {
       type: "object",
       description: "Employé associé à l’offre d’emploi",
       properties: {
+        id: {type: "string", description: "Id document Firestore employee"},
         name: {type: "string"},
         subtitle: {type: "string"},
         imageUrl: {type: "string"},
