@@ -47,10 +47,20 @@ type WhyLocaleDraft = {
 
 type BlogLocaleDraft = {name: string; description: string};
 
+type BannerLocaleDraft = {
+  name: string;
+  /** Une entrée = une URL d’avatar ; sérialisé en texte multi-ligne côté API */
+  bannerAvatarLinks: string[];
+  bannerAverageRating: string;
+  bannerTrustCount: string;
+  bannerTrustLabel: string;
+};
+
 const SECTION_TYPES: {id: CmsSectionTypeId; labelKey: string}[] = [
   {id: "why_choose_us", labelKey: "cms.sectionType.whyChooseUs"},
   {id: "site_settings", labelKey: "cms.sectionType.siteSettings"},
   {id: "blog_section", labelKey: "cms.sectionType.blogSection"},
+  {id: "banner", labelKey: "cms.sectionType.banner"},
 ];
 
 function emptySite(): SiteLocaleDraft {
@@ -94,6 +104,16 @@ function linesToStored(lines: string[]): string {
 
 function emptyBlog(): BlogLocaleDraft {
   return {name: "", description: ""};
+}
+
+function emptyBanner(): BannerLocaleDraft {
+  return {
+    name: "",
+    bannerAvatarLinks: [""],
+    bannerAverageRating: "",
+    bannerTrustCount: "",
+    bannerTrustLabel: "",
+  };
 }
 
 function siteFromBlock(b: Record<string, unknown> | undefined): SiteLocaleDraft {
@@ -142,6 +162,25 @@ function blogFromBlock(b: Record<string, unknown> | undefined): BlogLocaleDraft 
   };
 }
 
+function bannerFromBlock(
+  b: Record<string, unknown> | undefined,
+): BannerLocaleDraft {
+  const d = emptyBanner();
+  if (!b) return d;
+  const links =
+    typeof b.bannerAvatarLinks === "string" ? b.bannerAvatarLinks : "";
+  return {
+    name: typeof b.name === "string" ? b.name : "",
+    bannerAvatarLinks: linesFromStored(links),
+    bannerAverageRating:
+      typeof b.bannerAverageRating === "string" ? b.bannerAverageRating : "",
+    bannerTrustCount:
+      typeof b.bannerTrustCount === "string" ? b.bannerTrustCount : "",
+    bannerTrustLabel:
+      typeof b.bannerTrustLabel === "string" ? b.bannerTrustLabel : "",
+  };
+}
+
 function filledSite(d: SiteLocaleDraft): boolean {
   return Object.values(d).some((v) => v.trim().length > 0);
 }
@@ -160,6 +199,14 @@ function filledWhy(d: WhyLocaleDraft): boolean {
 }
 function filledBlog(d: BlogLocaleDraft): boolean {
   return d.name.trim().length > 0 || d.description.trim().length > 0;
+}
+
+function filledBanner(d: BannerLocaleDraft): boolean {
+  if (d.name.trim()) return true;
+  if (d.bannerAverageRating.trim() || d.bannerTrustCount.trim()) return true;
+  if (d.bannerTrustLabel.trim()) return true;
+  if (d.bannerAvatarLinks.some((u) => u.trim().length > 0)) return true;
+  return false;
 }
 
 type WhyBulletFieldsetProps = {
@@ -255,6 +302,9 @@ export default function CmsSectionsView() {
   const [blogDraftsByCountry, setBlogDraftsByCountry] = useState<
     Record<string, Record<string, BlogLocaleDraft>>
   >({});
+  const [bannerDraftsByCountry, setBannerDraftsByCountry] = useState<
+    Record<string, Record<string, BannerLocaleDraft>>
+  >({});
   const [active, setActive] = useState(true);
   const [registrationActive, setRegistrationActive] = useState(false);
   const [videoImageUrl, setVideoImageUrl] = useState("");
@@ -338,16 +388,24 @@ export default function CmsSectionsView() {
   }, [sortedCountryCodes]);
 
   useEffect(() => {
+    if (cType === "banner" && cSub === "why-choose-us") {
+      setCSub("banner");
+    }
+  }, [cType, cSub]);
+
+  useEffect(() => {
     if (!selected) {
       setSiteDraftsByCountry({});
       setWhyDraftsByCountry({});
       setBlogDraftsByCountry({});
+      setBannerDraftsByCountry({});
       setAssignNamespaceId("");
       return;
     }
     const nextSite: Record<string, Record<string, SiteLocaleDraft>> = {};
     const nextWhy: Record<string, Record<string, WhyLocaleDraft>> = {};
     const nextBlog: Record<string, Record<string, BlogLocaleDraft>> = {};
+    const nextBanner: Record<string, Record<string, BannerLocaleDraft>> = {};
     for (const country of sortedCountryCodes) {
       for (const code of sortedCodes) {
         const block = selected.translations?.[country]?.[code] as
@@ -356,14 +414,17 @@ export default function CmsSectionsView() {
         if (!nextSite[country]) nextSite[country] = {};
         if (!nextWhy[country]) nextWhy[country] = {};
         if (!nextBlog[country]) nextBlog[country] = {};
+        if (!nextBanner[country]) nextBanner[country] = {};
         nextSite[country][code] = siteFromBlock(block);
         nextWhy[country][code] = whyFromBlock(block);
         nextBlog[country][code] = blogFromBlock(block);
+        nextBanner[country][code] = bannerFromBlock(block);
       }
     }
     setSiteDraftsByCountry(nextSite);
     setWhyDraftsByCountry(nextWhy);
     setBlogDraftsByCountry(nextBlog);
+    setBannerDraftsByCountry(nextBanner);
     setActive(selected.active ?? true);
     setRegistrationActive(Boolean(selected.registrationActive));
     setVideoImageUrl(selected.videoImageUrl ?? "");
@@ -417,6 +478,21 @@ export default function CmsSectionsView() {
     [activeCountryCode, activeLocaleCode],
   );
 
+  const patchBanner = useCallback(
+    (fn: (d: BannerLocaleDraft) => BannerLocaleDraft) => {
+      const c = activeCountryCode;
+      const loc = activeLocaleCode;
+      setBannerDraftsByCountry((p) => {
+        const cur = p[c]?.[loc] ?? emptyBanner();
+        return {
+          ...p,
+          [c]: {...(p[c] ?? {}), [loc]: fn(cur)},
+        };
+      });
+    },
+    [activeCountryCode, activeLocaleCode],
+  );
+
   const grouped = useMemo(() => {
     const orphan: CmsSectionDoc[] = [];
     const byNs = new Map<string, CmsSectionDoc[]>();
@@ -450,6 +526,10 @@ export default function CmsSectionsView() {
           }
         } else if (kind === "blog_section") {
           if (filledBlog(blogDraftsByCountry[country]?.[code] ?? emptyBlog())) {
+            filledPairs.push({country, locale: code});
+          }
+        } else if (kind === "banner") {
+          if (filledBanner(bannerDraftsByCountry[country]?.[code] ?? emptyBanner())) {
             filledPairs.push({country, locale: code});
           }
         } else if (filledSite(siteDraftsByCountry[country]?.[code] ?? emptySite())) {
@@ -513,6 +593,20 @@ export default function CmsSectionsView() {
             setSaving(false);
             return;
           }
+        } else if (kind === "banner") {
+          const d = bannerDraftsByCountry[country]?.[code] ?? emptyBanner();
+          if (!d.name.trim()) {
+            setLoadError(t("cms.banner.errorNeedTitle"));
+            setSaving(false);
+            return;
+          }
+          Object.assign(body, {
+            name: d.name.trim(),
+            bannerAvatarLinks: linesToStored(d.bannerAvatarLinks),
+            bannerAverageRating: d.bannerAverageRating,
+            bannerTrustCount: d.bannerTrustCount,
+            bannerTrustLabel: d.bannerTrustLabel,
+          });
         } else {
           const d = siteDraftsByCountry[country]?.[code] ?? emptySite();
           if (!d.name.trim()) {
@@ -632,6 +726,9 @@ export default function CmsSectionsView() {
     whyDraftsByCountry[activeCountryCode]?.[activeLocaleCode] ?? emptyWhy();
   const currentBlog =
     blogDraftsByCountry[activeCountryCode]?.[activeLocaleCode] ?? emptyBlog();
+  const currentBanner =
+    bannerDraftsByCountry[activeCountryCode]?.[activeLocaleCode] ??
+    emptyBanner();
   const hasLocales = sortedCodes.length > 0;
 
   function tabFilledLocale(code: string): boolean {
@@ -643,6 +740,9 @@ export default function CmsSectionsView() {
     }
     if (k === "blog_section") {
       return filledBlog(blogDraftsByCountry[c]?.[code] ?? emptyBlog());
+    }
+    if (k === "banner") {
+      return filledBanner(bannerDraftsByCountry[c]?.[code] ?? emptyBanner());
     }
     return filledSite(siteDraftsByCountry[c]?.[code] ?? emptySite());
   }
@@ -656,6 +756,9 @@ export default function CmsSectionsView() {
       }
       if (k === "blog_section") {
         return filledBlog(blogDraftsByCountry[cc]?.[loc] ?? emptyBlog());
+      }
+      if (k === "banner") {
+        return filledBanner(bannerDraftsByCountry[cc]?.[loc] ?? emptyBanner());
       }
       return filledSite(siteDraftsByCountry[cc]?.[loc] ?? emptySite());
     });
@@ -786,82 +889,99 @@ export default function CmsSectionsView() {
       : null}
 
       <div className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
-        <aside className="rounded-2xl border border-gray-200 bg-white p-3 shadow-sm">
-          <p className="mb-2 text-xs font-semibold tracking-wide text-gray-400 uppercase">
+        <aside className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+          <p className="mb-4 text-xs font-semibold tracking-wide text-gray-400 uppercase">
             {t("cms.menuTitle")}
           </p>
           {namespaces.length === 0 ?
-            <p className="px-2 text-sm text-amber-800">{t("cms.noNamespacesHint")}</p>
+            <p className="px-1 text-sm text-amber-800">{t("cms.noNamespacesHint")}</p>
           : null}
-          <div className="max-h-[70vh] space-y-4 overflow-y-auto pr-1">
-            {namespaces.map((ns) => {
+          <div className="max-h-[70vh] space-y-6 overflow-y-auto pr-1">
+            {namespaces.map((ns, nsIndex) => {
               const list = grouped.byNs.get(ns.id) ?? [];
               return (
-                <div key={ns.id}>
-                  <p className="px-2 text-xs font-semibold text-gray-500 uppercase">
+                <div
+                  key={ns.id}
+                  className={
+                    nsIndex < namespaces.length - 1 || grouped.orphan.length > 0 ?
+                      "border-b border-gray-200 pb-6"
+                    : ""
+                  }
+                >
+                  <p className="mb-3 px-1 text-xs font-semibold tracking-wide text-gray-500 uppercase">
                     {labelForLocale(ns.translations, editorLocale) ||
                       ns.namespaceKey}
                   </p>
-                  <div className="mt-1 space-y-0.5">
-                    {list.map((s) => {
-                      const sel = selectedId === s.id;
-                      const kind = inferCmsSectionType(s);
-                      return (
-                        <button
-                          key={s.id}
-                          type="button"
-                          onClick={() => setSelectedId(s.id)}
-                          className={`flex w-full flex-col rounded-lg px-2.5 py-2 text-left text-sm transition-colors ${
-                            sel ?
-                              "bg-primary/10 font-medium text-primary"
-                            : "text-gray-700 hover:bg-gray-50"
-                          }`}
-                        >
-                          <span className="truncate">
-                            {pickSortLabelCms(
-                              s.translations,
-                              editorLocale,
-                              s.subsectionKey,
-                            )}
-                          </span>
-                          <span className="truncate text-[11px] text-gray-400">
-                            {t(
-                              SECTION_TYPES.find((x) => x.id === kind)?.labelKey ??
-                                "cms.sectionType.siteSettings",
-                            )}{" "}
-                            · {s.subsectionKey}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
+                  {list.length === 0 ?
+                    <p className="px-1 text-sm text-gray-400">
+                      {t("cms.section.noSectionsInNamespace")}
+                    </p>
+                  : (
+                    <div className="overflow-hidden rounded-xl border border-gray-200 bg-gray-50/60">
+                      <div className="divide-y divide-gray-200">
+                        {list.map((s) => {
+                          const sel = selectedId === s.id;
+                          const kind = inferCmsSectionType(s);
+                          return (
+                            <button
+                              key={s.id}
+                              type="button"
+                              onClick={() => setSelectedId(s.id)}
+                              className={`flex w-full flex-col px-3 py-3.5 text-left text-sm transition-colors ${
+                                sel ?
+                                  "bg-primary/12 font-medium text-primary"
+                                : "text-gray-700 hover:bg-white"
+                              }`}
+                            >
+                              <span className="truncate">
+                                {pickSortLabelCms(
+                                  s.translations,
+                                  editorLocale,
+                                  s.subsectionKey,
+                                )}
+                              </span>
+                              <span className="mt-1 truncate text-[11px] text-gray-400">
+                                {t(
+                                  SECTION_TYPES.find((x) => x.id === kind)
+                                    ?.labelKey ?? "cms.sectionType.siteSettings",
+                                )}{" "}
+                                · {s.subsectionKey}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })}
             {grouped.orphan.length > 0 ?
-              <div>
-                <p className="px-2 text-xs font-semibold text-amber-700 uppercase">
+              <div className="pt-1">
+                <p className="mb-3 px-1 text-xs font-semibold tracking-wide text-amber-700 uppercase">
                   {t("cms.section.unassigned")}
                 </p>
-                <div className="mt-1 space-y-0.5">
-                  {grouped.orphan.map((s) => (
-                    <button
-                      key={s.id}
-                      type="button"
-                      onClick={() => setSelectedId(s.id)}
-                      className={`w-full rounded-lg px-2.5 py-2 text-left text-sm ${
-                        selectedId === s.id ?
-                          "bg-primary/10 font-medium text-primary"
-                        : "text-gray-700 hover:bg-gray-50"
-                      }`}
-                    >
-                      {pickSortLabelCms(
-                        s.translations,
-                        editorLocale,
-                        s.subsectionKey,
-                      )}
-                    </button>
-                  ))}
+                <div className="overflow-hidden rounded-xl border border-amber-200/80 bg-amber-50/40">
+                  <div className="divide-y divide-amber-200/70">
+                    {grouped.orphan.map((s) => (
+                      <button
+                        key={s.id}
+                        type="button"
+                        onClick={() => setSelectedId(s.id)}
+                        className={`w-full px-3 py-3.5 text-left text-sm transition-colors ${
+                          selectedId === s.id ?
+                            "bg-primary/12 font-medium text-primary"
+                          : "text-gray-700 hover:bg-white/80"
+                        }`}
+                      >
+                        {pickSortLabelCms(
+                          s.translations,
+                          editorLocale,
+                          s.subsectionKey,
+                        )}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
             : null}
@@ -1094,6 +1214,83 @@ export default function CmsSectionsView() {
                         patchBlog((cur) => ({
                           ...cur,
                           description: e.target.value,
+                        }))
+                      }
+                      className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                    />
+                  </label>
+                </div>
+              : sectionKind === "banner" ?
+                <div className="space-y-4">
+                  <p className="text-xs text-gray-500">
+                    {t("cms.banner.avatarLinksHint")}
+                  </p>
+                  <label className="block text-sm text-gray-700">
+                    {t("cms.banner.fieldTitle")} *
+                    <input
+                      value={currentBanner.name}
+                      onChange={(e) =>
+                        patchBanner((cur) => ({...cur, name: e.target.value}))
+                      }
+                      className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                    />
+                  </label>
+                  <WhyBulletFieldset
+                    label={t("cms.banner.fieldAvatarLinks")}
+                    items={currentBanner.bannerAvatarLinks}
+                    onItemsChange={(next) =>
+                      patchBanner((cur) => ({
+                        ...cur,
+                        bannerAvatarLinks: next,
+                      }))
+                    }
+                    addLabel={t("cms.banner.addAvatarUrl")}
+                    removeLabel={t("cms.banner.removeAvatarUrl")}
+                  />
+                  <label className="block text-sm text-gray-700">
+                    {t("cms.banner.fieldAverageRating")}
+                    <span className="ml-1 text-xs font-normal text-gray-400">
+                      ({t("cms.banner.fieldAverageRatingHint")})
+                    </span>
+                    <input
+                      value={currentBanner.bannerAverageRating}
+                      onChange={(e) =>
+                        patchBanner((cur) => ({
+                          ...cur,
+                          bannerAverageRating: e.target.value,
+                        }))
+                      }
+                      inputMode="decimal"
+                      className="mt-1 w-full max-w-xs rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                    />
+                  </label>
+                  <label className="block text-sm text-gray-700">
+                    {t("cms.banner.fieldTrustCount")}
+                    <span className="ml-1 text-xs font-normal text-gray-400">
+                      ({t("cms.banner.fieldTrustCountHint")})
+                    </span>
+                    <input
+                      value={currentBanner.bannerTrustCount}
+                      onChange={(e) =>
+                        patchBanner((cur) => ({
+                          ...cur,
+                          bannerTrustCount: e.target.value,
+                        }))
+                      }
+                      className="mt-1 w-full max-w-xs rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                    />
+                  </label>
+                  <label className="block text-sm text-gray-700">
+                    {t("cms.banner.fieldTrustLabel")}
+                    <span className="ml-1 text-xs font-normal text-gray-400">
+                      ({t("cms.banner.fieldTrustLabelHint")})
+                    </span>
+                    <input
+                      value={currentBanner.bannerTrustLabel}
+                      onChange={(e) =>
+                        patchBanner((cur) => ({
+                          ...cur,
+                          bannerTrustLabel: e.target.value,
                         }))
                       }
                       className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"

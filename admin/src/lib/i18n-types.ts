@@ -139,7 +139,11 @@ export function labelForRegionalLanguage(
 }
 
 /** Types de section gérés par l’admin (clé stockée dans Firestore). */
-export type CmsSectionTypeId = "why_choose_us" | "site_settings" | "blog_section";
+export type CmsSectionTypeId =
+  | "why_choose_us"
+  | "site_settings"
+  | "blog_section"
+  | "banner";
 
 export type CmsSectionDoc = {
   id: string;
@@ -344,12 +348,18 @@ export function sortedActiveLanguageCodes(langs: LanguageDocLike[]): string[] {
 /** Déduit le type de section si le document date d’avant `sectionType`. */
 export function inferCmsSectionType(doc: CmsSectionDoc): CmsSectionTypeId {
   const raw = doc.sectionType?.trim();
-  if (raw === "why_choose_us" || raw === "site_settings" || raw === "blog_section") {
+  if (
+    raw === "why_choose_us" ||
+    raw === "site_settings" ||
+    raw === "blog_section" ||
+    raw === "banner"
+  ) {
     return raw;
   }
   const sub = doc.subsectionKey?.trim().toLowerCase() ?? "";
   if (sub === "blog-section") return "blog_section";
   if (sub === "user-interface-settings") return "site_settings";
   if (sub.startsWith("why-choose")) return "why_choose_us";
+  if (sub === "banner" || sub.startsWith("banner-")) return "banner";
   return "site_settings";
 }

@@ -169,6 +169,10 @@ const CMS_FIELDS = [
   "section2Title",
   "section2Items",
   "readMoreLabel",
+  "bannerAvatarLinks",
+  "bannerAverageRating",
+  "bannerTrustCount",
+  "bannerTrustLabel",
 ] as const;
 
 /**
