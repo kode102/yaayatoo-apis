@@ -6,6 +6,7 @@ import {useCallback, useEffect, useMemo, useState} from "react";
 import {useAuth} from "@/contexts/auth-context";
 import {useEditorLocale} from "@/contexts/editor-locale-context";
 import {useUiLocale} from "@/contexts/ui-locale-context";
+import {SearchableRelationSelect} from "@/components/searchable-relation-select";
 import {adminFetch, type ApiDocResponse, type ApiListResponse} from "@/lib/api";
 import type {JobOfferDoc, JobReviewDoc} from "@/lib/profile-doc-types";
 
@@ -37,6 +38,16 @@ export default function JobReviewCreateView() {
       return la.localeCompare(lb, undefined, {sensitivity: "base"});
     });
   }, [offerLabelById, offers]);
+
+  const jobOfferOptions = useMemo(
+    () =>
+      offersSorted.map((o) => ({
+        value: o.id,
+        label: offerLabelById.get(o.id) ?? o.id,
+        hint: o.id,
+      })),
+    [offersSorted, offerLabelById],
+  );
 
   const loadOffers = useCallback(async () => {
     const token = await getIdToken();
@@ -119,21 +130,13 @@ export default function JobReviewCreateView() {
       <form onSubmit={(e) => void submit(e)} className="space-y-4">
         <label className="block text-sm font-medium text-gray-700">
           {t("jobs.reviews.field.jobOffer")}
-          <select
-            required
-            className={inputCls}
+          <SearchableRelationSelect
             value={jobOfferId}
-            onChange={(e) => setJobOfferId(e.target.value)}
-          >
-            <option value="">
-              {t("jobs.reviews.field.jobOfferPlaceholder")}
-            </option>
-            {offersSorted.map((o) => (
-              <option key={o.id} value={o.id}>
-                {offerLabelById.get(o.id) ?? o.id}
-              </option>
-            ))}
-          </select>
+            onChange={setJobOfferId}
+            options={jobOfferOptions}
+            emptyOptionLabel={t("jobs.reviews.field.jobOfferPlaceholder")}
+            disabled={busy}
+          />
         </label>
         <label className="block text-sm font-medium text-gray-700">
           {t("jobs.reviews.field.rating")}

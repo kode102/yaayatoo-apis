@@ -1,8 +1,10 @@
 "use client";
 
+import {useMemo} from "react";
 import type {CountryDoc} from "@/lib/i18n-types";
 import {pickSortLabel} from "@/lib/i18n-types";
 import {useUiLocale} from "@/contexts/ui-locale-context";
+import {SearchableRelationSelect} from "@/components/searchable-relation-select";
 
 type Props = {
   countries: CountryDoc[];
@@ -29,22 +31,26 @@ export function CountryCodeSelect({
       ),
     );
 
-  return (
-    <select
-      value={value}
-      disabled={disabled}
-      onChange={(e) => onChange(e.target.value)}
-      className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary/70 focus:ring-2 focus:ring-primary/15 focus:outline-none disabled:opacity-50"
-    >
-      <option value="">{t("users.profile.countrySelectPlaceholder")}</option>
-      {sorted.map((c) => {
+  const options = useMemo(
+    () =>
+      sorted.map((c) => {
         const code = c.code.trim().toUpperCase().slice(0, 2);
-        return (
-          <option key={c.id} value={code}>
-            {pickSortLabel(c.translations, editorLocale, c.code)} ({code})
-          </option>
-        );
-      })}
-    </select>
+        return {
+          value: code,
+          label: pickSortLabel(c.translations, editorLocale, c.code),
+          hint: code,
+        };
+      }),
+    [sorted, editorLocale],
+  );
+
+  return (
+    <SearchableRelationSelect
+      value={value}
+      onChange={onChange}
+      options={options}
+      emptyOptionLabel={t("users.profile.countrySelectPlaceholder")}
+      disabled={disabled}
+    />
   );
 }

@@ -164,7 +164,7 @@ export default function EmployerCreateView() {
                 />
               </label>
               <label className="block text-sm text-gray-700">
-                {t("users.employer.colCompany")}
+                {t("users.employer.colEmployerName")}
                 <input
                   value={companyName}
                   onChange={(e) => setCompanyName(e.target.value)}

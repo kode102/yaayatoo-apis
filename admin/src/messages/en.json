@@ -1,4 +1,7 @@
 {
+  "relationSelect.searchPlaceholder": "Search…",
+  "relationSelect.noResults": "No matches.",
+  "relationSelect.unknownId": "Id not in loaded list",
   "errors.session": "Session unavailable. Please refresh the page or sign in again.",
   "errors.imageTooLarge": "File too large (max {maxMb} MB).",
   "errors.imageType": "Allowed formats: JPEG, PNG, WebP, or GIF.",
@@ -338,7 +341,7 @@
   "users.employer.create.submit": "Create profile",
   "users.employer.colUid": "Firebase UID",
   "users.employer.colCountry": "Registration country",
-  "users.employer.colCompany": "Company",
+  "users.employer.colEmployerName": "Employer Name",
   "users.employer.colContact": "Contact",
   "users.employer.colNotes": "Notes",
   "users.employer.editTitle": "Edit employer",

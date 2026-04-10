@@ -208,7 +208,7 @@ export default function EmployerListView() {
           id: "company",
           header: ({column}) => (
             <SortableHeader column={column}>
-              {t("users.employer.colCompany")}
+              {t("users.employer.colEmployerName")}
             </SortableHeader>
           ),
           cell: (info) => (
@@ -449,7 +449,7 @@ export default function EmployerListView() {
           {editStep === 0 ?
             <>
               <label className="block text-sm text-gray-700">
-                {t("users.employer.colCompany")}
+                {t("users.employer.colEmployerName")}
                 <input
                   value={draftCompany}
                   onChange={(e) => setDraftCompany(e.target.value)}

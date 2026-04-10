@@ -1,4 +1,7 @@
 {
+  "relationSelect.searchPlaceholder": "Rechercher…",
+  "relationSelect.noResults": "Aucun résultat.",
+  "relationSelect.unknownId": "Id absent de la liste chargée",
   "errors.session": "Session indisponible. Rechargez la page ou reconnectez-vous.",
   "errors.imageTooLarge": "Fichier trop volumineux (max {maxMb} Mo).",
   "errors.imageType": "Formats acceptés : JPEG, PNG, WebP ou GIF.",
@@ -338,7 +341,7 @@
   "users.employer.create.submit": "Créer le profil",
   "users.employer.colUid": "UID Firebase",
   "users.employer.colCountry": "Pays d’inscription",
-  "users.employer.colCompany": "Entreprise",
+  "users.employer.colEmployerName": "Nom de l’employeur",
   "users.employer.colContact": "Contact",
   "users.employer.colNotes": "Notes",
   "users.employer.editTitle": "Modifier l’employeur",

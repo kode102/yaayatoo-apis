@@ -1,5 +1,6 @@
 "use client";
 
+import {useMemo, useState} from "react";
 import {serviceAvailableForCountry} from "@/lib/service-country-scope";
 import type {ServiceDoc} from "@/lib/i18n-types";
 import {
@@ -28,6 +29,7 @@ export function EmployeeServicesOfferedField({
   disabled,
 }: Props) {
   const {t} = useUiLocale();
+  const [filter, setFilter] = useState("");
   const set = new Set(selectedIds);
   const cc = profileCountryCode?.trim();
   const scopeCountry =
@@ -46,6 +48,19 @@ export function EmployeeServicesOfferedField({
       ),
     );
 
+  const visible = useMemo(() => {
+    const q = filter.trim().toLowerCase();
+    if (!q) return sorted;
+    return sorted.filter((s) => {
+      const lab = pickRegionalSortLabel(
+        s.translations,
+        editorLocale,
+        s.id,
+      ).toLowerCase();
+      return lab.includes(q) || s.id.toLowerCase().includes(q);
+    });
+  }, [sorted, filter, editorLocale]);
+
   function toggle(id: string) {
     const next = new Set(selectedIds);
     if (next.has(id)) next.delete(id);
@@ -63,10 +78,20 @@ export function EmployeeServicesOfferedField({
           {t("users.employee.servicesCountryScoped")}
         </p>
       : null}
+      <input
+        type="search"
+        value={filter}
+        onChange={(e) => setFilter(e.target.value)}
+        placeholder={t("relationSelect.searchPlaceholder")}
+        className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-primary/70 focus:ring-2 focus:ring-primary/15 focus:outline-none"
+        autoComplete="off"
+      />
       <div className="max-h-48 space-y-2 overflow-y-auto rounded-lg border border-gray-200 p-3">
         {sorted.length === 0 ?
           <p className="text-sm text-gray-500">{t("users.employee.noActiveServices")}</p>
-        : sorted.map((s) => (
+        : visible.length === 0 ?
+          <p className="text-sm text-gray-500">{t("relationSelect.noResults")}</p>
+        : visible.map((s) => (
             <label
               key={s.id}
               className="flex cursor-pointer items-start gap-2 text-sm"

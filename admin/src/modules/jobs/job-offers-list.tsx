@@ -9,6 +9,7 @@ import {RippleIconButton} from "@/components/ripple-icon-button";
 import {useAuth} from "@/contexts/auth-context";
 import {useEditorLocale} from "@/contexts/editor-locale-context";
 import {useUiLocale} from "@/contexts/ui-locale-context";
+import {SearchableRelationSelect} from "@/components/searchable-relation-select";
 import {adminFetch, type ApiDocResponse, type ApiListResponse} from "@/lib/api";
 import {pickRegionalSortLabel, type ServiceDoc} from "@/lib/i18n-types";
 import type {
@@ -89,6 +90,36 @@ export default function JobOffersListView() {
       return la.localeCompare(lb, undefined, {sensitivity: "base"});
     });
   }, [employeeLabelById, employees]);
+
+  const employerOptions = useMemo(
+    () =>
+      employersSorted.map((e) => ({
+        value: e.id,
+        label: employerLabelById.get(e.id) ?? e.id,
+        hint: e.id,
+      })),
+    [employersSorted, employerLabelById],
+  );
+
+  const employeeOptions = useMemo(
+    () =>
+      employeesSorted.map((w) => ({
+        value: w.id,
+        label: employeeLabelById.get(w.id) ?? w.id,
+        hint: w.id,
+      })),
+    [employeesSorted, employeeLabelById],
+  );
+
+  const serviceOptions = useMemo(
+    () =>
+      servicesSorted.map((s) => ({
+        value: s.id,
+        label: serviceLabelById.get(s.id) ?? s.id,
+        hint: s.id,
+      })),
+    [servicesSorted, serviceLabelById],
+  );
 
   const load = useCallback(async () => {
     const token = await getIdToken();
@@ -387,33 +418,23 @@ export default function JobOffersListView() {
         <div className="space-y-3">
           <label className="block text-sm font-medium text-gray-700">
             {t("jobs.field.employer")}
-            <select
-              className={inputCls}
+            <SearchableRelationSelect
               value={draftEmployerId}
-              onChange={(e) => setDraftEmployerId(e.target.value)}
-            >
-              <option value="">{t("jobs.field.employerPlaceholder")}</option>
-              {employersSorted.map((e) => (
-                <option key={e.id} value={e.id}>
-                  {employerLabelById.get(e.id) ?? e.id}
-                </option>
-              ))}
-            </select>
+              onChange={setDraftEmployerId}
+              options={employerOptions}
+              emptyOptionLabel={t("jobs.field.employerPlaceholder")}
+              disabled={busy}
+            />
           </label>
           <label className="block text-sm font-medium text-gray-700">
             {t("jobs.field.employee")}
-            <select
-              className={inputCls}
+            <SearchableRelationSelect
               value={draftEmployeeId}
-              onChange={(e) => setDraftEmployeeId(e.target.value)}
-            >
-              <option value="">{t("jobs.field.employeePlaceholder")}</option>
-              {employeesSorted.map((w) => (
-                <option key={w.id} value={w.id}>
-                  {employeeLabelById.get(w.id) ?? w.id}
-                </option>
-              ))}
-            </select>
+              onChange={setDraftEmployeeId}
+              options={employeeOptions}
+              emptyOptionLabel={t("jobs.field.employeePlaceholder")}
+              disabled={busy}
+            />
           </label>
           <label className="block text-sm font-medium text-gray-700">
             {t("jobs.field.jobTitle")}
@@ -426,18 +447,13 @@ export default function JobOffersListView() {
           </label>
           <label className="block text-sm font-medium text-gray-700">
             {t("jobs.field.service")}
-            <select
-              className={inputCls}
+            <SearchableRelationSelect
               value={draftServiceId}
-              onChange={(e) => setDraftServiceId(e.target.value)}
-            >
-              <option value="">{t("jobs.field.servicePlaceholder")}</option>
-              {servicesSorted.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {serviceLabelById.get(s.id) ?? s.id}
-                </option>
-              ))}
-            </select>
+              onChange={setDraftServiceId}
+              options={serviceOptions}
+              emptyOptionLabel={t("jobs.field.servicePlaceholder")}
+              disabled={busy}
+            />
           </label>
         </div>
       </EditSheet>

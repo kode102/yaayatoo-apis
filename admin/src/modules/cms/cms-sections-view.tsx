@@ -19,6 +19,7 @@ import {
   sortedActiveLanguageCodes,
 } from "@/lib/i18n-types";
 import {CmsVideoThumbnailField} from "@/components/cms-video-thumbnail-field";
+import {SearchableRelationSelect} from "@/components/searchable-relation-select";
 
 type SiteLocaleDraft = {
   name: string;
@@ -915,6 +916,21 @@ export default function CmsSectionsView() {
     return {byNs, orphan};
   }, [namespaces, sections]);
 
+  const namespaceRelationOptions = useMemo(
+    () =>
+      namespaces.map((n) => {
+        const display =
+          labelForLocale(n.translations, editorLocale) ||
+          pickSortLabel(n.translations, editorLocale, n.namespaceKey);
+        return {
+          value: n.id,
+          label: `${n.namespaceKey} — ${display}`,
+          hint: n.namespaceKey,
+        };
+      }),
+    [namespaces, editorLocale],
+  );
+
   async function saveSection() {
     if (!selected) return;
     if (sortedCodes.length === 0) {
@@ -1283,21 +1299,13 @@ export default function CmsSectionsView() {
             <form onSubmit={(e) => void createSection(e)} className="mt-4 space-y-3">
               <label className="block text-sm text-gray-700">
                 {t("cms.section.fieldNamespace")}
-                <select
-                  required
+                <SearchableRelationSelect
                   value={cNs}
-                  onChange={(e) => setCNs(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
-                >
-                  <option value="">{t("cms.section.namespacePlaceholder")}</option>
-                  {namespaces.map((n) => (
-                    <option key={n.id} value={n.id}>
-                      {n.namespaceKey} —{" "}
-                      {labelForLocale(n.translations, editorLocale) ||
-                        pickSortLabel(n.translations, editorLocale, n.namespaceKey)}
-                    </option>
-                  ))}
-                </select>
+                  onChange={setCNs}
+                  options={namespaceRelationOptions}
+                  emptyOptionLabel={t("cms.section.namespacePlaceholder")}
+                  disabled={saving}
+                />
               </label>
               <label className="block text-sm text-gray-700">
                 {t("cms.section.fieldType")}
@@ -1495,18 +1503,15 @@ export default function CmsSectionsView() {
 
               <label className="mb-3 block text-sm text-gray-700">
                 {t("cms.section.fieldNamespace")}
-                <select
-                  value={assignNamespaceId}
-                  onChange={(e) => setAssignNamespaceId(e.target.value)}
-                  className="mt-1 w-full max-w-md rounded-lg border border-gray-200 px-3 py-2 text-sm"
-                >
-                  <option value="">{t("cms.section.unassignedOption")}</option>
-                  {namespaces.map((n) => (
-                    <option key={n.id} value={n.id}>
-                      {n.namespaceKey}
-                    </option>
-                  ))}
-                </select>
+                <div className="mt-1 max-w-md">
+                  <SearchableRelationSelect
+                    value={assignNamespaceId}
+                    onChange={setAssignNamespaceId}
+                    options={namespaceRelationOptions}
+                    emptyOptionLabel={t("cms.section.unassignedOption")}
+                    disabled={saving}
+                  />
+                </div>
               </label>
 
               <p className="mb-1 text-xs font-medium text-gray-600">

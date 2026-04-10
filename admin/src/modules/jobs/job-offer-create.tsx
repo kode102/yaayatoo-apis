@@ -8,6 +8,7 @@ import {useEditorLocale} from "@/contexts/editor-locale-context";
 import {useUiLocale} from "@/contexts/ui-locale-context";
 import {adminFetch, type ApiDocResponse, type ApiListResponse} from "@/lib/api";
 import {pickRegionalSortLabel, type ServiceDoc} from "@/lib/i18n-types";
+import {SearchableRelationSelect} from "@/components/searchable-relation-select";
 import type {
   EmployeeDoc,
   EmployerDoc,
@@ -84,6 +85,36 @@ export default function JobOfferCreateView() {
       return la.localeCompare(lb, undefined, {sensitivity: "base"});
     });
   }, [employeeLabelById, employees]);
+
+  const employerOptions = useMemo(
+    () =>
+      employersSorted.map((e) => ({
+        value: e.id,
+        label: employerLabelById.get(e.id) ?? e.id,
+        hint: e.id,
+      })),
+    [employersSorted, employerLabelById],
+  );
+
+  const employeeOptions = useMemo(
+    () =>
+      employeesSorted.map((w) => ({
+        value: w.id,
+        label: employeeLabelById.get(w.id) ?? w.id,
+        hint: w.id,
+      })),
+    [employeesSorted, employeeLabelById],
+  );
+
+  const serviceOptions = useMemo(
+    () =>
+      servicesSorted.map((s) => ({
+        value: s.id,
+        label: serviceLabelById.get(s.id) ?? s.id,
+        hint: s.id,
+      })),
+    [servicesSorted, serviceLabelById],
+  );
 
   const loadRefs = useCallback(async () => {
     const token = await getIdToken();
@@ -180,35 +211,23 @@ export default function JobOfferCreateView() {
       <form onSubmit={(e) => void submit(e)} className="space-y-4">
         <label className="block text-sm font-medium text-gray-700">
           {t("jobs.field.employer")}
-          <select
-            required
-            className={inputCls}
+          <SearchableRelationSelect
             value={employerId}
-            onChange={(e) => setEmployerId(e.target.value)}
-          >
-            <option value="">{t("jobs.field.employerPlaceholder")}</option>
-            {employersSorted.map((e) => (
-              <option key={e.id} value={e.id}>
-                {employerLabelById.get(e.id) ?? e.id}
-              </option>
-            ))}
-          </select>
+            onChange={setEmployerId}
+            options={employerOptions}
+            emptyOptionLabel={t("jobs.field.employerPlaceholder")}
+            disabled={busy}
+          />
         </label>
         <label className="block text-sm font-medium text-gray-700">
           {t("jobs.field.employee")}
-          <select
-            required
-            className={inputCls}
+          <SearchableRelationSelect
             value={employeeId}
-            onChange={(e) => setEmployeeId(e.target.value)}
-          >
-            <option value="">{t("jobs.field.employeePlaceholder")}</option>
-            {employeesSorted.map((w) => (
-              <option key={w.id} value={w.id}>
-                {employeeLabelById.get(w.id) ?? w.id}
-              </option>
-            ))}
-          </select>
+            onChange={setEmployeeId}
+            options={employeeOptions}
+            emptyOptionLabel={t("jobs.field.employeePlaceholder")}
+            disabled={busy}
+          />
         </label>
         <label className="block text-sm font-medium text-gray-700">
           {t("jobs.field.jobTitle")}
@@ -222,19 +241,13 @@ export default function JobOfferCreateView() {
         </label>
         <label className="block text-sm font-medium text-gray-700">
           {t("jobs.field.service")}
-          <select
-            required
-            className={inputCls}
+          <SearchableRelationSelect
             value={serviceId}
-            onChange={(e) => setServiceId(e.target.value)}
-          >
-            <option value="">{t("jobs.field.servicePlaceholder")}</option>
-            {servicesSorted.map((s) => (
-              <option key={s.id} value={s.id}>
-                {serviceLabelById.get(s.id) ?? s.id}
-              </option>
-            ))}
-          </select>
+            onChange={setServiceId}
+            options={serviceOptions}
+            emptyOptionLabel={t("jobs.field.servicePlaceholder")}
+            disabled={busy}
+          />
         </label>
         <button
           type="submit"
