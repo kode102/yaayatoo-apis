@@ -3,7 +3,7 @@
  */
 
 import type {Request, Response} from "express";
-import type {DocumentData} from "firebase-admin/firestore";
+import {Timestamp, type DocumentData} from "firebase-admin/firestore";
 import {db} from "../lib/admin.js";
 
 /** Réponse JSON pour une carte témoignage. */
@@ -27,6 +27,30 @@ export type PublicJobReviewCard = {
     verified: boolean;
   };
 };
+
+/**
+ * Date de début employé → YYYY-MM-DD (chaîne, ISO, Timestamp Firestore).
+ * @param {unknown} v Champ Firestore `startedWorkingAt`.
+ * @return {string} Date ou vide.
+ */
+function employeeStartedAtToYmd(v: unknown): string {
+  if (v == null) return "";
+  if (typeof v === "string") {
+    const t = v.trim();
+    if (!t) return "";
+    if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return t;
+    const d = new Date(t);
+    if (Number.isNaN(d.getTime())) return "";
+    return d.toISOString().slice(0, 10);
+  }
+  if (v instanceof Timestamp) {
+    return v.toDate().toISOString().slice(0, 10);
+  }
+  if (v instanceof Date && !Number.isNaN(v.getTime())) {
+    return v.toISOString().slice(0, 10);
+  }
+  return "";
+}
 
 /**
  * Années entières écoulées depuis une date YYYY-MM-DD.
@@ -166,8 +190,8 @@ export async function getPublicJobReviews(
           empImage = String(w.profileImageUrl ?? "").trim();
           const b = String(w.badge ?? "NONE");
           empVerified = b !== "NONE";
-          const sw = String(w.startedWorkingAt ?? "").trim();
-          experienceYears = fullYearsSinceYmd(sw);
+          const startYmd = employeeStartedAtToYmd(w.startedWorkingAt);
+          experienceYears = fullYearsSinceYmd(startYmd);
         }
       }
 

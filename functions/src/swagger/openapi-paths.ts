@@ -7,7 +7,17 @@ const collectionParam = {
   required: true,
   schema: {
     type: "string" as const,
-    enum: ["services", "countries", "languages"],
+    enum: [
+      "services",
+      "countries",
+      "languages",
+      "cmsSections",
+      "cmsNamespaces",
+      "employee",
+      "employer",
+      "jobOffers",
+      "jobReviews",
+    ],
   },
   description: "Collection Firestore",
 };
@@ -32,6 +42,29 @@ const sortLocaleQuery = {
   in: "query" as const,
   schema: {type: "string" as const, example: "fr"},
   description: "Alias de locale= (admin list + public)",
+};
+
+const countryQuery = {
+  name: "country",
+  in: "query" as const,
+  schema: {type: "string" as const, example: "CM"},
+  description:
+    "Code pays ISO2 : résolution des traductions CMS / langues actives",
+};
+
+const countryCodeQuery = {
+  name: "countryCode",
+  in: "query" as const,
+  schema: {type: "string" as const, example: "CM"},
+  description: "Alias de country=",
+};
+
+const firebaseUidParam = {
+  name: "uid",
+  in: "path" as const,
+  required: true,
+  schema: {type: "string" as const},
+  description: "UID Firebase Authentication",
 };
 
 const adminListResponses = {
@@ -235,6 +268,12 @@ export const openApiPaths = {
       description:
         "Pour sélecteurs vitrine : id, code, label, flagIconUrl. " +
         "Sans auth.",
+      parameters: [
+        localeQuery,
+        sortLocaleQuery,
+        countryQuery,
+        countryCodeQuery,
+      ],
       responses: {
         "200": {
           description: "OK",
@@ -433,7 +472,8 @@ export const openApiPaths = {
         "Retourne les espaces actifs demandés et leurs sections actives. " +
         "Passer `namespaceKeys` (ex. home,contact) et/ou `namespaceIds` " +
         "(ids Firestore). Union des deux. Tri des sections : `locale` / " +
-        "`sortLocale`.",
+        "`sortLocale`. Résolution des champs par pays : `country` / " +
+        "`countryCode` (ISO2).",
       parameters: [
         {
           name: "namespaceKeys",
@@ -449,6 +489,8 @@ export const openApiPaths = {
         },
         localeQuery,
         sortLocaleQuery,
+        countryQuery,
+        countryCodeQuery,
       ],
       responses: {
         "200": {
@@ -494,8 +536,15 @@ export const openApiPaths = {
       summary: "Contenu CMS (même logique que GET, corps JSON)",
       description:
         "Corps JSON : `{ \"namespaceKeys\": [\"home\"], \"namespaceIds\": [] }` " +
-        "ou chaînes séparées par virgules acceptées comme tableaux de strings.",
-      parameters: [localeQuery, sortLocaleQuery],
+        "ou chaînes séparées par virgules acceptées comme tableaux de strings. " +
+        "Query : `locale`, `sortLocale`, `country`, `countryCode` (même sémantique " +
+        "que le GET).",
+      parameters: [
+        localeQuery,
+        sortLocaleQuery,
+        countryQuery,
+        countryCodeQuery,
+      ],
       requestBody: {
         content: {
           "application/json": {
@@ -546,6 +595,97 @@ export const openApiPaths = {
           content: {
             "application/json": {
               schema: {$ref: "#/components/schemas/ApiError"},
+            },
+          },
+        },
+        "500": {
+          content: {
+            "application/json": {
+              schema: {$ref: "#/components/schemas/ApiError"},
+            },
+          },
+        },
+      },
+    },
+  },
+  "/public/ui-dictionary": {
+    get: {
+      tags: ["Public"],
+      summary: "Dictionnaire UI vitrine (adminUiDictionary)",
+      description:
+        "Toutes les clés surchargées : `{ [messageKey]: { [locale]: texte } }`. " +
+        "Sans auth — utilisé par le site Next.js pour fusionner les textes.",
+      responses: {
+        "200": {
+          description: "OK",
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  success: {type: "boolean", example: true},
+                  data: {$ref: "#/components/schemas/UiDictionaryData"},
+                },
+              },
+            },
+          },
+        },
+        "500": {
+          content: {
+            "application/json": {
+              schema: {$ref: "#/components/schemas/ApiError"},
+            },
+          },
+        },
+      },
+    },
+  },
+  "/public/job-reviews": {
+    get: {
+      tags: ["Public"],
+      summary: "Avis publics (jobReviews)",
+      description:
+        "Avis avec note strictement supérieure à `minRating` (défaut 2.5). " +
+        "Tri par date d’avis décroissante. Enrichissement : offre, employeur " +
+        "(reviewer), employé (matchedProfile, années d’expérience depuis " +
+        "`startedWorkingAt`).",
+      parameters: [
+        {
+          name: "minRating",
+          in: "query" as const,
+          schema: {type: "number" as const, default: 2.5},
+          description: "Seuil strict (exclu) ; avis avec rating > minRating",
+        },
+        {
+          name: "min",
+          in: "query" as const,
+          schema: {type: "number" as const},
+          description: "Alias de minRating",
+        },
+        {
+          name: "limit",
+          in: "query" as const,
+          schema: {type: "integer" as const, default: 30, maximum: 60},
+          description: "Nombre max. de cartes (1–60, défaut 30)",
+        },
+      ],
+      responses: {
+        "200": {
+          description: "OK",
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  success: {type: "boolean", example: true},
+                  data: {
+                    type: "array",
+                    items: {
+                      $ref: "#/components/schemas/PublicJobReviewCard",
+                    },
+                  },
+                },
+              },
             },
           },
         },
@@ -914,6 +1054,344 @@ export const openApiPaths = {
         "401": adminListResponses["401"],
         "403": adminListResponses["403"],
         "500": {
+          content: {
+            "application/json": {
+              schema: {$ref: "#/components/schemas/ApiError"},
+            },
+          },
+        },
+      },
+    },
+  },
+  "/admin/firebase-users": {
+    get: {
+      tags: ["Admin — Firebase Auth"],
+      summary: "Lister les utilisateurs Auth (paginé)",
+      security: [{bearerAuth: []}],
+      parameters: [
+        {
+          name: "maxResults",
+          in: "query" as const,
+          schema: {type: "integer" as const, default: 50, maximum: 100},
+          description: "Taille de page (1–100)",
+        },
+        {
+          name: "pageToken",
+          in: "query" as const,
+          schema: {type: "string" as const},
+          description: "Jeton page suivante (réponse précédente)",
+        },
+      ],
+      responses: {
+        "200": {
+          description: "OK",
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  success: {type: "boolean"},
+                  data: {
+                    type: "array",
+                    items: {$ref: "#/components/schemas/FirebaseAuthUser"},
+                  },
+                  pageToken: {type: "string", nullable: true},
+                },
+              },
+            },
+          },
+        },
+        "401": adminListResponses["401"],
+        "403": adminListResponses["403"],
+        "500": {
+          content: {
+            "application/json": {
+              schema: {$ref: "#/components/schemas/ApiError"},
+            },
+          },
+        },
+      },
+    },
+    post: {
+      tags: ["Admin — Firebase Auth"],
+      summary: "Créer un utilisateur (téléphone E.164)",
+      security: [{bearerAuth: []}],
+      requestBody: {
+        required: true,
+        content: {
+          "application/json": {
+            schema: {
+              type: "object",
+              required: ["phoneNumber"],
+              properties: {
+                phoneNumber: {
+                  type: "string",
+                  example: "+33612345678",
+                  description: "E.164",
+                },
+                displayName: {type: "string"},
+                email: {type: "string"},
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        "201": {
+          description: "Créé",
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  success: {type: "boolean"},
+                  data: {$ref: "#/components/schemas/FirebaseAuthUser"},
+                },
+              },
+            },
+          },
+        },
+        "400": {
+          content: {
+            "application/json": {
+              schema: {$ref: "#/components/schemas/ApiError"},
+            },
+          },
+        },
+        "401": adminListResponses["401"],
+        "403": adminListResponses["403"],
+      },
+    },
+  },
+  "/admin/firebase-users/{uid}": {
+    get: {
+      tags: ["Admin — Firebase Auth"],
+      summary: "Détail utilisateur Auth",
+      security: [{bearerAuth: []}],
+      parameters: [firebaseUidParam],
+      responses: {
+        "200": {
+          description: "OK",
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  success: {type: "boolean"},
+                  data: {$ref: "#/components/schemas/FirebaseAuthUser"},
+                },
+              },
+            },
+          },
+        },
+        "400": {
+          content: {
+            "application/json": {
+              schema: {$ref: "#/components/schemas/ApiError"},
+            },
+          },
+        },
+        "401": adminListResponses["401"],
+        "403": adminListResponses["403"],
+        "404": {
+          content: {
+            "application/json": {
+              schema: {$ref: "#/components/schemas/ApiError"},
+            },
+          },
+        },
+      },
+    },
+    put: {
+      tags: ["Admin — Firebase Auth"],
+      summary: "Mettre à jour téléphone / displayName",
+      security: [{bearerAuth: []}],
+      parameters: [firebaseUidParam],
+      requestBody: {
+        content: {
+          "application/json": {
+            schema: {
+              type: "object",
+              properties: {
+                phoneNumber: {type: "string"},
+                displayName: {type: "string"},
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        "200": {
+          description: "OK",
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  success: {type: "boolean"},
+                  data: {$ref: "#/components/schemas/FirebaseAuthUser"},
+                },
+              },
+            },
+          },
+        },
+        "400": {
+          content: {
+            "application/json": {
+              schema: {$ref: "#/components/schemas/ApiError"},
+            },
+          },
+        },
+        "401": adminListResponses["401"],
+        "403": adminListResponses["403"],
+      },
+    },
+    delete: {
+      tags: ["Admin — Firebase Auth"],
+      summary: "Supprimer le compte Auth",
+      security: [{bearerAuth: []}],
+      parameters: [firebaseUidParam],
+      responses: {
+        "200": {
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {success: {type: "boolean"}},
+              },
+            },
+          },
+        },
+        "400": {
+          content: {
+            "application/json": {
+              schema: {$ref: "#/components/schemas/ApiError"},
+            },
+          },
+        },
+        "401": adminListResponses["401"],
+        "403": adminListResponses["403"],
+      },
+    },
+  },
+  "/admin/firebase-users/{uid}/disable": {
+    post: {
+      tags: ["Admin — Firebase Auth"],
+      summary: "Désactiver le compte",
+      security: [{bearerAuth: []}],
+      parameters: [firebaseUidParam],
+      responses: {
+        "200": {
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  success: {type: "boolean"},
+                  data: {$ref: "#/components/schemas/FirebaseAuthUser"},
+                },
+              },
+            },
+          },
+        },
+        "400": {
+          content: {
+            "application/json": {
+              schema: {$ref: "#/components/schemas/ApiError"},
+            },
+          },
+        },
+        "401": adminListResponses["401"],
+        "403": adminListResponses["403"],
+      },
+    },
+  },
+  "/admin/firebase-users/{uid}/enable": {
+    post: {
+      tags: ["Admin — Firebase Auth"],
+      summary: "Réactiver le compte",
+      security: [{bearerAuth: []}],
+      parameters: [firebaseUidParam],
+      responses: {
+        "200": {
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  success: {type: "boolean"},
+                  data: {$ref: "#/components/schemas/FirebaseAuthUser"},
+                },
+              },
+            },
+          },
+        },
+        "400": {
+          content: {
+            "application/json": {
+              schema: {$ref: "#/components/schemas/ApiError"},
+            },
+          },
+        },
+        "401": adminListResponses["401"],
+        "403": adminListResponses["403"],
+      },
+    },
+  },
+  "/admin/firebase-users/{uid}/send-verification-sms": {
+    post: {
+      tags: ["Admin — Firebase Auth"],
+      summary: "Envoyer SMS de vérification (Identity Toolkit)",
+      description:
+        "Nécessite `FIREBASE_WEB_API_KEY` sur les Functions. " +
+        "Corps optionnel : `{ \"recaptchaToken\": \"...\" }` (reCAPTCHA v3).",
+      security: [{bearerAuth: []}],
+      parameters: [firebaseUidParam],
+      requestBody: {
+        content: {
+          "application/json": {
+            schema: {
+              type: "object",
+              properties: {
+                recaptchaToken: {type: "string"},
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        "200": {
+          description: "SMS demandé",
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  success: {type: "boolean"},
+                  message: {type: "string"},
+                },
+              },
+            },
+          },
+        },
+        "400": {
+          content: {
+            "application/json": {
+              schema: {$ref: "#/components/schemas/ApiError"},
+            },
+          },
+        },
+        "401": adminListResponses["401"],
+        "403": adminListResponses["403"],
+        "404": {
+          content: {
+            "application/json": {
+              schema: {$ref: "#/components/schemas/ApiError"},
+            },
+          },
+        },
+        "503": {
+          description: "FIREBASE_WEB_API_KEY manquante",
           content: {
             "application/json": {
               schema: {$ref: "#/components/schemas/ApiError"},

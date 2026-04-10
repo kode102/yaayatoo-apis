@@ -10,12 +10,14 @@ export const openApiSpec = {
   openapi: "3.0.3",
   info: {
     title: "Yaayatoo API",
-    version: "1.0.0",
+    version: "1.1.0",
     description:
       "API HTTP de la Cloud Function Firebase **yaayatoo** " +
       "(région `europe-west1`). " +
       "Préfixe client : `https://europe-west1-{projectId}.cloudfunctions.net/yaayatoo`. " +
-      "Remplacez `{projectId}` par l’ID projet GCP / Firebase.",
+      "Remplacez `{projectId}` par l’ID projet GCP / Firebase. " +
+      "Spec JSON : `GET /openapi.json`. " +
+      "Interface **Swagger UI** : `GET /docs`.",
   },
   servers: [
     {
@@ -40,11 +42,19 @@ export const openApiSpec = {
     },
     {
       name: "Admin — Documents",
-      description: "CRUD services, pays, langues (Bearer Firebase)",
+      description:
+        "CRUD Firestore : services, countries, languages, cmsSections, " +
+        "cmsNamespaces, employee, employer, jobOffers, jobReviews " +
+        "(Bearer Firebase)",
     },
     {
       name: "Admin — UI dictionary",
       description: "Surcharges textes admin (Firestore adminUiDictionary)",
+    },
+    {
+      name: "Admin — Firebase Auth",
+      description:
+        "Comptes Firebase Authentication (liste paginée, CRUD, SMS OTP)",
     },
   ],
   paths: openApiPaths,

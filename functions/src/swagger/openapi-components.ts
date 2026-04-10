@@ -96,5 +96,58 @@ export const openApiComponents = {
         endIndex: {type: "integer"},
       },
     },
+    PublicJobReviewReviewer: {
+      type: "object",
+      description:
+        "Employeur lié à l’offre (nom affiché : companyName en priorité)",
+      properties: {
+        name: {type: "string"},
+        subtitle: {type: "string"},
+        imageUrl: {type: "string"},
+        verified: {type: "boolean"},
+      },
+    },
+    PublicJobReviewMatchedProfile: {
+      type: "object",
+      description: "Employé associé à l’offre d’emploi",
+      properties: {
+        name: {type: "string"},
+        subtitle: {type: "string"},
+        imageUrl: {type: "string"},
+        experienceYears: {type: "integer", nullable: true},
+        verified: {type: "boolean"},
+      },
+    },
+    PublicJobReviewCard: {
+      type: "object",
+      description:
+        "Avis public (collection jobReviews) enrichi offre + profils",
+      properties: {
+        id: {type: "string"},
+        rating: {type: "number"},
+        reviewText: {type: "string"},
+        reviewedAt: {type: "string", description: "Date YYYY-MM-DD"},
+        jobTitle: {type: "string"},
+        reviewer: {$ref: "#/components/schemas/PublicJobReviewReviewer"},
+        matchedProfile: {
+          $ref: "#/components/schemas/PublicJobReviewMatchedProfile",
+        },
+      },
+    },
+    FirebaseAuthUser: {
+      type: "object",
+      description: "Utilisateur Firebase Auth (sérialisé API admin)",
+      properties: {
+        uid: {type: "string"},
+        email: {type: "string", nullable: true},
+        displayName: {type: "string", nullable: true},
+        phoneNumber: {type: "string", nullable: true},
+        disabled: {type: "boolean"},
+        emailVerified: {type: "boolean"},
+        creationTime: {type: "string"},
+        lastSignInTime: {type: "string", nullable: true},
+        providerData: {type: "array", items: {type: "object"}},
+      },
+    },
   },
 };
