@@ -6,6 +6,16 @@ import type {Request, Response, Router} from "express";
 import type {UserRecord} from "firebase-admin/auth";
 import {admin} from "../lib/admin.js";
 
+/**
+ * @param {string|string[]|undefined} v Paramètre route Express 5.
+ * @return {string} Chaîne trim ou vide.
+ */
+function routeParamString(v: string | string[] | undefined): string {
+  if (typeof v === "string") return v.trim();
+  if (Array.isArray(v) && typeof v[0] === "string") return v[0].trim();
+  return "";
+}
+
 function serializeAuthUser(u: UserRecord): Record<string, unknown> {
   return {
     uid: u.uid,
@@ -57,7 +67,7 @@ export function attachFirebaseUserRoutes(router: Router): void {
   });
 
   router.get("/firebase-users/:uid", async (req: Request, res: Response) => {
-    const uid = req.params.uid?.trim();
+    const uid = routeParamString(req.params.uid);
     if (!uid) {
       res.status(400).json({success: false, error: "uid invalide"});
       return;
@@ -113,7 +123,7 @@ export function attachFirebaseUserRoutes(router: Router): void {
   });
 
   router.put("/firebase-users/:uid", async (req: Request, res: Response) => {
-    const uid = req.params.uid?.trim();
+    const uid = routeParamString(req.params.uid);
     if (!uid) {
       res.status(400).json({success: false, error: "uid invalide"});
       return;
@@ -150,7 +160,7 @@ export function attachFirebaseUserRoutes(router: Router): void {
   router.post(
     "/firebase-users/:uid/disable",
     async (req: Request, res: Response) => {
-      const uid = req.params.uid?.trim();
+      const uid = routeParamString(req.params.uid);
       if (!uid) {
         res.status(400).json({success: false, error: "uid invalide"});
         return;
@@ -169,7 +179,7 @@ export function attachFirebaseUserRoutes(router: Router): void {
   router.post(
     "/firebase-users/:uid/enable",
     async (req: Request, res: Response) => {
-      const uid = req.params.uid?.trim();
+      const uid = routeParamString(req.params.uid);
       if (!uid) {
         res.status(400).json({success: false, error: "uid invalide"});
         return;
@@ -186,7 +196,7 @@ export function attachFirebaseUserRoutes(router: Router): void {
   );
 
   router.delete("/firebase-users/:uid", async (req: Request, res: Response) => {
-    const uid = req.params.uid?.trim();
+    const uid = routeParamString(req.params.uid);
     if (!uid) {
       res.status(400).json({success: false, error: "uid invalide"});
       return;
@@ -208,7 +218,7 @@ export function attachFirebaseUserRoutes(router: Router): void {
   router.post(
     "/firebase-users/:uid/send-verification-sms",
     async (req: Request, res: Response) => {
-      const uid = req.params.uid?.trim();
+      const uid = routeParamString(req.params.uid);
       if (!uid) {
         res.status(400).json({success: false, error: "uid invalide"});
         return;

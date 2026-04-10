@@ -456,14 +456,32 @@ export default function EmployeeListView() {
             <code className="text-gray-800">{editRow?.firebaseUid}</code>
           </p>
           {editStep === 0 ?
-            <label className="block text-sm text-gray-700">
-              {t("users.employee.colName")}
-              <input
-                value={draftName}
-                onChange={(e) => setDraftName(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary/70 focus:ring-2 focus:ring-primary/15 focus:outline-none"
-              />
-            </label>
+            <>
+              <label className="block text-sm text-gray-700">
+                {t("users.employee.colName")}
+                <input
+                  value={draftName}
+                  onChange={(e) => setDraftName(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary/70 focus:ring-2 focus:ring-primary/15 focus:outline-none"
+                />
+              </label>
+              <label className="block text-sm text-gray-700">
+                {t("users.employee.colStatus")}
+                <select
+                  value={draftStatus}
+                  onChange={(e) =>
+                    setDraftStatus(e.target.value as EmployeeStatus)
+                  }
+                  className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary/70 focus:ring-2 focus:ring-primary/15 focus:outline-none"
+                >
+                  {EMPLOYEE_STATUS_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {t(o.labelKey)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </>
           : editStep === 1 ?
             <>
               <label className="block text-sm text-gray-700">
