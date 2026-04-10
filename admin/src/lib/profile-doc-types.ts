@@ -17,6 +17,9 @@ export type EmployeeDoc = {
   updatedAt?: string;
 };
 
+/** Badge profil employeur (aligné API / Firestore). */
+export type EmployerBadge = "NONE" | "TRUSTED";
+
 /** Document Firestore collection `employer` (id = firebaseUid). */
 export type EmployerDoc = {
   id: string;
@@ -24,6 +27,11 @@ export type EmployerDoc = {
   companyName?: string;
   contactName?: string;
   notes?: string;
+  /** Date d’inscription / adhésion (YYYY-MM-DD). */
+  joinedAt?: string;
+  badge?: EmployerBadge;
+  profileImageUrl?: string;
+  occupation?: string;
   createdAt?: string;
   updatedAt?: string;
 };

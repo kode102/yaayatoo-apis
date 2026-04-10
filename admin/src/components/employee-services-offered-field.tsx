@@ -22,7 +22,7 @@ export function EmployeeServicesOfferedField({
 }: Props) {
   const {t} = useUiLocale();
   const set = new Set(selectedIds);
-  const sorted = [...services].filter((s) => s.active).sort((a, b) =>
+  const sorted = [...services].filter((s) => s.active !== false).sort((a, b) =>
     pickRegionalSortLabel(a.translations, editorLocale, a.id).localeCompare(
       pickRegionalSortLabel(b.translations, editorLocale, b.id),
       "fr",

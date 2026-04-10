@@ -2,6 +2,11 @@
 
 import {createColumnHelper, type ColumnDef} from "@tanstack/react-table";
 import {useCallback, useEffect, useMemo, useState} from "react";
+import {EmployeeProfileImageField} from "@/components/employee-profile-image-field";
+import {
+  EMPLOYEE_BADGE_OPTIONS,
+  EmployeeServicesOfferedField,
+} from "@/components/employee-services-offered-field";
 import {AdminDataTable, SortableHeader} from "@/components/admin-data-table";
 import {EditSheet} from "@/components/edit-sheet";
 import {ListPageHeader} from "@/components/list-page-header";
@@ -10,20 +15,52 @@ import {useAuth} from "@/contexts/auth-context";
 import {useEditorLocale} from "@/contexts/editor-locale-context";
 import {useUiLocale} from "@/contexts/ui-locale-context";
 import {adminFetch, type ApiDocResponse, type ApiListResponse} from "@/lib/api";
-import type {EmployeeDoc} from "@/lib/profile-doc-types";
+import {yearsOfExperienceFromStartDate} from "@/lib/employee-display";
+import type {ServiceDoc} from "@/lib/i18n-types";
+import {pickRegionalSortLabel} from "@/lib/i18n-types";
+import type {EmployeeBadge, EmployeeDoc} from "@/lib/profile-doc-types";
 
 const col = createColumnHelper<EmployeeDoc>();
+
+function badgePillClass(b: EmployeeBadge | undefined): string {
+  switch (b) {
+    case "BLUE":
+      return "bg-blue-100 text-blue-800";
+    case "GREEN":
+      return "bg-emerald-100 text-emerald-800";
+    case "YELLOW":
+      return "bg-amber-100 text-amber-900";
+    default:
+      return "bg-gray-100 text-gray-600";
+  }
+}
 
 export default function EmployeeListView() {
   const {getIdToken} = useAuth();
   const {editorLocale} = useEditorLocale();
   const {t} = useUiLocale();
   const [items, setItems] = useState<EmployeeDoc[]>([]);
+  const [services, setServices] = useState<ServiceDoc[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [editRow, setEditRow] = useState<EmployeeDoc | null>(null);
   const [draftName, setDraftName] = useState("");
   const [draftNotes, setDraftNotes] = useState("");
+  const [draftStarted, setDraftStarted] = useState("");
+  const [draftBadge, setDraftBadge] = useState<EmployeeBadge>("NONE");
+  const [draftImage, setDraftImage] = useState("");
+  const [draftServiceIds, setDraftServiceIds] = useState<string[]>([]);
+
+  const serviceLabelById = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const s of services) {
+      m.set(
+        s.id,
+        pickRegionalSortLabel(s.translations, editorLocale, s.id),
+      );
+    }
+    return m;
+  }, [editorLocale, services]);
 
   const load = useCallback(async () => {
     const token = await getIdToken();
@@ -33,11 +70,18 @@ export default function EmployeeListView() {
     }
     setLoadError(null);
     try {
-      const res = await adminFetch<ApiListResponse<EmployeeDoc>>(
-        `/admin/documents/employee?sortLocale=${encodeURIComponent(editorLocale)}`,
-        token,
-      );
-      setItems((res.data ?? []) as EmployeeDoc[]);
+      const [empRes, svcRes] = await Promise.all([
+        adminFetch<ApiListResponse<EmployeeDoc>>(
+          `/admin/documents/employee?sortLocale=${encodeURIComponent(editorLocale)}`,
+          token,
+        ),
+        adminFetch<ApiListResponse<ServiceDoc>>(
+          `/admin/documents/services?sortLocale=${encodeURIComponent(editorLocale)}`,
+          token,
+        ),
+      ]);
+      setItems((empRes.data ?? []) as EmployeeDoc[]);
+      setServices((svcRes.data ?? []) as ServiceDoc[]);
     } catch (e: unknown) {
       setLoadError(e instanceof Error ? e.message : String(e));
     }
@@ -51,6 +95,12 @@ export default function EmployeeListView() {
     setEditRow(row);
     setDraftName(row.fullName ?? "");
     setDraftNotes(row.notes ?? "");
+    setDraftStarted(row.startedWorkingAt ?? "");
+    setDraftBadge(row.badge ?? "NONE");
+    setDraftImage(row.profileImageUrl ?? "");
+    setDraftServiceIds(
+      Array.isArray(row.offeredServiceIds) ? [...row.offeredServiceIds] : [],
+    );
   }, []);
 
   const saveEdit = useCallback(async () => {
@@ -67,6 +117,10 @@ export default function EmployeeListView() {
           body: JSON.stringify({
             fullName: draftName.trim(),
             notes: draftNotes,
+            startedWorkingAt: draftStarted.trim(),
+            badge: draftBadge,
+            profileImageUrl: draftImage.trim(),
+            offeredServiceIds: draftServiceIds,
           }),
         },
       );
@@ -77,7 +131,17 @@ export default function EmployeeListView() {
     } finally {
       setBusy(false);
     }
-  }, [draftName, draftNotes, editRow, getIdToken, load]);
+  }, [
+    draftBadge,
+    draftImage,
+    draftName,
+    draftNotes,
+    draftServiceIds,
+    draftStarted,
+    editRow,
+    getIdToken,
+    load,
+  ]);
 
   const removeRow = useCallback(
     async (id: string) => {
@@ -99,21 +163,29 @@ export default function EmployeeListView() {
     [getIdToken, load, t],
   );
 
+  const expPreviewEdit = yearsOfExperienceFromStartDate(draftStarted);
+
   const columns = useMemo(
     () =>
       [
-        col.accessor("firebaseUid", {
-          id: "uid",
-          header: ({column}) => (
-            <SortableHeader column={column}>
-              {t("users.employee.colUid")}
-            </SortableHeader>
+        col.display({
+          id: "photo",
+          enableSorting: false,
+          enableGlobalFilter: false,
+          header: () => (
+            <span className="font-medium">{t("users.employee.profileImage")}</span>
           ),
-          cell: (info) => (
-            <code className="text-xs text-gray-600 break-all">
-              {info.getValue()}
-            </code>
-          ),
+          cell: ({row}) =>
+            row.original.profileImageUrl ?
+              /* eslint-disable-next-line @next/next/no-img-element -- URL Storage */
+              <img
+                src={row.original.profileImageUrl}
+                alt=""
+                width={40}
+                height={40}
+                className="h-10 w-10 rounded-md border border-gray-200 object-cover"
+              />
+            : <span className="text-gray-400">—</span>,
         }),
         col.accessor("fullName", {
           id: "fullName",
@@ -126,17 +198,76 @@ export default function EmployeeListView() {
             <span className="font-medium">{info.getValue() ?? "—"}</span>
           ),
         }),
-        col.accessor("notes", {
-          id: "notes",
+        col.accessor("badge", {
+          id: "badge",
           header: ({column}) => (
             <SortableHeader column={column}>
-              {t("users.employee.colNotes")}
+              {t("users.employee.colBadge")}
+            </SortableHeader>
+          ),
+          cell: ({row}) => {
+            const b = row.original.badge ?? "NONE";
+            const opt = EMPLOYEE_BADGE_OPTIONS.find((x) => x.value === b);
+            return (
+              <span
+                className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${badgePillClass(b)}`}
+              >
+                {opt ? t(opt.labelKey) : b}
+              </span>
+            );
+          },
+        }),
+        col.accessor("startedWorkingAt", {
+          id: "exp",
+          header: ({column}) => (
+            <SortableHeader column={column}>
+              {t("users.employee.colExperience")}
+            </SortableHeader>
+          ),
+          cell: ({row}) => {
+            const y = yearsOfExperienceFromStartDate(row.original.startedWorkingAt);
+            if (y === null) return <span className="text-gray-400">—</span>;
+            return (
+              <span className="text-sm text-gray-700">
+                {t("users.employee.experienceYears", {years: String(y)})}
+              </span>
+            );
+          },
+        }),
+        col.display({
+          id: "services",
+          enableSorting: false,
+          header: () => (
+            <span className="font-medium">{t("users.employee.colServices")}</span>
+          ),
+          cell: ({row}) => {
+            const ids = row.original.offeredServiceIds ?? [];
+            if (ids.length === 0) return <span className="text-gray-400">—</span>;
+            const labels = ids
+              .map((id) => serviceLabelById.get(id) ?? id)
+              .filter(Boolean);
+            const text =
+              labels.length > 2 ?
+                `${labels.slice(0, 2).join(", ")} +${labels.length - 2}`
+              : labels.join(", ");
+            return (
+              <span className="max-w-[200px] truncate text-sm text-gray-600" title={labels.join(", ")}>
+                {text}
+              </span>
+            );
+          },
+        }),
+        col.accessor("firebaseUid", {
+          id: "uid",
+          header: ({column}) => (
+            <SortableHeader column={column}>
+              {t("users.employee.colUid")}
             </SortableHeader>
           ),
           cell: (info) => (
-            <span className="line-clamp-2 text-sm text-gray-600">
-              {info.getValue() ?? "—"}
-            </span>
+            <code className="text-xs text-gray-600 break-all">
+              {info.getValue()}
+            </code>
           ),
         }),
         col.display({
@@ -194,7 +325,7 @@ export default function EmployeeListView() {
           ),
         }),
       ] as ColumnDef<EmployeeDoc, unknown>[],
-    [busy, openEdit, removeRow, t],
+    [busy, openEdit, removeRow, serviceLabelById, t],
   );
 
   return (
@@ -214,7 +345,7 @@ export default function EmployeeListView() {
         columns={columns}
         getRowId={(row) => row.id}
         emptyLabel={t("users.employee.list.empty")}
-        minTableWidth={720}
+        minTableWidth={960}
       />
       <EditSheet
         open={!!editRow}
@@ -240,6 +371,7 @@ export default function EmployeeListView() {
           </>
         }
       >
+        <div className="max-h-[min(70vh,560px)] space-y-3 overflow-y-auto pr-1">
         <p className="text-xs text-gray-500">
           UID :{" "}
           <code className="text-gray-800">{editRow?.firebaseUid}</code>
@@ -253,6 +385,47 @@ export default function EmployeeListView() {
           />
         </label>
         <label className="block text-sm text-gray-700">
+          {t("users.employee.startedWorkingAt")}
+          <input
+            type="date"
+            value={draftStarted}
+            onChange={(e) => setDraftStarted(e.target.value)}
+            className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary/70 focus:ring-2 focus:ring-primary/15 focus:outline-none"
+          />
+        </label>
+        {expPreviewEdit !== null ?
+          <p className="text-sm text-gray-600">
+            {t("users.employee.experienceYears", {years: String(expPreviewEdit)})}
+          </p>
+        : null}
+        <label className="block text-sm text-gray-700">
+          {t("users.employee.badge")}
+          <select
+            value={draftBadge}
+            onChange={(e) => setDraftBadge(e.target.value as EmployeeBadge)}
+            className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary/70 focus:ring-2 focus:ring-primary/15 focus:outline-none"
+          >
+            {EMPLOYEE_BADGE_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {t(o.labelKey)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <EmployeeProfileImageField
+          value={draftImage}
+          onChange={setDraftImage}
+          employeeUid={editRow?.firebaseUid}
+          disabled={busy}
+        />
+        <EmployeeServicesOfferedField
+          services={services}
+          editorLocale={editorLocale}
+          selectedIds={draftServiceIds}
+          onChange={setDraftServiceIds}
+          disabled={busy}
+        />
+        <label className="block text-sm text-gray-700">
           {t("users.employee.colNotes")}
           <textarea
             value={draftNotes}
@@ -261,6 +434,7 @@ export default function EmployeeListView() {
             className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary/70 focus:ring-2 focus:ring-primary/15 focus:outline-none"
           />
         </label>
+        </div>
       </EditSheet>
     </div>
   );

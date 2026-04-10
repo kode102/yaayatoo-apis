@@ -236,6 +236,21 @@ function normalizeEmployeeBadge(v: unknown): EmployeeBadge {
   return "NONE";
 }
 
+/** Badges profil employeur (Firestore `badge`). */
+const EMPLOYER_BADGES = new Set(["NONE", "TRUSTED"]);
+
+type EmployerBadge = "NONE" | "TRUSTED";
+
+/**
+ * @param {unknown} v Valeur brute.
+ * @return {EmployerBadge} Badge normalisé.
+ */
+function normalizeEmployerBadge(v: unknown): EmployerBadge {
+  const s = String(v ?? "NONE").trim().toUpperCase();
+  if (EMPLOYER_BADGES.has(s)) return s as EmployerBadge;
+  return "NONE";
+}
+
 /**
  * @param {unknown} v Date ISO ou YYYY-MM-DD.
  * @return {string} Chaîne YYYY-MM-DD ou vide.
@@ -334,6 +349,10 @@ function parseEmployerPost(body: Record<string, unknown>): {
   companyName: string;
   contactName: string;
   notes: string;
+  joinedAt: string;
+  badge: EmployerBadge;
+  profileImageUrl: string;
+  occupation: string;
 } | null {
   const firebaseUid =
     typeof body.firebaseUid === "string" ? body.firebaseUid.trim() : "";
@@ -343,7 +362,24 @@ function parseEmployerPost(body: Record<string, unknown>): {
   const contactName =
     typeof body.contactName === "string" ? body.contactName.trim() : "";
   const notes = typeof body.notes === "string" ? body.notes : "";
-  return {firebaseUid, companyName, contactName, notes};
+  const joinedAt = normalizeStartedWorkingAt(body.joinedAt);
+  const badge = normalizeEmployerBadge(body.badge);
+  let profileImageUrl = "";
+  if (typeof body.profileImageUrl === "string") {
+    profileImageUrl = body.profileImageUrl.trim();
+  }
+  const occupation =
+    typeof body.occupation === "string" ? body.occupation.trim() : "";
+  return {
+    firebaseUid,
+    companyName,
+    contactName,
+    notes,
+    joinedAt,
+    badge,
+    profileImageUrl,
+    occupation,
+  };
 }
 
 /**
@@ -590,6 +626,30 @@ function buildPutPatch(
       }
       if (typeof body.notes === "string") {
         patch.notes = body.notes;
+      }
+      if (body.joinedAt !== undefined) {
+        if (typeof body.joinedAt !== "string") {
+          return {
+            patch: {},
+            error: "joinedAt doit être une chaîne (date)",
+          };
+        }
+        const jd = normalizeStartedWorkingAt(body.joinedAt);
+        if (jd) {
+          patch.joinedAt = jd;
+        } else {
+          // eslint-disable-next-line new-cap -- FieldValue.delete()
+          patch.joinedAt = FieldValue.delete();
+        }
+      }
+      if (body.badge !== undefined) {
+        patch.badge = normalizeEmployerBadge(body.badge);
+      }
+      if (typeof body.profileImageUrl === "string") {
+        patch.profileImageUrl = body.profileImageUrl.trim();
+      }
+      if (typeof body.occupation === "string") {
+        patch.occupation = body.occupation.trim();
       }
     }
     const profileKeys = Object.keys(patch).filter((k) => k !== "updatedAt");
@@ -1047,14 +1107,21 @@ export function createAdminRouter(): express.Router {
           });
           return;
         }
-        await ref.set({
+        const emplDoc: Record<string, unknown> = {
           firebaseUid: v.firebaseUid,
           companyName: v.companyName,
           contactName: v.contactName,
           notes: v.notes,
+          badge: v.badge,
+          profileImageUrl: v.profileImageUrl,
+          occupation: v.occupation,
           createdAt: now,
           updatedAt: now,
-        });
+        };
+        if (v.joinedAt) {
+          emplDoc.joinedAt = v.joinedAt;
+        }
+        await ref.set(emplDoc);
         const created = await ref.get();
         res.status(201).json({
           success: true,

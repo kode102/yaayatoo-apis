@@ -3,10 +3,13 @@
 import Link from "next/link";
 import {useRouter} from "next/navigation";
 import {useState} from "react";
+import {EmployerProfileImageField} from "@/components/employer-profile-image-field";
 import {useAuth} from "@/contexts/auth-context";
 import {useUiLocale} from "@/contexts/ui-locale-context";
 import {adminFetch, type ApiDocResponse} from "@/lib/api";
-import type {EmployerDoc} from "@/lib/profile-doc-types";
+import {EMPLOYER_BADGE_OPTIONS} from "@/lib/employer-badge-options";
+import {yearsOfExperienceFromStartDate} from "@/lib/employee-display";
+import type {EmployerBadge, EmployerDoc} from "@/lib/profile-doc-types";
 
 export default function EmployerCreateView() {
   const {getIdToken} = useAuth();
@@ -16,8 +19,14 @@ export default function EmployerCreateView() {
   const [companyName, setCompanyName] = useState("");
   const [contactName, setContactName] = useState("");
   const [notes, setNotes] = useState("");
+  const [joinedAt, setJoinedAt] = useState("");
+  const [badge, setBadge] = useState<EmployerBadge>("NONE");
+  const [profileImageUrl, setProfileImageUrl] = useState("");
+  const [occupation, setOccupation] = useState("");
   const [loadError, setLoadError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  const tenurePreview = yearsOfExperienceFromStartDate(joinedAt);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -44,6 +53,10 @@ export default function EmployerCreateView() {
             companyName: companyName.trim(),
             contactName: contactName.trim(),
             notes,
+            joinedAt: joinedAt.trim() || undefined,
+            badge,
+            profileImageUrl: profileImageUrl.trim(),
+            occupation: occupation.trim(),
           }),
         },
       );
@@ -100,6 +113,48 @@ export default function EmployerCreateView() {
             className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary/70 focus:ring-2 focus:ring-primary/15 focus:outline-none"
           />
         </label>
+        <label className="block text-sm text-gray-700">
+          {t("users.employer.occupation")}
+          <input
+            value={occupation}
+            onChange={(e) => setOccupation(e.target.value)}
+            className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary/70 focus:ring-2 focus:ring-primary/15 focus:outline-none"
+          />
+        </label>
+        <label className="block text-sm text-gray-700">
+          {t("users.employer.joinedAt")}
+          <input
+            type="date"
+            value={joinedAt}
+            onChange={(e) => setJoinedAt(e.target.value)}
+            className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary/70 focus:ring-2 focus:ring-primary/15 focus:outline-none"
+          />
+        </label>
+        {tenurePreview !== null ?
+          <p className="text-sm text-gray-600">
+            {t("users.employer.memberYears", {years: String(tenurePreview)})}
+          </p>
+        : null}
+        <label className="block text-sm text-gray-700">
+          {t("users.employer.badge")}
+          <select
+            value={badge}
+            onChange={(e) => setBadge(e.target.value as EmployerBadge)}
+            className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary/70 focus:ring-2 focus:ring-primary/15 focus:outline-none"
+          >
+            {EMPLOYER_BADGE_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {t(o.labelKey)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <EmployerProfileImageField
+          value={profileImageUrl}
+          onChange={setProfileImageUrl}
+          employerUid={firebaseUid.trim() || undefined}
+          disabled={busy}
+        />
         <label className="block text-sm text-gray-700">
           {t("users.employer.colNotes")}
           <textarea

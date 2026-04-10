@@ -2,6 +2,7 @@
 
 import {createColumnHelper, type ColumnDef} from "@tanstack/react-table";
 import {useCallback, useEffect, useMemo, useState} from "react";
+import {EmployerProfileImageField} from "@/components/employer-profile-image-field";
 import {AdminDataTable, SortableHeader} from "@/components/admin-data-table";
 import {EditSheet} from "@/components/edit-sheet";
 import {ListPageHeader} from "@/components/list-page-header";
@@ -10,9 +11,16 @@ import {useAuth} from "@/contexts/auth-context";
 import {useEditorLocale} from "@/contexts/editor-locale-context";
 import {useUiLocale} from "@/contexts/ui-locale-context";
 import {adminFetch, type ApiDocResponse, type ApiListResponse} from "@/lib/api";
-import type {EmployerDoc} from "@/lib/profile-doc-types";
+import {yearsOfExperienceFromStartDate} from "@/lib/employee-display";
+import {EMPLOYER_BADGE_OPTIONS} from "@/lib/employer-badge-options";
+import type {EmployerBadge, EmployerDoc} from "@/lib/profile-doc-types";
 
 const col = createColumnHelper<EmployerDoc>();
+
+function employerBadgeClass(b: EmployerBadge | undefined): string {
+  if (b === "TRUSTED") return "bg-emerald-100 text-emerald-900";
+  return "bg-gray-100 text-gray-600";
+}
 
 export default function EmployerListView() {
   const {getIdToken} = useAuth();
@@ -25,6 +33,10 @@ export default function EmployerListView() {
   const [draftCompany, setDraftCompany] = useState("");
   const [draftContact, setDraftContact] = useState("");
   const [draftNotes, setDraftNotes] = useState("");
+  const [draftJoined, setDraftJoined] = useState("");
+  const [draftBadge, setDraftBadge] = useState<EmployerBadge>("NONE");
+  const [draftImage, setDraftImage] = useState("");
+  const [draftOccupation, setDraftOccupation] = useState("");
 
   const load = useCallback(async () => {
     const token = await getIdToken();
@@ -53,6 +65,10 @@ export default function EmployerListView() {
     setDraftCompany(row.companyName ?? "");
     setDraftContact(row.contactName ?? "");
     setDraftNotes(row.notes ?? "");
+    setDraftJoined(row.joinedAt ?? "");
+    setDraftBadge(row.badge ?? "NONE");
+    setDraftImage(row.profileImageUrl ?? "");
+    setDraftOccupation(row.occupation ?? "");
   }, []);
 
   const saveEdit = useCallback(async () => {
@@ -70,6 +86,10 @@ export default function EmployerListView() {
             companyName: draftCompany.trim(),
             contactName: draftContact.trim(),
             notes: draftNotes,
+            joinedAt: draftJoined.trim(),
+            badge: draftBadge,
+            profileImageUrl: draftImage.trim(),
+            occupation: draftOccupation.trim(),
           }),
         },
       );
@@ -80,7 +100,18 @@ export default function EmployerListView() {
     } finally {
       setBusy(false);
     }
-  }, [draftCompany, draftContact, draftNotes, editRow, getIdToken, load]);
+  }, [
+    draftBadge,
+    draftCompany,
+    draftContact,
+    draftImage,
+    draftJoined,
+    draftNotes,
+    draftOccupation,
+    editRow,
+    getIdToken,
+    load,
+  ]);
 
   const removeRow = useCallback(
     async (id: string) => {
@@ -102,21 +133,29 @@ export default function EmployerListView() {
     [getIdToken, load, t],
   );
 
+  const tenureEdit = yearsOfExperienceFromStartDate(draftJoined);
+
   const columns = useMemo(
     () =>
       [
-        col.accessor("firebaseUid", {
-          id: "uid",
-          header: ({column}) => (
-            <SortableHeader column={column}>
-              {t("users.employer.colUid")}
-            </SortableHeader>
+        col.display({
+          id: "photo",
+          enableSorting: false,
+          enableGlobalFilter: false,
+          header: () => (
+            <span className="font-medium">{t("users.employer.profileImage")}</span>
           ),
-          cell: (info) => (
-            <code className="text-xs text-gray-600 break-all">
-              {info.getValue()}
-            </code>
-          ),
+          cell: ({row}) =>
+            row.original.profileImageUrl ?
+              /* eslint-disable-next-line @next/next/no-img-element -- URL Storage */
+              <img
+                src={row.original.profileImageUrl}
+                alt=""
+                width={40}
+                height={40}
+                className="h-10 w-10 rounded-md border border-gray-200 object-cover"
+              />
+            : <span className="text-gray-400">—</span>,
         }),
         col.accessor("companyName", {
           id: "company",
@@ -129,6 +168,53 @@ export default function EmployerListView() {
             <span className="font-medium">{info.getValue() ?? "—"}</span>
           ),
         }),
+        col.accessor("occupation", {
+          id: "occupation",
+          header: ({column}) => (
+            <SortableHeader column={column}>
+              {t("users.employer.occupation")}
+            </SortableHeader>
+          ),
+          cell: (info) => (
+            <span className="text-sm text-gray-700">{info.getValue() ?? "—"}</span>
+          ),
+        }),
+        col.accessor("badge", {
+          id: "badge",
+          header: ({column}) => (
+            <SortableHeader column={column}>
+              {t("users.employer.colBadge")}
+            </SortableHeader>
+          ),
+          cell: ({row}) => {
+            const b = row.original.badge ?? "NONE";
+            const opt = EMPLOYER_BADGE_OPTIONS.find((x) => x.value === b);
+            return (
+              <span
+                className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${employerBadgeClass(b)}`}
+              >
+                {opt ? t(opt.labelKey) : b}
+              </span>
+            );
+          },
+        }),
+        col.accessor("joinedAt", {
+          id: "joined",
+          header: ({column}) => (
+            <SortableHeader column={column}>
+              {t("users.employer.colMemberSince")}
+            </SortableHeader>
+          ),
+          cell: ({row}) => {
+            const y = yearsOfExperienceFromStartDate(row.original.joinedAt);
+            if (y === null) return <span className="text-gray-400">—</span>;
+            return (
+              <span className="text-sm text-gray-700">
+                {t("users.employer.memberYears", {years: String(y)})}
+              </span>
+            );
+          },
+        }),
         col.accessor("contactName", {
           id: "contact",
           header: ({column}) => (
@@ -140,17 +226,17 @@ export default function EmployerListView() {
             <span className="text-sm text-gray-700">{info.getValue() ?? "—"}</span>
           ),
         }),
-        col.accessor("notes", {
-          id: "notes",
+        col.accessor("firebaseUid", {
+          id: "uid",
           header: ({column}) => (
             <SortableHeader column={column}>
-              {t("users.employer.colNotes")}
+              {t("users.employer.colUid")}
             </SortableHeader>
           ),
           cell: (info) => (
-            <span className="line-clamp-2 text-sm text-gray-600">
-              {info.getValue() ?? "—"}
-            </span>
+            <code className="text-xs text-gray-600 break-all">
+              {info.getValue()}
+            </code>
           ),
         }),
         col.display({
@@ -228,7 +314,7 @@ export default function EmployerListView() {
         columns={columns}
         getRowId={(row) => row.id}
         emptyLabel={t("users.employer.list.empty")}
-        minTableWidth={800}
+        minTableWidth={1040}
       />
       <EditSheet
         open={!!editRow}
@@ -254,35 +340,79 @@ export default function EmployerListView() {
           </>
         }
       >
-        <p className="text-xs text-gray-500">
-          UID :{" "}
-          <code className="text-gray-800">{editRow?.firebaseUid}</code>
-        </p>
-        <label className="block text-sm text-gray-700">
-          {t("users.employer.colCompany")}
-          <input
-            value={draftCompany}
-            onChange={(e) => setDraftCompany(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary/70 focus:ring-2 focus:ring-primary/15 focus:outline-none"
+        <div className="max-h-[min(70vh,560px)] space-y-3 overflow-y-auto pr-1">
+          <p className="text-xs text-gray-500">
+            UID :{" "}
+            <code className="text-gray-800">{editRow?.firebaseUid}</code>
+          </p>
+          <label className="block text-sm text-gray-700">
+            {t("users.employer.colCompany")}
+            <input
+              value={draftCompany}
+              onChange={(e) => setDraftCompany(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary/70 focus:ring-2 focus:ring-primary/15 focus:outline-none"
+            />
+          </label>
+          <label className="block text-sm text-gray-700">
+            {t("users.employer.colContact")}
+            <input
+              value={draftContact}
+              onChange={(e) => setDraftContact(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary/70 focus:ring-2 focus:ring-primary/15 focus:outline-none"
+            />
+          </label>
+          <label className="block text-sm text-gray-700">
+            {t("users.employer.occupation")}
+            <input
+              value={draftOccupation}
+              onChange={(e) => setDraftOccupation(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary/70 focus:ring-2 focus:ring-primary/15 focus:outline-none"
+            />
+          </label>
+          <label className="block text-sm text-gray-700">
+            {t("users.employer.joinedAt")}
+            <input
+              type="date"
+              value={draftJoined}
+              onChange={(e) => setDraftJoined(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary/70 focus:ring-2 focus:ring-primary/15 focus:outline-none"
+            />
+          </label>
+          {tenureEdit !== null ?
+            <p className="text-sm text-gray-600">
+              {t("users.employer.memberYears", {years: String(tenureEdit)})}
+            </p>
+          : null}
+          <label className="block text-sm text-gray-700">
+            {t("users.employer.badge")}
+            <select
+              value={draftBadge}
+              onChange={(e) => setDraftBadge(e.target.value as EmployerBadge)}
+              className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary/70 focus:ring-2 focus:ring-primary/15 focus:outline-none"
+            >
+              {EMPLOYER_BADGE_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {t(o.labelKey)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <EmployerProfileImageField
+            value={draftImage}
+            onChange={setDraftImage}
+            employerUid={editRow?.firebaseUid}
+            disabled={busy}
           />
-        </label>
-        <label className="block text-sm text-gray-700">
-          {t("users.employer.colContact")}
-          <input
-            value={draftContact}
-            onChange={(e) => setDraftContact(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary/70 focus:ring-2 focus:ring-primary/15 focus:outline-none"
-          />
-        </label>
-        <label className="block text-sm text-gray-700">
-          {t("users.employer.colNotes")}
-          <textarea
-            value={draftNotes}
-            onChange={(e) => setDraftNotes(e.target.value)}
-            rows={4}
-            className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary/70 focus:ring-2 focus:ring-primary/15 focus:outline-none"
-          />
-        </label>
+          <label className="block text-sm text-gray-700">
+            {t("users.employer.colNotes")}
+            <textarea
+              value={draftNotes}
+              onChange={(e) => setDraftNotes(e.target.value)}
+              rows={4}
+              className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary/70 focus:ring-2 focus:ring-primary/15 focus:outline-none"
+            />
+          </label>
+        </div>
       </EditSheet>
     </div>
   );

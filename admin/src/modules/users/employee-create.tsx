@@ -2,21 +2,55 @@
 
 import Link from "next/link";
 import {useRouter} from "next/navigation";
-import {useState} from "react";
+import {useCallback, useEffect, useState} from "react";
+import {EmployeeProfileImageField} from "@/components/employee-profile-image-field";
+import {
+  EMPLOYEE_BADGE_OPTIONS,
+  EmployeeServicesOfferedField,
+} from "@/components/employee-services-offered-field";
 import {useAuth} from "@/contexts/auth-context";
+import {useEditorLocale} from "@/contexts/editor-locale-context";
 import {useUiLocale} from "@/contexts/ui-locale-context";
-import {adminFetch, type ApiDocResponse} from "@/lib/api";
-import type {EmployeeDoc} from "@/lib/profile-doc-types";
+import {adminFetch, type ApiDocResponse, type ApiListResponse} from "@/lib/api";
+import {yearsOfExperienceFromStartDate} from "@/lib/employee-display";
+import type {ServiceDoc} from "@/lib/i18n-types";
+import type {EmployeeBadge, EmployeeDoc} from "@/lib/profile-doc-types";
 
 export default function EmployeeCreateView() {
   const {getIdToken} = useAuth();
   const {t} = useUiLocale();
+  const {editorLocale} = useEditorLocale();
   const router = useRouter();
   const [firebaseUid, setFirebaseUid] = useState("");
   const [fullName, setFullName] = useState("");
   const [notes, setNotes] = useState("");
+  const [startedWorkingAt, setStartedWorkingAt] = useState("");
+  const [badge, setBadge] = useState<EmployeeBadge>("NONE");
+  const [profileImageUrl, setProfileImageUrl] = useState("");
+  const [offeredServiceIds, setOfferedServiceIds] = useState<string[]>([]);
+  const [services, setServices] = useState<ServiceDoc[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  const loadServices = useCallback(async () => {
+    const token = await getIdToken();
+    if (!token) return;
+    try {
+      const res = await adminFetch<ApiListResponse<ServiceDoc>>(
+        `/admin/documents/services?sortLocale=${encodeURIComponent(editorLocale)}`,
+        token,
+      );
+      setServices((res.data ?? []) as ServiceDoc[]);
+    } catch {
+      setServices([]);
+    }
+  }, [editorLocale, getIdToken]);
+
+  useEffect(() => {
+    void loadServices();
+  }, [loadServices]);
+
+  const expPreview = yearsOfExperienceFromStartDate(startedWorkingAt);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -42,6 +76,10 @@ export default function EmployeeCreateView() {
             firebaseUid: uid,
             fullName: fullName.trim(),
             notes,
+            startedWorkingAt: startedWorkingAt.trim() || undefined,
+            badge,
+            profileImageUrl: profileImageUrl.trim(),
+            offeredServiceIds,
           }),
         },
       );
@@ -90,6 +128,47 @@ export default function EmployeeCreateView() {
             className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary/70 focus:ring-2 focus:ring-primary/15 focus:outline-none"
           />
         </label>
+        <label className="block text-sm text-gray-700">
+          {t("users.employee.startedWorkingAt")}
+          <input
+            type="date"
+            value={startedWorkingAt}
+            onChange={(e) => setStartedWorkingAt(e.target.value)}
+            className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary/70 focus:ring-2 focus:ring-primary/15 focus:outline-none"
+          />
+        </label>
+        {expPreview !== null ?
+          <p className="text-sm text-gray-600">
+            {t("users.employee.experienceYears", {years: String(expPreview)})}
+          </p>
+        : null}
+        <label className="block text-sm text-gray-700">
+          {t("users.employee.badge")}
+          <select
+            value={badge}
+            onChange={(e) => setBadge(e.target.value as EmployeeBadge)}
+            className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary/70 focus:ring-2 focus:ring-primary/15 focus:outline-none"
+          >
+            {EMPLOYEE_BADGE_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {t(o.labelKey)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <EmployeeProfileImageField
+          value={profileImageUrl}
+          onChange={setProfileImageUrl}
+          employeeUid={firebaseUid.trim() || undefined}
+          disabled={busy}
+        />
+        <EmployeeServicesOfferedField
+          services={services}
+          editorLocale={editorLocale}
+          selectedIds={offeredServiceIds}
+          onChange={setOfferedServiceIds}
+          disabled={busy}
+        />
         <label className="block text-sm text-gray-700">
           {t("users.employee.colNotes")}
           <textarea

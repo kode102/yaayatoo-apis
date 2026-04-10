@@ -96,4 +96,18 @@ export async function uploadEmployeeProfileImageToStorage(
   return uploadValidatedImageToFolder(file, folder);
 }
 
+/**
+ * Photo profil employeur : `admin/employers/{uid}/…`
+ */
+export async function uploadEmployerProfileImageToStorage(
+  file: File,
+  opts: {employerUid?: string},
+): Promise<string> {
+  const folder =
+    opts.employerUid?.trim() ?
+      `admin/employers/${opts.employerUid.trim()}`
+    : "admin/employers/uploads";
+  return uploadValidatedImageToFolder(file, folder);
+}
+
 export const SERVICE_IMAGE_MAX_BYTES = MAX_BYTES;
