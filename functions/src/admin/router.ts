@@ -36,6 +36,8 @@ const ALLOWED = new Set([
   "cmsNamespaces",
   "employee",
   "employer",
+  "jobOffers",
+  "jobReviews",
 ]);
 
 const CMS_TRANSLATABLE_FIELDS = [
@@ -127,6 +129,12 @@ function normalizeOut(
     base.countryCode = normCmsCountryCode(String(base.countryCode ?? ""));
     return base;
   }
+  if (collection === "jobOffers") {
+    return base;
+  }
+  if (collection === "jobReviews") {
+    return base;
+  }
   if (collection === "cmsSections") {
     base.translations = toNestedCmsTranslations(data.translations);
     return base;
@@ -175,6 +183,12 @@ function sortListFallback(
   }
   if (collection === "employer") {
     return String((row as {companyName?: string}).companyName ?? row.id);
+  }
+  if (collection === "jobOffers") {
+    return String((row as {jobTitle?: string}).jobTitle ?? row.id);
+  }
+  if (collection === "jobReviews") {
+    return String((row as {reviewedAt?: string}).reviewedAt ?? row.id);
   }
   return String(row.id);
 }
@@ -459,6 +473,67 @@ function parseEmployerPost(body: Record<string, unknown>): {
     profileImageUrl,
     occupation,
   };
+}
+
+/**
+ * Corps POST offre d’emploi (id auto).
+ * @param {Record<string, unknown>} body JSON.
+ * @return {object|null} Champs ou null.
+ */
+function parseJobOfferPost(body: Record<string, unknown>): {
+  employerId: string;
+  jobTitle: string;
+  serviceId: string;
+} | null {
+  const employerId =
+    typeof body.employerId === "string" ? body.employerId.trim() : "";
+  const jobTitle =
+    typeof body.jobTitle === "string" ? body.jobTitle.trim() : "";
+  const serviceId =
+    typeof body.serviceId === "string" ? body.serviceId.trim() : "";
+  if (!employerId || !jobTitle || !serviceId) return null;
+  return {employerId, jobTitle, serviceId};
+}
+
+/**
+ * Note d’avis (0,5 à 5, par pas de 0,5).
+ * @param {unknown} v Nombre ou chaîne.
+ * @return {number|null} Note ou null.
+ */
+function parseReviewRating(v: unknown): number | null {
+  const n =
+    typeof v === "number" ?
+      v
+    : typeof v === "string" ?
+      parseFloat(v.replace(",", "."))
+    : NaN;
+  if (!Number.isFinite(n) || n < 0.5 || n > 5) return null;
+  const stepped = Math.round(n * 2) / 2;
+  if (stepped < 0.5 || stepped > 5) return null;
+  return stepped;
+}
+
+/**
+ * Corps POST avis sur une offre (id auto).
+ * @param {Record<string, unknown>} body JSON.
+ * @return {object|null} Champs ou null.
+ */
+function parseJobReviewPost(body: Record<string, unknown>): {
+  jobOfferId: string;
+  rating: number;
+  reviewText: string;
+  reviewedAt: string;
+} | null {
+  const jobOfferId =
+    typeof body.jobOfferId === "string" ? body.jobOfferId.trim() : "";
+  const reviewText =
+    typeof body.reviewText === "string" ? body.reviewText.trim() : "";
+  const rating = parseReviewRating(body.rating);
+  const reviewedAt = normalizeStartedWorkingAt(body.reviewedAt);
+  if (!jobOfferId || !reviewText || rating === null || !reviewedAt) {
+    return null;
+  }
+  return {jobOfferId, rating, reviewText, reviewedAt};
 }
 
 /**
@@ -770,6 +845,82 @@ function buildPutPatch(
     }
     const profileKeys = Object.keys(patch).filter((k) => k !== "updatedAt");
     if (profileKeys.length === 0) {
+      return {patch: {}, error: "Aucun champ à mettre à jour"};
+    }
+    return {patch};
+  }
+
+  if (collection === "jobOffers") {
+    if (
+      localeRaw !== undefined &&
+      localeRaw !== null &&
+      String(localeRaw).trim() !== ""
+    ) {
+      return {
+        patch: {},
+        error: "Ne pas envoyer « locale » pour les documents jobOffers",
+      };
+    }
+    if (typeof body.jobTitle === "string") {
+      const jt = body.jobTitle.trim();
+      if (!jt) {
+        return {patch: {}, error: "jobTitle ne peut pas être vide"};
+      }
+      patch.jobTitle = jt;
+    }
+    if (typeof body.employerId === "string") {
+      patch.employerId = body.employerId.trim();
+    }
+    if (typeof body.serviceId === "string") {
+      patch.serviceId = body.serviceId.trim();
+    }
+    const jobKeys = Object.keys(patch).filter((k) => k !== "updatedAt");
+    if (jobKeys.length === 0) {
+      return {patch: {}, error: "Aucun champ à mettre à jour"};
+    }
+    return {patch};
+  }
+
+  if (collection === "jobReviews") {
+    if (
+      localeRaw !== undefined &&
+      localeRaw !== null &&
+      String(localeRaw).trim() !== ""
+    ) {
+      return {
+        patch: {},
+        error: "Ne pas envoyer « locale » pour les documents jobReviews",
+      };
+    }
+    if (body.rating !== undefined) {
+      const r = parseReviewRating(body.rating);
+      if (r === null) {
+        return {
+          patch: {},
+          error: "rating invalide (0,5 à 5, par demi-point)",
+        };
+      }
+      patch.rating = r;
+    }
+    if (typeof body.reviewText === "string") {
+      const rt = body.reviewText.trim();
+      if (!rt) {
+        return {patch: {}, error: "reviewText ne peut pas être vide"};
+      }
+      patch.reviewText = rt;
+    }
+    if (body.reviewedAt !== undefined) {
+      const rd = normalizeStartedWorkingAt(body.reviewedAt);
+      if (!rd) {
+        return {patch: {}, error: "reviewedAt invalide (date YYYY-MM-DD)"};
+      }
+      patch.reviewedAt = rd;
+    }
+    if (typeof body.jobOfferId === "string") {
+      patch.jobOfferId = body.jobOfferId.trim();
+    }
+    const revKeys = Object.keys(patch).filter((k) => k !== "updatedAt");
+    if (revKeys.length === 0) {
       return {patch: {}, error: "Aucun champ à mettre à jour"};
     }
     return {patch};
@@ -1131,7 +1282,12 @@ export function createAdminRouter(): express.Router {
         videoLink: v.videoLink,
         readMoreUrl: v.readMoreUrl,
       };
-    } else if (collection === "employee" || collection === "employer") {
+    } else if (
+      collection === "employee" ||
+      collection === "employer" ||
+      collection === "jobOffers" ||
+      collection === "jobReviews"
+    ) {
       payload = {};
     } else {
       res.status(400).json({
@@ -1267,6 +1423,82 @@ export function createAdminRouter(): express.Router {
         });
         return;
       }
+      if (collection === "jobOffers") {
+        const v = parseJobOfferPost(body);
+        if (!v) {
+          res.status(400).json({
+            success: false,
+            error:
+              "Champs invalides (employerId, jobTitle, serviceId requis)",
+          });
+          return;
+        }
+        const empSnap = await db.collection("employer").doc(v.employerId).get();
+        if (!empSnap.exists) {
+          res.status(400).json({
+            success: false,
+            error: "Employeur introuvable",
+          });
+          return;
+        }
+        const svcSnap = await db.collection("services").doc(v.serviceId).get();
+        if (!svcSnap.exists) {
+          res.status(400).json({
+            success: false,
+            error: "Service introuvable",
+          });
+          return;
+        }
+        const ref = await db.collection("jobOffers").add({
+          employerId: v.employerId,
+          jobTitle: v.jobTitle,
+          serviceId: v.serviceId,
+          createdAt: now,
+          updatedAt: now,
+        });
+        const created = await ref.get();
+        res.status(201).json({
+          success: true,
+          data: normalizeOut("jobOffers", created.id, created.data()!),
+        });
+        return;
+      }
+      if (collection === "jobReviews") {
+        const v = parseJobReviewPost(body);
+        if (!v) {
+          res.status(400).json({
+            success: false,
+            error:
+              "Champs invalides (jobOfferId, rating 0,5–5, reviewText, reviewedAt requis)",
+          });
+          return;
+        }
+        const offerSnap = await db
+          .collection("jobOffers")
+          .doc(v.jobOfferId)
+          .get();
+        if (!offerSnap.exists) {
+          res.status(400).json({
+            success: false,
+            error: "Offre d’emploi introuvable",
+          });
+          return;
+        }
+        const ref = await db.collection("jobReviews").add({
+          jobOfferId: v.jobOfferId,
+          rating: v.rating,
+          reviewText: v.reviewText,
+          reviewedAt: v.reviewedAt,
+          createdAt: now,
+          updatedAt: now,
+        });
+        const created = await ref.get();
+        res.status(201).json({
+          success: true,
+          data: normalizeOut("jobReviews", created.id, created.data()!),
+        });
+        return;
+      }
 
       const ref = await db.collection(collection).add({
         ...payload,
@@ -1330,6 +1562,71 @@ export function createAdminRouter(): express.Router {
         );
         if (svcErr) {
           res.status(400).json({success: false, error: svcErr});
+          return;
+        }
+      }
+    }
+
+    if (collection === "jobOffers") {
+      const data = existing.data()!;
+      const employerId =
+        built.patch.employerId !== undefined ?
+          String(built.patch.employerId) :
+          String(data.employerId ?? "");
+      const serviceId =
+        built.patch.serviceId !== undefined ?
+          String(built.patch.serviceId) :
+          String(data.serviceId ?? "");
+      if (
+        built.patch.employerId !== undefined ||
+        built.patch.serviceId !== undefined
+      ) {
+        if (!employerId.trim() || !serviceId.trim()) {
+          res.status(400).json({
+            success: false,
+            error: "employerId et serviceId requis",
+          });
+          return;
+        }
+        const eSnap = await db.collection("employer").doc(employerId).get();
+        if (!eSnap.exists) {
+          res.status(400).json({
+            success: false,
+            error: "Employeur introuvable",
+          });
+          return;
+        }
+        const sSnap = await db.collection("services").doc(serviceId).get();
+        if (!sSnap.exists) {
+          res.status(400).json({
+            success: false,
+            error: "Service introuvable",
+          });
+          return;
+        }
+      }
+    }
+
+    if (collection === "jobReviews") {
+      const data = existing.data()!;
+      const jobOfferId =
+        built.patch.jobOfferId !== undefined ?
+          String(built.patch.jobOfferId) :
+          String(data.jobOfferId ?? "");
+      if (built.patch.jobOfferId !== undefined) {
+        if (!jobOfferId.trim()) {
+          res.status(400).json({
+            success: false,
+            error: "jobOfferId requis",
+          });
+          return;
+        }
+        const oSnap = await db.collection("jobOffers").doc(jobOfferId).get();
+        if (!oSnap.exists) {
+          res.status(400).json({
+            success: false,
+            error: "Offre d’emploi introuvable",
+          });
           return;
         }
       }

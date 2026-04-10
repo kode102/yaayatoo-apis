@@ -44,3 +44,29 @@ export type EmployerDoc = {
   createdAt?: string;
   updatedAt?: string;
 };
+
+/** Document Firestore collection `jobOffers` (id auto). */
+export type JobOfferDoc = {
+  id: string;
+  /** Id document collection `employer` (= firebaseUid). */
+  employerId: string;
+  jobTitle: string;
+  /** Id document collection `services`. */
+  serviceId: string;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+/** Document Firestore collection `jobReviews` (id auto). */
+export type JobReviewDoc = {
+  id: string;
+  /** Id document collection `jobOffers`. */
+  jobOfferId: string;
+  /** Note de 0,5 à 5 (demi-points). */
+  rating: number;
+  reviewText: string;
+  /** Date de l’avis (YYYY-MM-DD). */
+  reviewedAt: string;
+  createdAt?: string;
+  updatedAt?: string;
+};

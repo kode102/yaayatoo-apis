@@ -53,6 +53,17 @@ export const ADMIN_NAV_MODULES: AdminNavModule[] = [
     ],
   },
   {
+    id: "job",
+    labelKey: "nav.module.job",
+    pathPrefix: "/jobs",
+    items: [
+      {href: "/jobs/list", labelKey: "nav.action.list"},
+      {href: "/jobs/create", labelKey: "nav.action.create"},
+      {href: "/jobs/reviews/list", labelKey: "nav.jobs.reviewsList"},
+      {href: "/jobs/reviews/create", labelKey: "nav.jobs.reviewsCreate"},
+    ],
+  },
+  {
     id: "users",
     labelKey: "nav.module.users",
     pathPrefix: "/users",
