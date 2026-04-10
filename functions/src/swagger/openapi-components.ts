@@ -104,7 +104,15 @@ export const openApiComponents = {
         name: {type: "string"},
         subtitle: {type: "string"},
         imageUrl: {type: "string"},
-        verified: {type: "boolean"},
+        verified: {
+          type: "boolean",
+          description: "true si badge employeur TRUSTED",
+        },
+        badge: {
+          type: "string",
+          enum: ["NONE", "TRUSTED"],
+          description: "Badge profil employeur",
+        },
       },
     },
     PublicJobReviewMatchedProfile: {
@@ -115,7 +123,15 @@ export const openApiComponents = {
         subtitle: {type: "string"},
         imageUrl: {type: "string"},
         experienceYears: {type: "integer", nullable: true},
-        verified: {type: "boolean"},
+        verified: {
+          type: "boolean",
+          description: "true si badge employé différent de NONE",
+        },
+        badge: {
+          type: "string",
+          enum: ["NONE", "BLUE", "GREEN", "YELLOW"],
+          description: "Badge profil employé",
+        },
       },
     },
     PublicJobReviewCard: {

@@ -18,6 +18,7 @@ export type PublicJobReviewCard = {
     subtitle: string;
     imageUrl: string;
     verified: boolean;
+    badge: string;
   };
   matchedProfile: {
     name: string;
@@ -25,6 +26,7 @@ export type PublicJobReviewCard = {
     imageUrl: string;
     experienceYears: number | null;
     verified: boolean;
+    badge: string;
   };
 };
 
@@ -160,6 +162,7 @@ export async function getPublicJobReviews(
       let reviewerSubtitle = "";
       let reviewerImage = "";
       let reviewerVerified = false;
+      let reviewerBadge = "NONE";
       if (employerId) {
         const emSnap = await db.collection("employer").doc(employerId).get();
         if (emSnap.exists) {
@@ -172,7 +175,9 @@ export async function getPublicJobReviews(
           reviewerSubtitle =
             occ || (reviewerName !== comp ? comp : "");
           reviewerImage = String(e.profileImageUrl ?? "").trim();
-          reviewerVerified = String(e.badge ?? "") === "TRUSTED";
+          reviewerBadge =
+            String(e.badge ?? "NONE").trim().toUpperCase() || "NONE";
+          reviewerVerified = reviewerBadge === "TRUSTED";
         }
       }
 
@@ -180,6 +185,7 @@ export async function getPublicJobReviews(
       let empSubtitle = "";
       let empImage = "";
       let empVerified = false;
+      let empBadge = "NONE";
       let experienceYears: number | null = null;
       if (employeeId) {
         const wSnap = await db.collection("employee").doc(employeeId).get();
@@ -188,8 +194,8 @@ export async function getPublicJobReviews(
           empName = String(w.fullName ?? "").trim() || employeeId;
           empSubtitle = jobTitle;
           empImage = String(w.profileImageUrl ?? "").trim();
-          const b = String(w.badge ?? "NONE");
-          empVerified = b !== "NONE";
+          empBadge = String(w.badge ?? "NONE").trim().toUpperCase() || "NONE";
+          empVerified = empBadge !== "NONE";
           const startYmd = employeeStartedAtToYmd(w.startedWorkingAt);
           experienceYears = fullYearsSinceYmd(startYmd);
         }
@@ -206,6 +212,7 @@ export async function getPublicJobReviews(
           subtitle: reviewerSubtitle,
           imageUrl: reviewerImage,
           verified: reviewerVerified,
+          badge: reviewerBadge,
         },
         matchedProfile: {
           name: empName,
@@ -213,6 +220,7 @@ export async function getPublicJobReviews(
           imageUrl: empImage,
           experienceYears,
           verified: empVerified,
+          badge: empBadge,
         },
       });
     }
