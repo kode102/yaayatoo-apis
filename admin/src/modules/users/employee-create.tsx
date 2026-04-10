@@ -4,6 +4,7 @@ import Link from "next/link";
 import {useRouter} from "next/navigation";
 import {useCallback, useEffect, useState} from "react";
 import {EmployeeProfileImageField} from "@/components/employee-profile-image-field";
+import {FirebaseUidSearchSelect} from "@/components/firebase-uid-search-select";
 import {
   EMPLOYEE_BADGE_OPTIONS,
   EmployeeServicesOfferedField,
@@ -142,12 +143,10 @@ export default function EmployeeCreateView() {
               </p>
               <label className="block text-sm text-gray-700">
                 {t("users.employee.colUid")} *
-                <input
+                <FirebaseUidSearchSelect
                   value={firebaseUid}
-                  onChange={(e) => setFirebaseUid(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary/70 focus:ring-2 focus:ring-primary/15 focus:outline-none"
-                  placeholder="UID Auth Firebase"
-                  autoComplete="off"
+                  onChange={setFirebaseUid}
+                  disabled={busy}
                 />
               </label>
               <label className="block text-sm text-gray-700">

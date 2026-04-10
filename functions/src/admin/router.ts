@@ -120,9 +120,11 @@ function normalizeOut(
   const base = serializeDoc(id, data);
   if (collection === "employee") {
     base.status = normalizeEmployeeStatus(base.status);
+    base.countryCode = normCmsCountryCode(String(base.countryCode ?? ""));
     return base;
   }
   if (collection === "employer") {
+    base.countryCode = normCmsCountryCode(String(base.countryCode ?? ""));
     return base;
   }
   if (collection === "cmsSections") {
@@ -307,14 +309,68 @@ function parseEmployeeOfferedServiceIds(
  * @param {string[]} ids Liste d’ids Firestore.
  * @return {Promise<string|undefined>} Message d’erreur ou undefined.
  */
-async function validateEmployeeServiceIds(
+/**
+ * Service proposé pour un pays : entrées pays ou catalogue global `__` avec nom.
+ * @param {CmsNestedTranslations} nested Traductions service normalisées.
+ * @param {string} cc Code pays ISO2 (pas "__").
+ * @return {boolean} True si le service couvre ce pays.
+ */
+function serviceOffersCountryNested(
+  nested: CmsNestedTranslations,
+  cc: string,
+): boolean {
+  if (!nested || typeof nested !== "object") return false;
+  const per = nested[cc];
+  if (per && typeof per === "object") {
+    for (const block of Object.values(per)) {
+      if (
+        block &&
+        typeof block === "object" &&
+        String((block as {name?: string}).name ?? "").trim()
+      ) {
+        return true;
+      }
+    }
+  }
+  const def = nested[CMS_DEFAULT_COUNTRY];
+  if (def && typeof def === "object") {
+    for (const block of Object.values(def)) {
+      if (
+        block &&
+        typeof block === "object" &&
+        String((block as {name?: string}).name ?? "").trim()
+      ) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+/**
+ * Vérifie ids services + cohérence avec le pays du profil employé.
+ * @param {string[]} ids Ids `offeredServiceIds`.
+ * @param {string} countryCode Pays profil (normalisé ; "__" = pas de filtre pays).
+ * @return {Promise<string|undefined>} Erreur ou undefined.
+ */
+async function validateEmployeeOfferedServicesForCountry(
   ids: string[],
+  countryCode: string,
 ): Promise<string | undefined> {
+  const cc = normCmsCountryCode(countryCode);
   const uniq = [...new Set(ids)];
   for (const id of uniq) {
     const snap = await db.collection("services").doc(id).get();
     if (!snap.exists) {
       return `Service inexistant (id: ${id})`;
+    }
+    if (cc !== CMS_DEFAULT_COUNTRY) {
+      const nested = serviceDocToNested(snap.data()!);
+      if (!serviceOffersCountryNested(nested, cc)) {
+        return (
+          "Service non disponible pour le pays du profil (id: " + id + ")"
+        );
+      }
     }
   }
   return undefined;
@@ -332,6 +388,7 @@ function parseEmployeePost(body: Record<string, unknown>): {
   startedWorkingAt: string;
   badge: EmployeeBadge;
   status: EmployeeStatus;
+  countryCode: string;
   profileImageUrl: string;
   offeredServiceIds: string[];
 } | null {
@@ -348,6 +405,7 @@ function parseEmployeePost(body: Record<string, unknown>): {
   if (typeof body.profileImageUrl === "string") {
     profileImageUrl = body.profileImageUrl.trim();
   }
+  const countryCode = normCmsCountryCode(String(body.countryCode ?? ""));
   const offeredServiceIds = parseEmployeeOfferedServiceIds(body);
   return {
     firebaseUid,
@@ -356,6 +414,7 @@ function parseEmployeePost(body: Record<string, unknown>): {
     startedWorkingAt,
     badge,
     status,
+    countryCode,
     profileImageUrl,
     offeredServiceIds,
   };
@@ -373,6 +432,7 @@ function parseEmployerPost(body: Record<string, unknown>): {
   notes: string;
   joinedAt: string;
   badge: EmployerBadge;
+  countryCode: string;
   profileImageUrl: string;
   occupation: string;
 } | null {
@@ -392,6 +452,7 @@ function parseEmployerPost(body: Record<string, unknown>): {
   }
   const occupation =
     typeof body.occupation === "string" ? body.occupation.trim() : "";
+  const countryCode = normCmsCountryCode(String(body.countryCode ?? ""));
   return {
     firebaseUid,
     companyName,
@@ -399,6 +460,7 @@ function parseEmployerPost(body: Record<string, unknown>): {
     notes,
     joinedAt,
     badge,
+    countryCode,
     profileImageUrl,
     occupation,
   };
@@ -642,6 +704,23 @@ function buildPutPatch(
         }
         patch.offeredServiceIds = parseEmployeeOfferedServiceIds(body);
       }
+      if (body.countryCode !== undefined) {
+        if (typeof body.countryCode !== "string") {
+          return {
+            patch: {},
+            error: "countryCode doit être une chaîne",
+          };
+        }
+        const c = normCmsCountryCode(body.countryCode);
+        if (c === CMS_DEFAULT_COUNTRY) {
+          return {
+            patch: {},
+            error:
+              "countryCode invalide : code pays ISO2 requis (ex. CM, FR)",
+          };
+        }
+        patch.countryCode = c;
+      }
     } else {
       if (typeof body.companyName === "string") {
         patch.companyName = body.companyName.trim();
@@ -675,6 +754,23 @@ function buildPutPatch(
       }
       if (typeof body.occupation === "string") {
         patch.occupation = body.occupation.trim();
+      }
+      if (body.countryCode !== undefined) {
+        if (typeof body.countryCode !== "string") {
+          return {
+            patch: {},
+            error: "countryCode doit être une chaîne",
+          };
+        }
+        const c = normCmsCountryCode(body.countryCode);
+        if (c === CMS_DEFAULT_COUNTRY) {
+          return {
+            patch: {},
+            error:
+              "countryCode invalide : code pays ISO2 requis (ex. CM, FR)",
+          };
+        }
+        patch.countryCode = c;
       }
     }
     const profileKeys = Object.keys(patch).filter((k) => k !== "updatedAt");
@@ -1080,7 +1176,18 @@ export function createAdminRouter(): express.Router {
           });
           return;
         }
-        const svcErr = await validateEmployeeServiceIds(v.offeredServiceIds);
+        if (v.countryCode === CMS_DEFAULT_COUNTRY) {
+          res.status(400).json({
+            success: false,
+            error:
+              "Pays requis : indiquez countryCode (ISO2, ex. CM, FR)",
+          });
+          return;
+        }
+        const svcErr = await validateEmployeeOfferedServicesForCountry(
+          v.offeredServiceIds,
+          v.countryCode,
+        );
         if (svcErr) {
           res.status(400).json({success: false, error: svcErr});
           return;
@@ -1091,6 +1198,7 @@ export function createAdminRouter(): express.Router {
           notes: v.notes,
           badge: v.badge,
           status: v.status,
+          countryCode: v.countryCode,
           profileImageUrl: v.profileImageUrl,
           offeredServiceIds: v.offeredServiceIds,
           createdAt: now,
@@ -1125,6 +1233,14 @@ export function createAdminRouter(): express.Router {
           });
           return;
         }
+        if (v.countryCode === CMS_DEFAULT_COUNTRY) {
+          res.status(400).json({
+            success: false,
+            error:
+              "Pays requis : indiquez countryCode (ISO2, ex. CM, FR)",
+          });
+          return;
+        }
         const ref = db.collection("employer").doc(v.firebaseUid);
         if ((await ref.get()).exists) {
           res.status(409).json({
@@ -1139,6 +1255,7 @@ export function createAdminRouter(): express.Router {
           contactName: v.contactName,
           notes: v.notes,
           badge: v.badge,
+          countryCode: v.countryCode,
           profileImageUrl: v.profileImageUrl,
           occupation: v.occupation,
           createdAt: now,
@@ -1198,13 +1315,26 @@ export function createAdminRouter(): express.Router {
       return;
     }
 
-    if (
-      collection === "employee" &&
-      built.patch.offeredServiceIds !== undefined
-    ) {
-      const arr = built.patch.offeredServiceIds;
-      if (Array.isArray(arr)) {
-        const svcErr = await validateEmployeeServiceIds(arr as string[]);
+    if (collection === "employee") {
+      const data = existing.data()!;
+      const mergedCountry =
+        built.patch.countryCode !== undefined ?
+          normCmsCountryCode(String(built.patch.countryCode))
+        : normCmsCountryCode(String(data.countryCode ?? ""));
+      const mergedServices =
+        built.patch.offeredServiceIds !== undefined ?
+          (built.patch.offeredServiceIds as string[])
+        : Array.isArray(data.offeredServiceIds) ?
+          (data.offeredServiceIds as string[])
+        : [];
+      if (
+        built.patch.countryCode !== undefined ||
+        built.patch.offeredServiceIds !== undefined
+      ) {
+        const svcErr = await validateEmployeeOfferedServicesForCountry(
+          mergedServices,
+          mergedCountry,
+        );
         if (svcErr) {
           res.status(400).json({success: false, error: svcErr});
           return;
