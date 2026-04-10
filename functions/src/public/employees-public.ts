@@ -13,6 +13,7 @@ import {
 import {serviceDocToNested} from "../admin/reference-nested.js";
 import {DEFAULT_LOCALE, normLocale} from "../admin/i18n.js";
 import {db} from "../lib/admin.js";
+import {publicEmployeeSlug} from "./employee-slug.js";
 
 const MAX_FETCH = 150;
 const MAX_OUT = 10;
@@ -87,6 +88,67 @@ function hasNonNoneBadge(emp: DocumentData): boolean {
 }
 
 /**
+ * Note numérique depuis un document jobReview.
+ * @param {unknown} v Valeur brute.
+ * @return {number|null} Nombre fini ou null.
+ */
+function numRating(v: unknown): number | null {
+  if (typeof v === "number" && Number.isFinite(v)) return v;
+  if (typeof v === "string") {
+    const n = parseFloat(v.replace(",", "."));
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+}
+
+/**
+ * Ids des offres où l’employé est assigné.
+ * @param {string} employeeId Id document employee.
+ * @return {Promise<string[]>} Ids jobOffers.
+ */
+async function jobOfferIdsForEmployee(employeeId: string): Promise<string[]> {
+  const snap = await db
+    .collection("jobOffers")
+    .where("employeeId", "==", employeeId)
+    .get();
+  return snap.docs.map((d) => d.id);
+}
+
+/**
+ * Avis liés aux offres assignées à l’employé : total et moyenne des notes.
+ * @param {string} employeeId Id document employee.
+ * @return {Promise<Object>} totalReviews, averageRating (ou null).
+ */
+async function reviewStatsForEmployeeAssignedOffers(
+  employeeId: string,
+): Promise<{totalReviews: number; averageRating: number | null}> {
+  const offerIds = await jobOfferIdsForEmployee(employeeId);
+  if (offerIds.length === 0) {
+    return {totalReviews: 0, averageRating: null};
+  }
+  let totalReviews = 0;
+  let ratingSum = 0;
+  for (let i = 0; i < offerIds.length; i += 10) {
+    const chunk = offerIds.slice(i, i + 10);
+    const snap = await db
+      .collection("jobReviews")
+      .where("jobOfferId", "in", chunk)
+      .get();
+    for (const doc of snap.docs) {
+      const rating = numRating(doc.data().rating);
+      if (rating === null) continue;
+      totalReviews++;
+      ratingSum += rating;
+    }
+  }
+  const averageRating =
+    totalReviews > 0 ?
+      Math.round((ratingSum / totalReviews) * 100) / 100 :
+      null;
+  return {totalReviews, averageRating};
+}
+
+/**
  * @param {DocumentData} emp Document employé.
  * @param {string} requestedCc Pays demandé (normalisé).
  * @return {boolean} Inclure ce profil pour ce pays.
@@ -128,7 +190,9 @@ function servicePrimaryName(
 
 /**
  * GET /public/home-profiles — jusqu’à 10 profils, priorité badge ≠ NONE,
- * tirage aléatoire dans chaque groupe.
+ * tirage aléatoire dans chaque groupe. Chaque entrée inclut le total et la
+ * moyenne des avis liés aux offres où l’employé est assigné, et `employeeNote`
+ * (champ `notes` Firestore).
  *
  * Query : `locale`, `country` (ISO2), `limit` (max 10, défaut 10).
  * @param {express.Request} req Requête.
@@ -183,7 +247,11 @@ export async function getPublicHomeProfiles(
       }),
     );
 
-    const data = ordered.map(({id, data: emp}) => {
+    const reviewStats = await Promise.all(
+      ordered.map(({id}) => reviewStatsForEmployeeAssignedOffers(id)),
+    );
+
+    const data = ordered.map(({id, data: emp}, idx) => {
       const badge = String(emp.badge ?? "NONE").trim().toUpperCase() || "NONE";
       const verified = badge !== "NONE";
       const dobYmd = dateFieldToYmd(emp.dateOfBirth);
@@ -199,15 +267,24 @@ export async function getPublicHomeProfiles(
       const primaryServiceName =
         firstSid ? (serviceNames.get(firstSid) ?? "") : "";
 
+      const {totalReviews, averageRating} = reviewStats[idx]!;
+      const employeeNote = String(emp.notes ?? "").trim();
+      const fullName = String(emp.fullName ?? "").trim() || id;
+      const employeeSlug = publicEmployeeSlug(id, fullName);
+
       return {
         id,
-        fullName: String(emp.fullName ?? "").trim() || id,
+        fullName,
+        employeeSlug,
         profileImageUrl: String(emp.profileImageUrl ?? "").trim(),
         badge,
         verified,
         ageYears,
         experienceYears,
         primaryServiceName,
+        totalReviews,
+        averageRating,
+        employeeNote,
       };
     });
 

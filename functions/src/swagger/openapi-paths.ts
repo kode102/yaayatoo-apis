@@ -647,8 +647,8 @@ export const openApiPaths = {
       description:
         "Avis avec note strictement supérieure à `minRating` (défaut 2.5). " +
         "Tri par date d’avis décroissante. Enrichissement : offre, employeur " +
-        "(reviewer), employé (matchedProfile, années d’expérience depuis " +
-        "`startedWorkingAt`).",
+        "(reviewer), employé (matchedProfile avec `employeeSlug`, années " +
+        "d’expérience depuis `startedWorkingAt`).",
       parameters: [
         {
           name: "minRating",
@@ -682,6 +682,56 @@ export const openApiPaths = {
                     type: "array",
                     items: {
                       $ref: "#/components/schemas/PublicJobReviewCard",
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+        "500": {
+          content: {
+            "application/json": {
+              schema: {$ref: "#/components/schemas/ApiError"},
+            },
+          },
+        },
+      },
+    },
+  },
+  "/public/home-profiles": {
+    get: {
+      tags: ["Public"],
+      summary: "Profils employés (liste d’accueil)",
+      description:
+        "Jusqu’à 10 profils : priorité aux badges ≠ NONE, ordre aléatoire " +
+        "dans chaque groupe. `totalReviews` et `averageRating` agrègent les " +
+        "avis dont l’offre a cet employé en `employeeId`. `employeeNote` " +
+        "expose le champ `notes` du document employé. `employeeSlug` " +
+        "(nom + suffixe numérique) sert de segment d’URL employé.",
+      parameters: [
+        localeQuery,
+        countryQuery,
+        {
+          name: "limit",
+          in: "query" as const,
+          schema: {type: "integer" as const, default: 10, maximum: 10, minimum: 1},
+          description: "Nombre max. de profils (1–10, défaut 10)",
+        },
+      ],
+      responses: {
+        "200": {
+          description: "OK",
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  success: {type: "boolean", example: true},
+                  data: {
+                    type: "array",
+                    items: {
+                      $ref: "#/components/schemas/PublicHomeProfileCard",
                     },
                   },
                 },

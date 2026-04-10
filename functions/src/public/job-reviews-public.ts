@@ -5,6 +5,7 @@
 import type {Request, Response} from "express";
 import {Timestamp, type DocumentData} from "firebase-admin/firestore";
 import {db} from "../lib/admin.js";
+import {publicEmployeeSlug} from "./employee-slug.js";
 
 /** Réponse JSON pour une carte témoignage. */
 export type PublicJobReviewCard = {
@@ -25,6 +26,8 @@ export type PublicJobReviewCard = {
   matchedProfile: {
     /** Id document Firestore `employee`. */
     id: string;
+    /** Slug URL : nom + suffixe numérique dérivé de l’id document. */
+    employeeSlug: string;
     name: string;
     subtitle: string;
     imageUrl: string;
@@ -194,6 +197,7 @@ export async function getPublicJobReviews(
       let empBadge = "NONE";
       let experienceYears: number | null = null;
       let ageYears: number | null = null;
+      let employeeSlug = "";
       if (employeeId) {
         const wSnap = await db.collection("employee").doc(employeeId).get();
         if (wSnap.exists) {
@@ -207,7 +211,11 @@ export async function getPublicJobReviews(
           experienceYears = fullYearsSinceYmd(startYmd);
           const dobYmd = employeeStartedAtToYmd(w.dateOfBirth);
           ageYears = fullYearsSinceYmd(dobYmd);
+          employeeSlug = publicEmployeeSlug(employeeId, empName);
         }
+      }
+      if (!employeeSlug && employeeId) {
+        employeeSlug = publicEmployeeSlug(employeeId, "");
       }
 
       cards.push({
@@ -226,6 +234,7 @@ export async function getPublicJobReviews(
         },
         matchedProfile: {
           id: employeeId,
+          employeeSlug,
           name: empName,
           subtitle: empSubtitle,
           imageUrl: empImage,

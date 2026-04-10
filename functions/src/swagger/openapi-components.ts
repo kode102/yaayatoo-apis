@@ -121,6 +121,12 @@ export const openApiComponents = {
       description: "Employé associé à l’offre d’emploi",
       properties: {
         id: {type: "string", description: "Id document Firestore employee"},
+        employeeSlug: {
+          type: "string",
+          description:
+            "Slug URL (nom + suffixe numérique), même règle que " +
+            "`GET /public/home-profiles`",
+        },
         name: {type: "string"},
         subtitle: {type: "string"},
         imageUrl: {type: "string"},
@@ -149,6 +155,54 @@ export const openApiComponents = {
         reviewer: {$ref: "#/components/schemas/PublicJobReviewReviewer"},
         matchedProfile: {
           $ref: "#/components/schemas/PublicJobReviewMatchedProfile",
+        },
+      },
+    },
+    PublicHomeProfileCard: {
+      type: "object",
+      description:
+        "Profil employé vitrine (liste d’accueil). " +
+        "Les avis sont ceux dont l’offre (`jobOffers`) a cet employé en " +
+        "`employeeId` ; la moyenne et le total portent sur ces avis.",
+      properties: {
+        id: {type: "string"},
+        fullName: {type: "string"},
+        employeeSlug: {
+          type: "string",
+          description:
+            "Slug URL : segment nom + 8 chiffres dérivés de l’id document",
+        },
+        profileImageUrl: {type: "string"},
+        badge: {
+          type: "string",
+          enum: ["NONE", "BLUE", "GREEN", "YELLOW"],
+        },
+        verified: {
+          type: "boolean",
+          description: "true si badge employé différent de NONE",
+        },
+        ageYears: {type: "integer", nullable: true},
+        experienceYears: {type: "integer", nullable: true},
+        primaryServiceName: {
+          type: "string",
+          description: "Libellé du premier service proposé (CMS)",
+        },
+        totalReviews: {
+          type: "integer",
+          minimum: 0,
+          description:
+            "Nombre d’avis (jobReviews) liés aux offres assignées à l’employé",
+        },
+        averageRating: {
+          type: "number",
+          nullable: true,
+          description:
+            "Moyenne des notes sur ces avis ; null si aucun avis valide",
+        },
+        employeeNote: {
+          type: "string",
+          description:
+            "Champ interne `notes` du document employé (peut être vide)",
         },
       },
     },
