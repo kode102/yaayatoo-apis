@@ -144,7 +144,8 @@ export type CmsSectionTypeId =
   | "site_settings"
   | "blog_section"
   | "banner"
-  | "stats";
+  | "stat"
+  | "features";
 
 export type CmsSectionDoc = {
   id: string;
@@ -349,12 +350,14 @@ export function sortedActiveLanguageCodes(langs: LanguageDocLike[]): string[] {
 /** Déduit le type de section si le document date d’avant `sectionType`. */
 export function inferCmsSectionType(doc: CmsSectionDoc): CmsSectionTypeId {
   const raw = doc.sectionType?.trim();
+  if (raw === "stats") return "stat";
   if (
     raw === "why_choose_us" ||
     raw === "site_settings" ||
     raw === "blog_section" ||
     raw === "banner" ||
-    raw === "stats"
+    raw === "stat" ||
+    raw === "features"
   ) {
     return raw;
   }
@@ -363,6 +366,8 @@ export function inferCmsSectionType(doc: CmsSectionDoc): CmsSectionTypeId {
   if (sub === "user-interface-settings") return "site_settings";
   if (sub.startsWith("why-choose")) return "why_choose_us";
   if (sub === "banner" || sub.startsWith("banner-")) return "banner";
-  if (sub === "stats" || sub.startsWith("stats-")) return "stats";
+  if (sub === "stats" || sub.startsWith("stats-")) return "stat";
+  if (sub === "stat" || sub.startsWith("stat-")) return "stat";
+  if (sub === "features" || sub.startsWith("features-")) return "features";
   return "site_settings";
 }

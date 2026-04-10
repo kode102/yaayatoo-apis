@@ -178,6 +178,11 @@ const CMS_FIELDS = [
    * (ex. Familles satisfaites|+675).
    */
   "statRows",
+  /**
+   * Features home : JSON
+   * [{ sectionTitle, iconSvg, iconStyle, sectionContent }].
+   */
+  "featureItems",
 ] as const;
 
 /**
