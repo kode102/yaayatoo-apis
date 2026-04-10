@@ -17,6 +17,7 @@ import {
 } from "./public/reference-data.js";
 import {getPublicUiDictionary} from "./public/ui-dictionary-public.js";
 import {getPublicJobReviews} from "./public/job-reviews-public.js";
+import {getPublicHomeProfiles} from "./public/employees-public.js";
 import {
   CMS_DEFAULT_COUNTRY,
   normCmsCountryCode,
@@ -259,6 +260,11 @@ app.get("/public/ui-dictionary", (req, res) => {
 /** Avis publics jobReviews (filtre minRating) + employeur / employé. */
 app.get("/public/job-reviews", (req, res) => {
   void getPublicJobReviews(req, res);
+});
+
+/** Profils employés (accueil) : max 10, priorité badge, mélange aléatoire. */
+app.get("/public/home-profiles", (req, res) => {
+  void getPublicHomeProfiles(req, res);
 });
 
 /** CRUD admin (Auth Firebase + option ADMIN_ALLOWED_EMAILS). */
