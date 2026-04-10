@@ -389,6 +389,7 @@ export default function JobOffersListView() {
         getRowId={(row) => row.id}
         emptyLabel={t("jobs.list.empty")}
         minTableWidth={960}
+        persistColumnVisibilityKey="job-offers"
       />
       <EditSheet
         open={!!editRow}

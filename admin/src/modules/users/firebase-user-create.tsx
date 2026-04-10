@@ -3,14 +3,19 @@
 import Link from "next/link";
 import {useRouter} from "next/navigation";
 import {useState} from "react";
+import {E164PhoneInput} from "@/components/e164-phone-input";
 import {useAuth} from "@/contexts/auth-context";
 import {useUiLocale} from "@/contexts/ui-locale-context";
 import {adminFetch} from "@/lib/api";
 import type {ApiFirebaseUserDoc} from "@/lib/firebase-user-types";
+import {isValidPhoneNumber} from "react-phone-number-input";
 
 export default function FirebaseUserCreateView() {
   const {getIdToken} = useAuth();
-  const {t} = useUiLocale();
+  const {t, locale} = useUiLocale();
+  const phoneLabelsLocale = locale.trim().toLowerCase().startsWith("fr") ?
+      "fr"
+    : "en";
   const router = useRouter();
   const [phone, setPhone] = useState("");
   const [displayName, setDisplayName] = useState("");
@@ -21,8 +26,12 @@ export default function FirebaseUserCreateView() {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     const p = phone.trim();
-    if (!p) {
-      setLoadError(t("users.firebase.create.phone") + " *");
+    if (!p || !isValidPhoneNumber(p)) {
+      setLoadError(
+        !p ?
+          t("users.firebase.create.phoneRequired")
+        : t("users.firebase.create.phoneInvalid"),
+      );
       return;
     }
     const token = await getIdToken();
@@ -68,16 +77,21 @@ export default function FirebaseUserCreateView() {
         </p>
       : null}
       <form onSubmit={(e) => void onSubmit(e)} className="space-y-4">
-        <label className="block text-sm text-gray-700">
+        <label className="block text-sm text-gray-700" htmlFor="firebase-create-phone">
           {t("users.firebase.create.phone")} *
-          <input
-            required
+          <E164PhoneInput
+            id="firebase-create-phone"
             value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary/70 focus:ring-2 focus:ring-primary/15 focus:outline-none"
-            placeholder="+33612345678"
+            onChange={setPhone}
+            disabled={busy}
+            labelsLocale={phoneLabelsLocale}
+            defaultCountry="CM"
+            placeholder={t("users.firebase.create.phonePlaceholder")}
           />
         </label>
+        <p className="-mt-2 text-xs text-gray-500">
+          {t("users.firebase.create.phoneHint")}
+        </p>
         <label className="block text-sm text-gray-700">
           {t("users.firebase.create.displayName")}
           <input

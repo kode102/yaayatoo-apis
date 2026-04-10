@@ -327,6 +327,7 @@ export default function CountriesListView() {
         getRowId={(row) => row.id}
         emptyLabel={t("countries.list.empty")}
         minTableWidth={780}
+        persistColumnVisibilityKey="countries"
       />
       <EditSheet
         open={!!editRow}

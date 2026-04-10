@@ -379,6 +379,7 @@ export default function FirebaseUsersListView() {
         getRowId={(row) => row.uid}
         emptyLabel={t("users.firebase.list.empty")}
         minTableWidth={960}
+        persistColumnVisibilityKey="firebase-users"
       />
       {pageToken ?
         <div className="flex justify-center">

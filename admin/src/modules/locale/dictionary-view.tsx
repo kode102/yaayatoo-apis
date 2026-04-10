@@ -368,6 +368,7 @@ export default function DictionaryView() {
         getRowId={(row) => row.key}
         emptyLabel={t("dictionary.tableEmpty")}
         minTableWidth={minTableWidth}
+        persistColumnVisibilityKey="locale-dictionary"
       />
 
       <EditSheet

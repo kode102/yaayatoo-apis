@@ -316,6 +316,7 @@ export default function JobReviewsListView() {
         getRowId={(row) => row.id}
         emptyLabel={t("jobs.reviews.list.empty")}
         minTableWidth={900}
+        persistColumnVisibilityKey="job-reviews"
       />
       <EditSheet
         open={!!editRow}

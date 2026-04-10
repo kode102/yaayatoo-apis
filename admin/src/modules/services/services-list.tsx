@@ -388,6 +388,7 @@ export default function ServicesListView() {
         getRowId={(row) => row.id}
         emptyLabel={t("services.list.empty")}
         minTableWidth={800}
+        persistColumnVisibilityKey="services"
       />
       <EditSheet
         open={!!editRow}

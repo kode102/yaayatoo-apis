@@ -317,6 +317,7 @@ export default function CmsNamespacesListView() {
         getRowId={(row) => row.id}
         emptyLabel={t("cms.namespace.empty")}
         minTableWidth={640}
+        persistColumnVisibilityKey="cms-namespaces"
       />
       <EditSheet
         open={!!editRow}

@@ -399,6 +399,7 @@ export default function LanguagesListView() {
         getRowId={(row) => row.id}
         emptyLabel={t("languages.list.empty")}
         minTableWidth={720}
+        persistColumnVisibilityKey="languages"
       />
       <EditSheet
         open={!!editRow}

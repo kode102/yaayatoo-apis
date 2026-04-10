@@ -511,6 +511,7 @@ export default function EmployeeListView() {
         getRowId={(row) => row.id}
         emptyLabel={t("users.employee.list.empty")}
         minTableWidth={1280}
+        persistColumnVisibilityKey="employee"
       />
       <EditSheet
         open={!!editRow}
