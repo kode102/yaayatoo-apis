@@ -52,4 +52,15 @@ export const ADMIN_NAV_MODULES: AdminNavModule[] = [
       {href: "/cms/sections", labelKey: "nav.cms.sections"},
     ],
   },
+  {
+    id: "users",
+    labelKey: "nav.module.users",
+    pathPrefix: "/users",
+    items: [
+      {href: "/users/list", labelKey: "nav.users.firebaseList"},
+      {href: "/users/create", labelKey: "nav.users.firebaseCreate"},
+      {href: "/users/employee/list", labelKey: "nav.users.employees"},
+      {href: "/users/employer/list", labelKey: "nav.users.employers"},
+    ],
+  },
 ];

@@ -26,6 +26,7 @@ import {
   pickSortLabel,
   type TranslationsMap,
 } from "./i18n.js";
+import {attachFirebaseUserRoutes} from "./firebase-users-routes.js";
 
 const ALLOWED = new Set([
   "services",
@@ -33,6 +34,8 @@ const ALLOWED = new Set([
   "languages",
   "cmsSections",
   "cmsNamespaces",
+  "employee",
+  "employer",
 ]);
 
 const CMS_TRANSLATABLE_FIELDS = [
@@ -115,6 +118,9 @@ function normalizeOut(
   data: DocumentData,
 ): Record<string, unknown> {
   const base = serializeDoc(id, data);
+  if (collection === "employee" || collection === "employer") {
+    return base;
+  }
   if (collection === "cmsSections") {
     base.translations = toNestedCmsTranslations(data.translations);
     return base;
@@ -157,6 +163,12 @@ function sortListFallback(
   }
   if (collection === "cmsSections") {
     return String(row.subsectionKey ?? row.id);
+  }
+  if (collection === "employee") {
+    return String((row as {fullName?: string}).fullName ?? row.id);
+  }
+  if (collection === "employer") {
+    return String((row as {companyName?: string}).companyName ?? row.id);
   }
   return String(row.id);
 }
@@ -207,6 +219,131 @@ async function requireAuth(
   } catch {
     res.status(401).json({success: false, error: "Token invalide"});
   }
+}
+
+/** Badges profil employé (Firestore `badge`). */
+const EMPLOYEE_BADGES = new Set(["NONE", "BLUE", "GREEN", "YELLOW"]);
+
+type EmployeeBadge = "NONE" | "BLUE" | "GREEN" | "YELLOW";
+
+/**
+ * @param {unknown} v Valeur brute.
+ * @return {EmployeeBadge} Badge normalisé.
+ */
+function normalizeEmployeeBadge(v: unknown): EmployeeBadge {
+  const s = String(v ?? "NONE").trim().toUpperCase();
+  if (EMPLOYEE_BADGES.has(s)) return s as EmployeeBadge;
+  return "NONE";
+}
+
+/**
+ * @param {unknown} v Date ISO ou YYYY-MM-DD.
+ * @return {string} Chaîne YYYY-MM-DD ou vide.
+ */
+function normalizeStartedWorkingAt(v: unknown): string {
+  if (typeof v !== "string") return "";
+  const t = v.trim();
+  if (!t) return "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return t;
+  const d = new Date(t);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * @param {Record<string, unknown>} body Corps requête.
+ * @return {string[]} Ids services uniques (max 64).
+ */
+function parseEmployeeOfferedServiceIds(
+  body: Record<string, unknown>,
+): string[] {
+  const raw = body.offeredServiceIds;
+  if (!Array.isArray(raw)) return [];
+  const out: string[] = [];
+  for (const x of raw) {
+    if (typeof x !== "string") continue;
+    const id = x.trim();
+    if (id) out.push(id);
+  }
+  return [...new Set(out)].slice(0, 64);
+}
+
+/**
+ * Vérifie que chaque id existe dans `services`.
+ * @param {string[]} ids Liste d’ids Firestore.
+ * @return {Promise<string|undefined>} Message d’erreur ou undefined.
+ */
+async function validateEmployeeServiceIds(
+  ids: string[],
+): Promise<string | undefined> {
+  const uniq = [...new Set(ids)];
+  for (const id of uniq) {
+    const snap = await db.collection("services").doc(id).get();
+    if (!snap.exists) {
+      return `Service inexistant (id: ${id})`;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Corps POST profil employé (document id = firebaseUid).
+ * @param {Record<string, unknown>} body JSON.
+ * @return {object|null} Payload ou null.
+ */
+function parseEmployeePost(body: Record<string, unknown>): {
+  firebaseUid: string;
+  fullName: string;
+  notes: string;
+  startedWorkingAt: string;
+  badge: EmployeeBadge;
+  profileImageUrl: string;
+  offeredServiceIds: string[];
+} | null {
+  const firebaseUid =
+    typeof body.firebaseUid === "string" ? body.firebaseUid.trim() : "";
+  if (!firebaseUid) return null;
+  const fullName =
+    typeof body.fullName === "string" ? body.fullName.trim() : "";
+  const notes = typeof body.notes === "string" ? body.notes : "";
+  const startedWorkingAt = normalizeStartedWorkingAt(body.startedWorkingAt);
+  const badge = normalizeEmployeeBadge(body.badge);
+  let profileImageUrl = "";
+  if (typeof body.profileImageUrl === "string") {
+    profileImageUrl = body.profileImageUrl.trim();
+  }
+  const offeredServiceIds = parseEmployeeOfferedServiceIds(body);
+  return {
+    firebaseUid,
+    fullName,
+    notes,
+    startedWorkingAt,
+    badge,
+    profileImageUrl,
+    offeredServiceIds,
+  };
+}
+
+/**
+ * Corps POST profil employeur (document id = firebaseUid).
+ * @param {Record<string, unknown>} body JSON.
+ * @return {object|null} Payload ou null.
+ */
+function parseEmployerPost(body: Record<string, unknown>): {
+  firebaseUid: string;
+  companyName: string;
+  contactName: string;
+  notes: string;
+} | null {
+  const firebaseUid =
+    typeof body.firebaseUid === "string" ? body.firebaseUid.trim() : "";
+  if (!firebaseUid) return null;
+  const companyName =
+    typeof body.companyName === "string" ? body.companyName.trim() : "";
+  const contactName =
+    typeof body.contactName === "string" ? body.contactName.trim() : "";
+  const notes = typeof body.notes === "string" ? body.notes : "";
+  return {firebaseUid, companyName, contactName, notes};
 }
 
 /**
@@ -393,12 +530,78 @@ function buildPutPatch(
   // eslint-disable-next-line new-cap -- FieldValue.serverTimestamp
   const ts = FieldValue.serverTimestamp();
   const patch: Record<string, unknown> = {updatedAt: ts};
+  const localeRaw = body.locale;
+
+  if (collection === "employee" || collection === "employer") {
+    if (
+      localeRaw !== undefined &&
+      localeRaw !== null &&
+      String(localeRaw).trim() !== ""
+    ) {
+      return {
+        patch: {},
+        error:
+          "Ne pas envoyer « locale » pour les documents employee/employer",
+      };
+    }
+    if (collection === "employee") {
+      if (typeof body.fullName === "string") {
+        patch.fullName = body.fullName.trim();
+      }
+      if (typeof body.notes === "string") {
+        patch.notes = body.notes;
+      }
+      if (body.startedWorkingAt !== undefined) {
+        if (typeof body.startedWorkingAt !== "string") {
+          return {
+            patch: {},
+            error: "startedWorkingAt doit être une chaîne (date)",
+          };
+        }
+        const d = normalizeStartedWorkingAt(body.startedWorkingAt);
+        if (d) {
+          patch.startedWorkingAt = d;
+        } else {
+          // eslint-disable-next-line new-cap -- FieldValue.delete()
+          patch.startedWorkingAt = FieldValue.delete();
+        }
+      }
+      if (body.badge !== undefined) {
+        patch.badge = normalizeEmployeeBadge(body.badge);
+      }
+      if (typeof body.profileImageUrl === "string") {
+        patch.profileImageUrl = body.profileImageUrl.trim();
+      }
+      if (body.offeredServiceIds !== undefined) {
+        if (!Array.isArray(body.offeredServiceIds)) {
+          return {
+            patch: {},
+            error: "offeredServiceIds doit être un tableau de chaînes",
+          };
+        }
+        patch.offeredServiceIds = parseEmployeeOfferedServiceIds(body);
+      }
+    } else {
+      if (typeof body.companyName === "string") {
+        patch.companyName = body.companyName.trim();
+      }
+      if (typeof body.contactName === "string") {
+        patch.contactName = body.contactName.trim();
+      }
+      if (typeof body.notes === "string") {
+        patch.notes = body.notes;
+      }
+    }
+    const profileKeys = Object.keys(patch).filter((k) => k !== "updatedAt");
+    if (profileKeys.length === 0) {
+      return {patch: {}, error: "Aucun champ à mettre à jour"};
+    }
+    return {patch};
+  }
 
   if (typeof body.active === "boolean") {
     patch.active = body.active;
   }
-
-  const localeRaw = body.locale;
   if (localeRaw !== undefined && localeRaw !== null && localeRaw !== "") {
     const locale = normLocale(String(localeRaw));
     if (!locale) {
@@ -604,6 +807,7 @@ export function createAdminRouter(): express.Router {
     next();
   });
   router.use(requireAuth);
+  attachFirebaseUserRoutes(router);
 
   router.get("/documents/:collection", async (req, res) => {
     const collection = req.params.collection;
@@ -729,7 +933,7 @@ export function createAdminRouter(): express.Router {
         active: v.active,
         translations: v.translations,
       };
-    } else {
+    } else if (collection === "cmsSections") {
       const v = parseCmsSectionPost(body);
       if (!v) {
         res.status(400).json({
@@ -751,12 +955,114 @@ export function createAdminRouter(): express.Router {
         videoLink: v.videoLink,
         readMoreUrl: v.readMoreUrl,
       };
+    } else if (collection === "employee" || collection === "employer") {
+      payload = {};
+    } else {
+      res.status(400).json({
+        success: false,
+        error: "Collection POST non gérée",
+      });
+      return;
     }
 
     // FieldValue est l’API Firebase Admin, pas un constructeur classique.
     // eslint-disable-next-line new-cap -- FieldValue.serverTimestamp
     const now = FieldValue.serverTimestamp();
     try {
+      if (collection === "employee") {
+        const v = parseEmployeePost(body);
+        if (!v) {
+          res.status(400).json({
+            success: false,
+            error: "Champs invalides (firebaseUid requis)",
+          });
+          return;
+        }
+        try {
+          await admin.auth().getUser(v.firebaseUid);
+        } catch {
+          res.status(400).json({
+            success: false,
+            error: "Utilisateur Firebase introuvable pour cet uid",
+          });
+          return;
+        }
+        const ref = db.collection("employee").doc(v.firebaseUid);
+        if ((await ref.get()).exists) {
+          res.status(409).json({
+            success: false,
+            error: "Un profil employé existe déjà pour cet utilisateur",
+          });
+          return;
+        }
+        const svcErr = await validateEmployeeServiceIds(v.offeredServiceIds);
+        if (svcErr) {
+          res.status(400).json({success: false, error: svcErr});
+          return;
+        }
+        const empDoc: Record<string, unknown> = {
+          firebaseUid: v.firebaseUid,
+          fullName: v.fullName,
+          notes: v.notes,
+          badge: v.badge,
+          profileImageUrl: v.profileImageUrl,
+          offeredServiceIds: v.offeredServiceIds,
+          createdAt: now,
+          updatedAt: now,
+        };
+        if (v.startedWorkingAt) {
+          empDoc.startedWorkingAt = v.startedWorkingAt;
+        }
+        await ref.set(empDoc);
+        const created = await ref.get();
+        res.status(201).json({
+          success: true,
+          data: normalizeOut("employee", created.id, created.data()!),
+        });
+        return;
+      }
+      if (collection === "employer") {
+        const v = parseEmployerPost(body);
+        if (!v) {
+          res.status(400).json({
+            success: false,
+            error: "Champs invalides (firebaseUid requis)",
+          });
+          return;
+        }
+        try {
+          await admin.auth().getUser(v.firebaseUid);
+        } catch {
+          res.status(400).json({
+            success: false,
+            error: "Utilisateur Firebase introuvable pour cet uid",
+          });
+          return;
+        }
+        const ref = db.collection("employer").doc(v.firebaseUid);
+        if ((await ref.get()).exists) {
+          res.status(409).json({
+            success: false,
+            error: "Un profil employeur existe déjà pour cet utilisateur",
+          });
+          return;
+        }
+        await ref.set({
+          firebaseUid: v.firebaseUid,
+          companyName: v.companyName,
+          contactName: v.contactName,
+          notes: v.notes,
+          createdAt: now,
+          updatedAt: now,
+        });
+        const created = await ref.get();
+        res.status(201).json({
+          success: true,
+          data: normalizeOut("employer", created.id, created.data()!),
+        });
+        return;
+      }
+
       const ref = await db.collection(collection).add({
         ...payload,
         createdAt: now,
@@ -797,6 +1103,20 @@ export function createAdminRouter(): express.Router {
     if (built.error) {
       res.status(400).json({success: false, error: built.error});
       return;
+    }
+
+    if (
+      collection === "employee" &&
+      built.patch.offeredServiceIds !== undefined
+    ) {
+      const arr = built.patch.offeredServiceIds;
+      if (Array.isArray(arr)) {
+        const svcErr = await validateEmployeeServiceIds(arr as string[]);
+        if (svcErr) {
+          res.status(400).json({success: false, error: svcErr});
+          return;
+        }
+      }
     }
 
     try {

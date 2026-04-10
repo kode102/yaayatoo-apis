@@ -82,4 +82,18 @@ export async function uploadCmsVideoThumbnailToStorage(
   return uploadValidatedImageToFolder(file, folder);
 }
 
+/**
+ * Photo profil employé : `admin/employees/{uid}/…` (règles Storage : auth sur ce préfixe).
+ */
+export async function uploadEmployeeProfileImageToStorage(
+  file: File,
+  opts: {employeeUid?: string},
+): Promise<string> {
+  const folder =
+    opts.employeeUid?.trim() ?
+      `admin/employees/${opts.employeeUid.trim()}`
+    : "admin/employees/uploads";
+  return uploadValidatedImageToFolder(file, folder);
+}
+
 export const SERVICE_IMAGE_MAX_BYTES = MAX_BYTES;
