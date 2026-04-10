@@ -1,7 +1,8 @@
 "use client";
 
 import {createColumnHelper, type ColumnDef} from "@tanstack/react-table";
-import {useCallback, useEffect, useMemo, useState} from "react";
+import {useCallback, useEffect, useMemo, useRef, useState} from "react";
+import {CountryCodeSelect} from "@/components/country-code-select";
 import {EmployeeProfileImageField} from "@/components/employee-profile-image-field";
 import {
   EMPLOYEE_BADGE_OPTIONS,
@@ -21,8 +22,13 @@ import {
   EMPLOYEE_STATUS_OPTIONS,
   employeeStatusOrDefault,
 } from "@/lib/employee-status-options";
-import type {ServiceDoc} from "@/lib/i18n-types";
-import {pickRegionalSortLabel} from "@/lib/i18n-types";
+import type {CountryDoc, ServiceDoc} from "@/lib/i18n-types";
+import {
+  CMS_DEFAULT_COUNTRY_KEY,
+  pickRegionalSortLabel,
+  pickSortLabel,
+} from "@/lib/i18n-types";
+import {serviceAvailableForCountry} from "@/lib/service-country-scope";
 import type {
   EmployeeBadge,
   EmployeeDoc,
@@ -63,6 +69,7 @@ export default function EmployeeListView() {
   const {t} = useUiLocale();
   const [items, setItems] = useState<EmployeeDoc[]>([]);
   const [services, setServices] = useState<ServiceDoc[]>([]);
+  const [countries, setCountries] = useState<CountryDoc[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [editRow, setEditRow] = useState<EmployeeDoc | null>(null);
@@ -74,6 +81,8 @@ export default function EmployeeListView() {
   const [draftStatus, setDraftStatus] = useState<EmployeeStatus>("FREE");
   const [draftImage, setDraftImage] = useState("");
   const [draftServiceIds, setDraftServiceIds] = useState<string[]>([]);
+  const [draftCountryCode, setDraftCountryCode] = useState("");
+  const prevDraftCountryRef = useRef<string | undefined>(undefined);
 
   const serviceLabelById = useMemo(() => {
     const m = new Map<string, string>();
@@ -86,6 +95,18 @@ export default function EmployeeListView() {
     return m;
   }, [editorLocale, services]);
 
+  const countryLabelByCode = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const c of countries) {
+      const code = c.code.trim().toUpperCase().slice(0, 2);
+      m.set(
+        code,
+        pickSortLabel(c.translations, editorLocale, c.code),
+      );
+    }
+    return m;
+  }, [countries, editorLocale]);
+
   const load = useCallback(async () => {
     const token = await getIdToken();
     if (!token) {
@@ -94,7 +115,7 @@ export default function EmployeeListView() {
     }
     setLoadError(null);
     try {
-      const [empRes, svcRes] = await Promise.all([
+      const [empRes, svcRes, cRes] = await Promise.all([
         adminFetch<ApiListResponse<EmployeeDoc>>(
           `/admin/documents/employee?sortLocale=${encodeURIComponent(editorLocale)}`,
           token,
@@ -103,9 +124,14 @@ export default function EmployeeListView() {
           `/admin/documents/services?sortLocale=${encodeURIComponent(editorLocale)}`,
           token,
         ),
+        adminFetch<ApiListResponse<CountryDoc>>(
+          `/admin/documents/countries?sortLocale=${encodeURIComponent(editorLocale)}`,
+          token,
+        ),
       ]);
       setItems((empRes.data ?? []) as EmployeeDoc[]);
       setServices((svcRes.data ?? []) as ServiceDoc[]);
+      setCountries((cRes.data ?? []) as CountryDoc[]);
     } catch (e: unknown) {
       setLoadError(e instanceof Error ? e.message : String(e));
     }
@@ -115,12 +141,36 @@ export default function EmployeeListView() {
     void load();
   }, [load]);
 
+  useEffect(() => {
+    if (!editRow) return;
+    if (!draftCountryCode) {
+      prevDraftCountryRef.current = draftCountryCode;
+      return;
+    }
+    if (prevDraftCountryRef.current === undefined) {
+      prevDraftCountryRef.current = draftCountryCode;
+      return;
+    }
+    if (prevDraftCountryRef.current === draftCountryCode) return;
+    prevDraftCountryRef.current = draftCountryCode;
+    setDraftServiceIds((prev) =>
+      prev.filter((id) => {
+        const s = services.find((x) => x.id === id);
+        return (
+          !!s && serviceAvailableForCountry(s.translations, draftCountryCode)
+        );
+      }),
+    );
+  }, [draftCountryCode, services, editRow]);
+
   const closeEdit = useCallback(() => {
     setEditRow(null);
     setEditStep(0);
+    prevDraftCountryRef.current = undefined;
   }, []);
 
   const openEdit = useCallback((row: EmployeeDoc) => {
+    prevDraftCountryRef.current = undefined;
     setEditStep(0);
     setEditRow(row);
     setDraftName(row.fullName ?? "");
@@ -132,10 +182,18 @@ export default function EmployeeListView() {
     setDraftServiceIds(
       Array.isArray(row.offeredServiceIds) ? [...row.offeredServiceIds] : [],
     );
+    const rawCc = row.countryCode?.trim().toUpperCase() ?? "";
+    setDraftCountryCode(
+      rawCc && rawCc !== CMS_DEFAULT_COUNTRY_KEY ? rawCc : "",
+    );
   }, []);
 
   const saveEdit = useCallback(async () => {
     if (!editRow) return;
+    if (!draftCountryCode.trim()) {
+      setLoadError(t("users.employee.edit.needCountry"));
+      return;
+    }
     const token = await getIdToken();
     if (!token) return;
     setBusy(true);
@@ -151,6 +209,7 @@ export default function EmployeeListView() {
             startedWorkingAt: draftStarted.trim(),
             badge: draftBadge,
             status: draftStatus,
+            countryCode: draftCountryCode,
             profileImageUrl: draftImage.trim(),
             offeredServiceIds: draftServiceIds,
           }),
@@ -167,6 +226,7 @@ export default function EmployeeListView() {
   }, [
     draftBadge,
     draftStatus,
+    draftCountryCode,
     draftImage,
     draftName,
     draftNotes,
@@ -175,6 +235,7 @@ export default function EmployeeListView() {
     editRow,
     getIdToken,
     load,
+    t,
   ]);
 
   const removeRow = useCallback(
@@ -231,6 +292,29 @@ export default function EmployeeListView() {
           cell: (info) => (
             <span className="font-medium">{info.getValue() ?? "—"}</span>
           ),
+        }),
+        col.accessor("countryCode", {
+          id: "country",
+          header: ({column}) => (
+            <SortableHeader column={column}>
+              {t("users.employee.colCountry")}
+            </SortableHeader>
+          ),
+          cell: ({row}) => {
+            const cc = row.original.countryCode?.trim().toUpperCase() ?? "";
+            if (!cc || cc === CMS_DEFAULT_COUNTRY_KEY) {
+              return (
+                <span className="text-xs text-gray-400">
+                  {t("users.profile.countryLegacy")}
+                </span>
+              );
+            }
+            return (
+              <span className="text-sm text-gray-700">
+                {countryLabelByCode.get(cc) ?? cc}
+              </span>
+            );
+          },
         }),
         col.accessor((row) => employeeStatusOrDefault(row.status), {
           id: "status",
@@ -378,7 +462,7 @@ export default function EmployeeListView() {
           ),
         }),
       ] as ColumnDef<EmployeeDoc, unknown>[],
-    [busy, openEdit, removeRow, serviceLabelById, t],
+    [busy, countryLabelByCode, openEdit, removeRow, serviceLabelById, t],
   );
 
   return (
@@ -398,7 +482,7 @@ export default function EmployeeListView() {
         columns={columns}
         getRowId={(row) => row.id}
         emptyLabel={t("users.employee.list.empty")}
-        minTableWidth={1040}
+        minTableWidth={1180}
       />
       <EditSheet
         open={!!editRow}
@@ -429,9 +513,14 @@ export default function EmployeeListView() {
                 <button
                   type="button"
                   disabled={busy}
-                  onClick={() =>
-                    setEditStep((s) => Math.min(2, s + 1))
-                  }
+                  onClick={() => {
+                    if (editStep === 0 && !draftCountryCode.trim()) {
+                      setLoadError(t("users.employee.edit.needCountry"));
+                      return;
+                    }
+                    setLoadError(null);
+                    setEditStep((s) => Math.min(2, s + 1));
+                  }}
                   className="rounded-lg bg-primary px-3 py-2 text-sm font-medium text-white hover:bg-primary-hover disabled:opacity-50"
                 >
                   {t("users.wizard.next")}
@@ -463,6 +552,16 @@ export default function EmployeeListView() {
                   value={draftName}
                   onChange={(e) => setDraftName(e.target.value)}
                   className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary/70 focus:ring-2 focus:ring-primary/15 focus:outline-none"
+                />
+              </label>
+              <label className="block text-sm text-gray-700">
+                {t("users.employee.colCountry")} *
+                <CountryCodeSelect
+                  countries={countries}
+                  editorLocale={editorLocale}
+                  value={draftCountryCode}
+                  onChange={setDraftCountryCode}
+                  disabled={busy}
                 />
               </label>
               <label className="block text-sm text-gray-700">
@@ -525,6 +624,7 @@ export default function EmployeeListView() {
               <EmployeeServicesOfferedField
                 services={services}
                 editorLocale={editorLocale}
+                profileCountryCode={draftCountryCode}
                 selectedIds={draftServiceIds}
                 onChange={setDraftServiceIds}
                 disabled={busy}

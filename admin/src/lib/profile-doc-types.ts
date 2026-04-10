@@ -8,6 +8,8 @@ export type EmployeeStatus = "FREE" | "BUSY" | "BLOCKED";
 export type EmployeeDoc = {
   id: string;
   firebaseUid: string;
+  /** Code pays ISO2 (ex. CM) ; `__` si non renseigné (anciens documents). */
+  countryCode?: string;
   fullName?: string;
   notes?: string;
   /** Début d’activité (YYYY-MM-DD) pour calculer l’ancienneté. */
@@ -29,6 +31,8 @@ export type EmployerBadge = "NONE" | "TRUSTED";
 export type EmployerDoc = {
   id: string;
   firebaseUid: string;
+  /** Code pays ISO2 (ex. CM) ; `__` si non renseigné (anciens documents). */
+  countryCode?: string;
   companyName?: string;
   contactName?: string;
   notes?: string;

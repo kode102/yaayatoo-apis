@@ -2,13 +2,16 @@
 
 import Link from "next/link";
 import {useRouter} from "next/navigation";
-import {useState} from "react";
+import {useCallback, useEffect, useState} from "react";
+import {CountryCodeSelect} from "@/components/country-code-select";
 import {EmployerProfileImageField} from "@/components/employer-profile-image-field";
 import {FirebaseUidSearchSelect} from "@/components/firebase-uid-search-select";
 import {ProfileWizardStepIndicator} from "@/components/profile-form-wizard";
 import {useAuth} from "@/contexts/auth-context";
+import {useEditorLocale} from "@/contexts/editor-locale-context";
 import {useUiLocale} from "@/contexts/ui-locale-context";
-import {adminFetch, type ApiDocResponse} from "@/lib/api";
+import {adminFetch, type ApiDocResponse, type ApiListResponse} from "@/lib/api";
+import type {CountryDoc} from "@/lib/i18n-types";
 import {yearsOfExperienceFromStartDate} from "@/lib/employee-display";
 import {EMPLOYER_BADGE_OPTIONS} from "@/lib/employer-badge-options";
 import type {EmployerBadge, EmployerDoc} from "@/lib/profile-doc-types";
@@ -16,6 +19,7 @@ import type {EmployerBadge, EmployerDoc} from "@/lib/profile-doc-types";
 export default function EmployerCreateView() {
   const {getIdToken} = useAuth();
   const {t} = useUiLocale();
+  const {editorLocale} = useEditorLocale();
   const router = useRouter();
   const [step, setStep] = useState(0);
   const [firebaseUid, setFirebaseUid] = useState("");
@@ -26,14 +30,38 @@ export default function EmployerCreateView() {
   const [badge, setBadge] = useState<EmployerBadge>("NONE");
   const [profileImageUrl, setProfileImageUrl] = useState("");
   const [occupation, setOccupation] = useState("");
+  const [countries, setCountries] = useState<CountryDoc[]>([]);
+  const [countryCode, setCountryCode] = useState("");
   const [loadError, setLoadError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   const tenurePreview = yearsOfExperienceFromStartDate(joinedAt);
 
+  const loadCountries = useCallback(async () => {
+    const token = await getIdToken();
+    if (!token) return;
+    try {
+      const res = await adminFetch<ApiListResponse<CountryDoc>>(
+        `/admin/documents/countries?sortLocale=${encodeURIComponent(editorLocale)}`,
+        token,
+      );
+      setCountries((res.data ?? []) as CountryDoc[]);
+    } catch {
+      setCountries([]);
+    }
+  }, [editorLocale, getIdToken]);
+
+  useEffect(() => {
+    void loadCountries();
+  }, [loadCountries]);
+
   function goNext() {
     if (step === 0 && !firebaseUid.trim()) {
       setLoadError(t("users.employer.create.needUid"));
+      return;
+    }
+    if (step === 0 && !countryCode.trim()) {
+      setLoadError(t("users.employer.create.needCountry"));
       return;
     }
     setLoadError(null);
@@ -49,6 +77,11 @@ export default function EmployerCreateView() {
     const uid = firebaseUid.trim();
     if (!uid) {
       setLoadError(t("users.employer.create.needUid"));
+      setStep(0);
+      return;
+    }
+    if (!countryCode.trim()) {
+      setLoadError(t("users.employer.create.needCountry"));
       setStep(0);
       return;
     }
@@ -72,6 +105,7 @@ export default function EmployerCreateView() {
             notes,
             joinedAt: joinedAt.trim() || undefined,
             badge,
+            countryCode,
             profileImageUrl: profileImageUrl.trim(),
             occupation: occupation.trim(),
           }),
@@ -116,6 +150,16 @@ export default function EmployerCreateView() {
                 <FirebaseUidSearchSelect
                   value={firebaseUid}
                   onChange={setFirebaseUid}
+                  disabled={busy}
+                />
+              </label>
+              <label className="block text-sm text-gray-700">
+                {t("users.employer.colCountry")} *
+                <CountryCodeSelect
+                  countries={countries}
+                  editorLocale={editorLocale}
+                  value={countryCode}
+                  onChange={setCountryCode}
                   disabled={busy}
                 />
               </label>

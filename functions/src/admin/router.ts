@@ -305,12 +305,7 @@ function parseEmployeeOfferedServiceIds(
 }
 
 /**
- * Vérifie que chaque id existe dans `services`.
- * @param {string[]} ids Liste d’ids Firestore.
- * @return {Promise<string|undefined>} Message d’erreur ou undefined.
- */
-/**
- * Service proposé pour un pays : entrées pays ou catalogue global `__` avec nom.
+ * Service proposé pour un pays : bloc pays ou catalogue global `__` avec nom.
  * @param {CmsNestedTranslations} nested Traductions service normalisées.
  * @param {string} cc Code pays ISO2 (pas "__").
  * @return {boolean} True si le service couvre ce pays.
@@ -348,9 +343,9 @@ function serviceOffersCountryNested(
 }
 
 /**
- * Vérifie ids services + cohérence avec le pays du profil employé.
+ * Vérifie ids services + cohérence pays du profil employé.
  * @param {string[]} ids Ids `offeredServiceIds`.
- * @param {string} countryCode Pays profil (normalisé ; "__" = pas de filtre pays).
+ * @param {string} countryCode Pays profil ; "__" = pas de filtre pays.
  * @return {Promise<string|undefined>} Erreur ou undefined.
  */
 async function validateEmployeeOfferedServicesForCountry(
@@ -1317,16 +1312,14 @@ export function createAdminRouter(): express.Router {
 
     if (collection === "employee") {
       const data = existing.data()!;
-      const mergedCountry =
-        built.patch.countryCode !== undefined ?
-          normCmsCountryCode(String(built.patch.countryCode))
-        : normCmsCountryCode(String(data.countryCode ?? ""));
-      const mergedServices =
-        built.patch.offeredServiceIds !== undefined ?
-          (built.patch.offeredServiceIds as string[])
-        : Array.isArray(data.offeredServiceIds) ?
-          (data.offeredServiceIds as string[])
-        : [];
+      const mergedCountry = built.patch.countryCode !== undefined ?
+        normCmsCountryCode(String(built.patch.countryCode)) :
+        normCmsCountryCode(String(data.countryCode ?? ""));
+      const mergedServices = built.patch.offeredServiceIds !== undefined ?
+        (built.patch.offeredServiceIds as string[]) :
+        Array.isArray(data.offeredServiceIds) ?
+          (data.offeredServiceIds as string[]) :
+          [];
       if (
         built.patch.countryCode !== undefined ||
         built.patch.offeredServiceIds !== undefined

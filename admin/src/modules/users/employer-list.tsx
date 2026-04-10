@@ -2,6 +2,7 @@
 
 import {createColumnHelper, type ColumnDef} from "@tanstack/react-table";
 import {useCallback, useEffect, useMemo, useState} from "react";
+import {CountryCodeSelect} from "@/components/country-code-select";
 import {EmployerProfileImageField} from "@/components/employer-profile-image-field";
 import {AdminDataTable, SortableHeader} from "@/components/admin-data-table";
 import {EditSheet} from "@/components/edit-sheet";
@@ -13,6 +14,11 @@ import {useEditorLocale} from "@/contexts/editor-locale-context";
 import {useUiLocale} from "@/contexts/ui-locale-context";
 import {adminFetch, type ApiDocResponse, type ApiListResponse} from "@/lib/api";
 import {yearsOfExperienceFromStartDate} from "@/lib/employee-display";
+import type {CountryDoc} from "@/lib/i18n-types";
+import {
+  CMS_DEFAULT_COUNTRY_KEY,
+  pickSortLabel,
+} from "@/lib/i18n-types";
 import {EMPLOYER_BADGE_OPTIONS} from "@/lib/employer-badge-options";
 import type {EmployerBadge, EmployerDoc} from "@/lib/profile-doc-types";
 
@@ -28,6 +34,7 @@ export default function EmployerListView() {
   const {editorLocale} = useEditorLocale();
   const {t} = useUiLocale();
   const [items, setItems] = useState<EmployerDoc[]>([]);
+  const [countries, setCountries] = useState<CountryDoc[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [editRow, setEditRow] = useState<EmployerDoc | null>(null);
@@ -39,6 +46,19 @@ export default function EmployerListView() {
   const [draftBadge, setDraftBadge] = useState<EmployerBadge>("NONE");
   const [draftImage, setDraftImage] = useState("");
   const [draftOccupation, setDraftOccupation] = useState("");
+  const [draftCountryCode, setDraftCountryCode] = useState("");
+
+  const countryLabelByCode = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const c of countries) {
+      const code = c.code.trim().toUpperCase().slice(0, 2);
+      m.set(
+        code,
+        pickSortLabel(c.translations, editorLocale, c.code),
+      );
+    }
+    return m;
+  }, [countries, editorLocale]);
 
   const load = useCallback(async () => {
     const token = await getIdToken();
@@ -48,11 +68,18 @@ export default function EmployerListView() {
     }
     setLoadError(null);
     try {
-      const res = await adminFetch<ApiListResponse<EmployerDoc>>(
-        `/admin/documents/employer?sortLocale=${encodeURIComponent(editorLocale)}`,
-        token,
-      );
-      setItems((res.data ?? []) as EmployerDoc[]);
+      const [empRes, cRes] = await Promise.all([
+        adminFetch<ApiListResponse<EmployerDoc>>(
+          `/admin/documents/employer?sortLocale=${encodeURIComponent(editorLocale)}`,
+          token,
+        ),
+        adminFetch<ApiListResponse<CountryDoc>>(
+          `/admin/documents/countries?sortLocale=${encodeURIComponent(editorLocale)}`,
+          token,
+        ),
+      ]);
+      setItems((empRes.data ?? []) as EmployerDoc[]);
+      setCountries((cRes.data ?? []) as CountryDoc[]);
     } catch (e: unknown) {
       setLoadError(e instanceof Error ? e.message : String(e));
     }
@@ -77,10 +104,18 @@ export default function EmployerListView() {
     setDraftBadge(row.badge ?? "NONE");
     setDraftImage(row.profileImageUrl ?? "");
     setDraftOccupation(row.occupation ?? "");
+    const rawCc = row.countryCode?.trim().toUpperCase() ?? "";
+    setDraftCountryCode(
+      rawCc && rawCc !== CMS_DEFAULT_COUNTRY_KEY ? rawCc : "",
+    );
   }, []);
 
   const saveEdit = useCallback(async () => {
     if (!editRow) return;
+    if (!draftCountryCode.trim()) {
+      setLoadError(t("users.employer.edit.needCountry"));
+      return;
+    }
     const token = await getIdToken();
     if (!token) return;
     setBusy(true);
@@ -96,6 +131,7 @@ export default function EmployerListView() {
             notes: draftNotes,
             joinedAt: draftJoined.trim(),
             badge: draftBadge,
+            countryCode: draftCountryCode,
             profileImageUrl: draftImage.trim(),
             occupation: draftOccupation.trim(),
           }),
@@ -113,6 +149,7 @@ export default function EmployerListView() {
     draftBadge,
     draftCompany,
     draftContact,
+    draftCountryCode,
     draftImage,
     draftJoined,
     draftNotes,
@@ -120,6 +157,7 @@ export default function EmployerListView() {
     editRow,
     getIdToken,
     load,
+    t,
   ]);
 
   const removeRow = useCallback(
@@ -176,6 +214,29 @@ export default function EmployerListView() {
           cell: (info) => (
             <span className="font-medium">{info.getValue() ?? "—"}</span>
           ),
+        }),
+        col.accessor("countryCode", {
+          id: "country",
+          header: ({column}) => (
+            <SortableHeader column={column}>
+              {t("users.employer.colCountry")}
+            </SortableHeader>
+          ),
+          cell: ({row}) => {
+            const cc = row.original.countryCode?.trim().toUpperCase() ?? "";
+            if (!cc || cc === CMS_DEFAULT_COUNTRY_KEY) {
+              return (
+                <span className="text-xs text-gray-400">
+                  {t("users.profile.countryLegacy")}
+                </span>
+              );
+            }
+            return (
+              <span className="text-sm text-gray-700">
+                {countryLabelByCode.get(cc) ?? cc}
+              </span>
+            );
+          },
         }),
         col.accessor("occupation", {
           id: "occupation",
@@ -303,7 +364,7 @@ export default function EmployerListView() {
           ),
         }),
       ] as ColumnDef<EmployerDoc, unknown>[],
-    [busy, openEdit, removeRow, t],
+    [busy, countryLabelByCode, openEdit, removeRow, t],
   );
 
   return (
@@ -323,7 +384,7 @@ export default function EmployerListView() {
         columns={columns}
         getRowId={(row) => row.id}
         emptyLabel={t("users.employer.list.empty")}
-        minTableWidth={1040}
+        minTableWidth={1180}
       />
       <EditSheet
         open={!!editRow}
@@ -354,9 +415,14 @@ export default function EmployerListView() {
                 <button
                   type="button"
                   disabled={busy}
-                  onClick={() =>
-                    setEditStep((s) => Math.min(2, s + 1))
-                  }
+                  onClick={() => {
+                    if (editStep === 0 && !draftCountryCode.trim()) {
+                      setLoadError(t("users.employer.edit.needCountry"));
+                      return;
+                    }
+                    setLoadError(null);
+                    setEditStep((s) => Math.min(2, s + 1));
+                  }}
                   className="rounded-lg bg-primary px-3 py-2 text-sm font-medium text-white hover:bg-primary-hover disabled:opacity-50"
                 >
                   {t("users.wizard.next")}
@@ -404,6 +470,16 @@ export default function EmployerListView() {
                   value={draftOccupation}
                   onChange={(e) => setDraftOccupation(e.target.value)}
                   className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary/70 focus:ring-2 focus:ring-primary/15 focus:outline-none"
+                />
+              </label>
+              <label className="block text-sm text-gray-700">
+                {t("users.employer.colCountry")} *
+                <CountryCodeSelect
+                  countries={countries}
+                  editorLocale={editorLocale}
+                  value={draftCountryCode}
+                  onChange={setDraftCountryCode}
+                  disabled={busy}
                 />
               </label>
             </>

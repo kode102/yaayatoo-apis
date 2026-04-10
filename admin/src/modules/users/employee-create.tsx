@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import {useRouter} from "next/navigation";
-import {useCallback, useEffect, useState} from "react";
+import {useCallback, useEffect, useRef, useState} from "react";
+import {CountryCodeSelect} from "@/components/country-code-select";
 import {EmployeeProfileImageField} from "@/components/employee-profile-image-field";
 import {FirebaseUidSearchSelect} from "@/components/firebase-uid-search-select";
 import {
@@ -16,7 +17,8 @@ import {useUiLocale} from "@/contexts/ui-locale-context";
 import {adminFetch, type ApiDocResponse, type ApiListResponse} from "@/lib/api";
 import {EMPLOYEE_STATUS_OPTIONS} from "@/lib/employee-status-options";
 import {yearsOfExperienceFromStartDate} from "@/lib/employee-display";
-import type {ServiceDoc} from "@/lib/i18n-types";
+import type {CountryDoc, ServiceDoc} from "@/lib/i18n-types";
+import {serviceAvailableForCountry} from "@/lib/service-country-scope";
 import type {
   EmployeeBadge,
   EmployeeDoc,
@@ -38,8 +40,11 @@ export default function EmployeeCreateView() {
   const [profileImageUrl, setProfileImageUrl] = useState("");
   const [offeredServiceIds, setOfferedServiceIds] = useState<string[]>([]);
   const [services, setServices] = useState<ServiceDoc[]>([]);
+  const [countries, setCountries] = useState<CountryDoc[]>([]);
+  const [countryCode, setCountryCode] = useState("");
   const [loadError, setLoadError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const prevCountryRef = useRef<string | undefined>(undefined);
 
   const loadServices = useCallback(async () => {
     const token = await getIdToken();
@@ -55,15 +60,55 @@ export default function EmployeeCreateView() {
     }
   }, [editorLocale, getIdToken]);
 
+  const loadCountries = useCallback(async () => {
+    const token = await getIdToken();
+    if (!token) return;
+    try {
+      const res = await adminFetch<ApiListResponse<CountryDoc>>(
+        `/admin/documents/countries?sortLocale=${encodeURIComponent(editorLocale)}`,
+        token,
+      );
+      setCountries((res.data ?? []) as CountryDoc[]);
+    } catch {
+      setCountries([]);
+    }
+  }, [editorLocale, getIdToken]);
+
   useEffect(() => {
     void loadServices();
-  }, [loadServices]);
+    void loadCountries();
+  }, [loadServices, loadCountries]);
+
+  useEffect(() => {
+    if (!countryCode) {
+      prevCountryRef.current = countryCode;
+      return;
+    }
+    if (prevCountryRef.current === undefined) {
+      prevCountryRef.current = countryCode;
+      return;
+    }
+    if (prevCountryRef.current === countryCode) return;
+    prevCountryRef.current = countryCode;
+    setOfferedServiceIds((prev) =>
+      prev.filter((id) => {
+        const s = services.find((x) => x.id === id);
+        return (
+          !!s && serviceAvailableForCountry(s.translations, countryCode)
+        );
+      }),
+    );
+  }, [countryCode, services]);
 
   const expPreview = yearsOfExperienceFromStartDate(startedWorkingAt);
 
   function goNext() {
     if (step === 0 && !firebaseUid.trim()) {
       setLoadError(t("users.employee.create.needUid"));
+      return;
+    }
+    if (step === 0 && !countryCode.trim()) {
+      setLoadError(t("users.employee.create.needCountry"));
       return;
     }
     setLoadError(null);
@@ -79,6 +124,11 @@ export default function EmployeeCreateView() {
     const uid = firebaseUid.trim();
     if (!uid) {
       setLoadError(t("users.employee.create.needUid"));
+      setStep(0);
+      return;
+    }
+    if (!countryCode.trim()) {
+      setLoadError(t("users.employee.create.needCountry"));
       setStep(0);
       return;
     }
@@ -102,6 +152,7 @@ export default function EmployeeCreateView() {
             startedWorkingAt: startedWorkingAt.trim() || undefined,
             badge,
             status,
+            countryCode,
             profileImageUrl: profileImageUrl.trim(),
             offeredServiceIds,
           }),
@@ -146,6 +197,16 @@ export default function EmployeeCreateView() {
                 <FirebaseUidSearchSelect
                   value={firebaseUid}
                   onChange={setFirebaseUid}
+                  disabled={busy}
+                />
+              </label>
+              <label className="block text-sm text-gray-700">
+                {t("users.employee.colCountry")} *
+                <CountryCodeSelect
+                  countries={countries}
+                  editorLocale={editorLocale}
+                  value={countryCode}
+                  onChange={setCountryCode}
                   disabled={busy}
                 />
               </label>
@@ -217,6 +278,7 @@ export default function EmployeeCreateView() {
               <EmployeeServicesOfferedField
                 services={services}
                 editorLocale={editorLocale}
+                profileCountryCode={countryCode}
                 selectedIds={offeredServiceIds}
                 onChange={setOfferedServiceIds}
                 disabled={busy}
