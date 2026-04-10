@@ -57,6 +57,7 @@ const CMS_TRANSLATABLE_FIELDS = [
   "bannerAverageRating",
   "bannerTrustCount",
   "bannerTrustLabel",
+  "statRows",
 ] as const;
 
 /**

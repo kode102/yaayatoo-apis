@@ -173,6 +173,11 @@ const CMS_FIELDS = [
   "bannerAverageRating",
   "bannerTrustCount",
   "bannerTrustLabel",
+  /**
+   * KPIs stats (home) : une ligne = libellé|valeur
+   * (ex. Familles satisfaites|+675).
+   */
+  "statRows",
 ] as const;
 
 /**

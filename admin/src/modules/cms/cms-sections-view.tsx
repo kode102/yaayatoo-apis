@@ -56,11 +56,17 @@ type BannerLocaleDraft = {
   bannerTrustLabel: string;
 };
 
+type StatsLocaleDraft = {
+  name: string;
+  statRows: {label: string; value: string}[];
+};
+
 const SECTION_TYPES: {id: CmsSectionTypeId; labelKey: string}[] = [
   {id: "why_choose_us", labelKey: "cms.sectionType.whyChooseUs"},
   {id: "site_settings", labelKey: "cms.sectionType.siteSettings"},
   {id: "blog_section", labelKey: "cms.sectionType.blogSection"},
   {id: "banner", labelKey: "cms.sectionType.banner"},
+  {id: "stats", labelKey: "cms.sectionType.stats"},
 ];
 
 function emptySite(): SiteLocaleDraft {
@@ -209,6 +215,51 @@ function filledBanner(d: BannerLocaleDraft): boolean {
   return false;
 }
 
+function emptyStats(): StatsLocaleDraft {
+  return {
+    name: "",
+    statRows: [
+      {label: "", value: ""},
+      {label: "", value: ""},
+      {label: "", value: ""},
+      {label: "", value: ""},
+    ],
+  };
+}
+
+function statRowsToStored(rows: {label: string; value: string}[]): string {
+  return rows.map((r) => `${r.label}|${r.value}`).join("\n");
+}
+
+function statsFromBlock(
+  b: Record<string, unknown> | undefined,
+): StatsLocaleDraft {
+  const d = emptyStats();
+  if (!b) return d;
+  const raw = typeof b.statRows === "string" ? b.statRows : "";
+  if (!raw.trim()) {
+    return {...d, name: typeof b.name === "string" ? b.name : ""};
+  }
+  const lines = raw.split(/\r?\n/).map((l) => l.replace(/\r/g, ""));
+  const statRows = lines.map((line) => {
+    const i = line.indexOf("|");
+    if (i < 0) return {label: line.trim(), value: ""};
+    return {
+      label: line.slice(0, i).trim(),
+      value: line.slice(i + 1).trim(),
+    };
+  });
+  return {
+    name: typeof b.name === "string" ? b.name : "",
+    statRows: statRows.length > 0 ? statRows : emptyStats().statRows,
+  };
+}
+
+function filledStats(d: StatsLocaleDraft): boolean {
+  if (d.name.trim()) return true;
+  return d.statRows.some((r) => r.label.trim() || r.value.trim());
+}
+
 type WhyBulletFieldsetProps = {
   label: string;
   items: string[];
@@ -276,6 +327,94 @@ function WhyBulletFieldset({
   );
 }
 
+type StatKpiFieldsetProps = {
+  label: string;
+  hint?: string;
+  rows: {label: string; value: string}[];
+  onRowsChange: (next: {label: string; value: string}[]) => void;
+  addLabel: string;
+  removeLabel: string;
+  placeholderLabel: string;
+  placeholderValue: string;
+};
+
+function StatKpiFieldset({
+  label,
+  hint,
+  rows,
+  onRowsChange,
+  addLabel,
+  removeLabel,
+  placeholderLabel,
+  placeholderValue,
+}: StatKpiFieldsetProps) {
+  function updateRow(
+    index: number,
+    patch: Partial<{label: string; value: string}>,
+  ) {
+    const next = rows.map((r, i) => (i === index ? {...r, ...patch} : r));
+    onRowsChange(next);
+  }
+  function addRow() {
+    onRowsChange([...rows, {label: "", value: ""}]);
+  }
+  function removeRow(index: number) {
+    if (rows.length <= 1) {
+      onRowsChange([{label: "", value: ""}]);
+      return;
+    }
+    onRowsChange(rows.filter((_, i) => i !== index));
+  }
+
+  return (
+    <fieldset className="space-y-2">
+      <legend className="block text-sm font-medium text-gray-700">{label}</legend>
+      {hint ?
+        <p className="text-xs text-gray-500">{hint}</p>
+      : null}
+      <div className="space-y-2">
+        {rows.map((row, idx) => (
+          <div
+            key={idx}
+            className="flex flex-col gap-2 rounded-lg border border-gray-100 bg-gray-50/80 p-2 sm:flex-row sm:items-center"
+          >
+            <input
+              type="text"
+              value={row.label}
+              onChange={(e) => updateRow(idx, {label: e.target.value})}
+              placeholder={placeholderLabel}
+              className="min-w-0 flex-1 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-primary/70 focus:ring-2 focus:ring-primary/15 focus:outline-none"
+            />
+            <input
+              type="text"
+              value={row.value}
+              onChange={(e) => updateRow(idx, {value: e.target.value})}
+              placeholder={placeholderValue}
+              className="min-w-0 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-primary/70 focus:ring-2 focus:ring-primary/15 focus:outline-none sm:w-28"
+            />
+            <button
+              type="button"
+              onClick={() => removeRow(idx)}
+              className="shrink-0 rounded-lg border border-gray-200 bg-white px-2.5 py-2 text-sm leading-none text-gray-600 hover:bg-red-50 hover:text-red-700"
+              aria-label={removeLabel}
+              title={removeLabel}
+            >
+              ×
+            </button>
+          </div>
+        ))}
+      </div>
+      <button
+        type="button"
+        onClick={addRow}
+        className="mt-1 rounded-lg border border-dashed border-primary/40 bg-white px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/5"
+      >
+        {addLabel}
+      </button>
+    </fieldset>
+  );
+}
+
 export default function CmsSectionsView() {
   const {getIdToken} = useAuth();
   const {t} = useUiLocale();
@@ -304,6 +443,9 @@ export default function CmsSectionsView() {
   >({});
   const [bannerDraftsByCountry, setBannerDraftsByCountry] = useState<
     Record<string, Record<string, BannerLocaleDraft>>
+  >({});
+  const [statsDraftsByCountry, setStatsDraftsByCountry] = useState<
+    Record<string, Record<string, StatsLocaleDraft>>
   >({});
   const [active, setActive] = useState(true);
   const [registrationActive, setRegistrationActive] = useState(false);
@@ -391,6 +533,12 @@ export default function CmsSectionsView() {
     if (cType === "banner" && cSub === "why-choose-us") {
       setCSub("banner");
     }
+    if (
+      cType === "stats" &&
+      (cSub === "why-choose-us" || cSub === "banner")
+    ) {
+      setCSub("stats");
+    }
   }, [cType, cSub]);
 
   useEffect(() => {
@@ -399,6 +547,7 @@ export default function CmsSectionsView() {
       setWhyDraftsByCountry({});
       setBlogDraftsByCountry({});
       setBannerDraftsByCountry({});
+      setStatsDraftsByCountry({});
       setAssignNamespaceId("");
       return;
     }
@@ -406,6 +555,7 @@ export default function CmsSectionsView() {
     const nextWhy: Record<string, Record<string, WhyLocaleDraft>> = {};
     const nextBlog: Record<string, Record<string, BlogLocaleDraft>> = {};
     const nextBanner: Record<string, Record<string, BannerLocaleDraft>> = {};
+    const nextStats: Record<string, Record<string, StatsLocaleDraft>> = {};
     for (const country of sortedCountryCodes) {
       for (const code of sortedCodes) {
         const block = selected.translations?.[country]?.[code] as
@@ -415,16 +565,19 @@ export default function CmsSectionsView() {
         if (!nextWhy[country]) nextWhy[country] = {};
         if (!nextBlog[country]) nextBlog[country] = {};
         if (!nextBanner[country]) nextBanner[country] = {};
+        if (!nextStats[country]) nextStats[country] = {};
         nextSite[country][code] = siteFromBlock(block);
         nextWhy[country][code] = whyFromBlock(block);
         nextBlog[country][code] = blogFromBlock(block);
         nextBanner[country][code] = bannerFromBlock(block);
+        nextStats[country][code] = statsFromBlock(block);
       }
     }
     setSiteDraftsByCountry(nextSite);
     setWhyDraftsByCountry(nextWhy);
     setBlogDraftsByCountry(nextBlog);
     setBannerDraftsByCountry(nextBanner);
+    setStatsDraftsByCountry(nextStats);
     setActive(selected.active ?? true);
     setRegistrationActive(Boolean(selected.registrationActive));
     setVideoImageUrl(selected.videoImageUrl ?? "");
@@ -493,6 +646,21 @@ export default function CmsSectionsView() {
     [activeCountryCode, activeLocaleCode],
   );
 
+  const patchStats = useCallback(
+    (fn: (d: StatsLocaleDraft) => StatsLocaleDraft) => {
+      const c = activeCountryCode;
+      const loc = activeLocaleCode;
+      setStatsDraftsByCountry((p) => {
+        const cur = p[c]?.[loc] ?? emptyStats();
+        return {
+          ...p,
+          [c]: {...(p[c] ?? {}), [loc]: fn(cur)},
+        };
+      });
+    },
+    [activeCountryCode, activeLocaleCode],
+  );
+
   const grouped = useMemo(() => {
     const orphan: CmsSectionDoc[] = [];
     const byNs = new Map<string, CmsSectionDoc[]>();
@@ -530,6 +698,10 @@ export default function CmsSectionsView() {
           }
         } else if (kind === "banner") {
           if (filledBanner(bannerDraftsByCountry[country]?.[code] ?? emptyBanner())) {
+            filledPairs.push({country, locale: code});
+          }
+        } else if (kind === "stats") {
+          if (filledStats(statsDraftsByCountry[country]?.[code] ?? emptyStats())) {
             filledPairs.push({country, locale: code});
           }
         } else if (filledSite(siteDraftsByCountry[country]?.[code] ?? emptySite())) {
@@ -606,6 +778,17 @@ export default function CmsSectionsView() {
             bannerAverageRating: d.bannerAverageRating,
             bannerTrustCount: d.bannerTrustCount,
             bannerTrustLabel: d.bannerTrustLabel,
+          });
+        } else if (kind === "stats") {
+          const d = statsDraftsByCountry[country]?.[code] ?? emptyStats();
+          if (!d.name.trim()) {
+            setLoadError(t("cms.stats.errorNeedTitle"));
+            setSaving(false);
+            return;
+          }
+          Object.assign(body, {
+            name: d.name.trim(),
+            statRows: statRowsToStored(d.statRows),
           });
         } else {
           const d = siteDraftsByCountry[country]?.[code] ?? emptySite();
@@ -729,6 +912,9 @@ export default function CmsSectionsView() {
   const currentBanner =
     bannerDraftsByCountry[activeCountryCode]?.[activeLocaleCode] ??
     emptyBanner();
+  const currentStats =
+    statsDraftsByCountry[activeCountryCode]?.[activeLocaleCode] ??
+    emptyStats();
   const hasLocales = sortedCodes.length > 0;
 
   function tabFilledLocale(code: string): boolean {
@@ -743,6 +929,9 @@ export default function CmsSectionsView() {
     }
     if (k === "banner") {
       return filledBanner(bannerDraftsByCountry[c]?.[code] ?? emptyBanner());
+    }
+    if (k === "stats") {
+      return filledStats(statsDraftsByCountry[c]?.[code] ?? emptyStats());
     }
     return filledSite(siteDraftsByCountry[c]?.[code] ?? emptySite());
   }
@@ -759,6 +948,9 @@ export default function CmsSectionsView() {
       }
       if (k === "banner") {
         return filledBanner(bannerDraftsByCountry[cc]?.[loc] ?? emptyBanner());
+      }
+      if (k === "stats") {
+        return filledStats(statsDraftsByCountry[cc]?.[loc] ?? emptyStats());
       }
       return filledSite(siteDraftsByCountry[cc]?.[loc] ?? emptySite());
     });
@@ -1219,6 +1411,31 @@ export default function CmsSectionsView() {
                       className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
                     />
                   </label>
+                </div>
+              : sectionKind === "stats" ?
+                <div className="space-y-4">
+                  <label className="block text-sm text-gray-700">
+                    {t("cms.stats.fieldTitle")} *
+                    <input
+                      value={currentStats.name}
+                      onChange={(e) =>
+                        patchStats((cur) => ({...cur, name: e.target.value}))
+                      }
+                      className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                    />
+                  </label>
+                  <StatKpiFieldset
+                    label={t("cms.stats.fieldKpis")}
+                    hint={t("cms.stats.kpiHint")}
+                    rows={currentStats.statRows}
+                    onRowsChange={(next) =>
+                      patchStats((cur) => ({...cur, statRows: next}))
+                    }
+                    addLabel={t("cms.stats.addKpi")}
+                    removeLabel={t("cms.stats.removeKpi")}
+                    placeholderLabel={t("cms.stats.placeholderLabel")}
+                    placeholderValue={t("cms.stats.placeholderValue")}
+                  />
                 </div>
               : sectionKind === "banner" ?
                 <div className="space-y-4">
