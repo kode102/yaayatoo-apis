@@ -8,7 +8,11 @@ import {useEditorLocale} from "@/contexts/editor-locale-context";
 import {useUiLocale} from "@/contexts/ui-locale-context";
 import {adminFetch, type ApiDocResponse, type ApiListResponse} from "@/lib/api";
 import {pickRegionalSortLabel, type ServiceDoc} from "@/lib/i18n-types";
-import type {EmployerDoc, JobOfferDoc} from "@/lib/profile-doc-types";
+import type {
+  EmployeeDoc,
+  EmployerDoc,
+  JobOfferDoc,
+} from "@/lib/profile-doc-types";
 
 export default function JobOfferCreateView() {
   const {getIdToken} = useAuth();
@@ -16,8 +20,10 @@ export default function JobOfferCreateView() {
   const {t} = useUiLocale();
   const router = useRouter();
   const [employers, setEmployers] = useState<EmployerDoc[]>([]);
+  const [employees, setEmployees] = useState<EmployeeDoc[]>([]);
   const [services, setServices] = useState<ServiceDoc[]>([]);
   const [employerId, setEmployerId] = useState("");
+  const [employeeId, setEmployeeId] = useState("");
   const [jobTitle, setJobTitle] = useState("");
   const [serviceId, setServiceId] = useState("");
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -34,6 +40,15 @@ export default function JobOfferCreateView() {
     }
     return m;
   }, [employers]);
+
+  const employeeLabelById = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const w of employees) {
+      const label = (w.fullName ?? "").trim() || w.id;
+      m.set(w.id, label);
+    }
+    return m;
+  }, [employees]);
 
   const serviceLabelById = useMemo(() => {
     const m = new Map<string, string>();
@@ -62,13 +77,25 @@ export default function JobOfferCreateView() {
     });
   }, [serviceLabelById, services]);
 
+  const employeesSorted = useMemo(() => {
+    return [...employees].sort((a, b) => {
+      const la = employeeLabelById.get(a.id) ?? a.id;
+      const lb = employeeLabelById.get(b.id) ?? b.id;
+      return la.localeCompare(lb, undefined, {sensitivity: "base"});
+    });
+  }, [employeeLabelById, employees]);
+
   const loadRefs = useCallback(async () => {
     const token = await getIdToken();
     if (!token) return;
     try {
-      const [empRes, svcRes] = await Promise.all([
+      const [empRes, workRes, svcRes] = await Promise.all([
         adminFetch<ApiListResponse<EmployerDoc>>(
           `/admin/documents/employer?sortLocale=${encodeURIComponent(editorLocale)}`,
+          token,
+        ),
+        adminFetch<ApiListResponse<EmployeeDoc>>(
+          `/admin/documents/employee?sortLocale=${encodeURIComponent(editorLocale)}`,
           token,
         ),
         adminFetch<ApiListResponse<ServiceDoc>>(
@@ -77,9 +104,11 @@ export default function JobOfferCreateView() {
         ),
       ]);
       setEmployers((empRes.data ?? []) as EmployerDoc[]);
+      setEmployees((workRes.data ?? []) as EmployeeDoc[]);
       setServices((svcRes.data ?? []) as ServiceDoc[]);
     } catch {
       setEmployers([]);
+      setEmployees([]);
       setServices([]);
     }
   }, [editorLocale, getIdToken]);
@@ -94,9 +123,10 @@ export default function JobOfferCreateView() {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     const emp = employerId.trim();
+    const worker = employeeId.trim();
     const title = jobTitle.trim();
     const svc = serviceId.trim();
-    if (!emp || !title || !svc) {
+    if (!emp || !worker || !title || !svc) {
       setLoadError(t("jobs.form.needFields"));
       return;
     }
@@ -115,6 +145,7 @@ export default function JobOfferCreateView() {
           method: "POST",
           body: JSON.stringify({
             employerId: emp,
+            employeeId: worker,
             jobTitle: title,
             serviceId: svc,
           }),
@@ -159,6 +190,22 @@ export default function JobOfferCreateView() {
             {employersSorted.map((e) => (
               <option key={e.id} value={e.id}>
                 {employerLabelById.get(e.id) ?? e.id}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="block text-sm font-medium text-gray-700">
+          {t("jobs.field.employee")}
+          <select
+            required
+            className={inputCls}
+            value={employeeId}
+            onChange={(e) => setEmployeeId(e.target.value)}
+          >
+            <option value="">{t("jobs.field.employeePlaceholder")}</option>
+            {employeesSorted.map((w) => (
+              <option key={w.id} value={w.id}>
+                {employeeLabelById.get(w.id) ?? w.id}
               </option>
             ))}
           </select>

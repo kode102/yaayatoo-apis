@@ -482,17 +482,20 @@ function parseEmployerPost(body: Record<string, unknown>): {
  */
 function parseJobOfferPost(body: Record<string, unknown>): {
   employerId: string;
+  employeeId: string;
   jobTitle: string;
   serviceId: string;
 } | null {
   const employerId =
     typeof body.employerId === "string" ? body.employerId.trim() : "";
+  const employeeId =
+    typeof body.employeeId === "string" ? body.employeeId.trim() : "";
   const jobTitle =
     typeof body.jobTitle === "string" ? body.jobTitle.trim() : "";
   const serviceId =
     typeof body.serviceId === "string" ? body.serviceId.trim() : "";
-  if (!employerId || !jobTitle || !serviceId) return null;
-  return {employerId, jobTitle, serviceId};
+  if (!employerId || !employeeId || !jobTitle || !serviceId) return null;
+  return {employerId, employeeId, jobTitle, serviceId};
 }
 
 /**
@@ -501,12 +504,14 @@ function parseJobOfferPost(body: Record<string, unknown>): {
  * @return {number|null} Note ou null.
  */
 function parseReviewRating(v: unknown): number | null {
-  const n =
-    typeof v === "number" ?
-      v
-    : typeof v === "string" ?
-      parseFloat(v.replace(",", "."))
-    : NaN;
+  let n: number;
+  if (typeof v === "number") {
+    n = v;
+  } else if (typeof v === "string") {
+    n = parseFloat(v.replace(",", "."));
+  } else {
+    n = NaN;
+  }
   if (!Number.isFinite(n) || n < 0.5 || n > 5) return null;
   const stepped = Math.round(n * 2) / 2;
   if (stepped < 0.5 || stepped > 5) return null;
@@ -873,6 +878,9 @@ function buildPutPatch(
     }
     if (typeof body.serviceId === "string") {
       patch.serviceId = body.serviceId.trim();
+    }
+    if (typeof body.employeeId === "string") {
+      patch.employeeId = body.employeeId.trim();
     }
     const jobKeys = Object.keys(patch).filter((k) => k !== "updatedAt");
     if (jobKeys.length === 0) {
@@ -1429,7 +1437,8 @@ export function createAdminRouter(): express.Router {
           res.status(400).json({
             success: false,
             error:
-              "Champs invalides (employerId, jobTitle, serviceId requis)",
+              "Champs invalides : employerId, employeeId, " +
+              "jobTitle, serviceId requis",
           });
           return;
         }
@@ -1438,6 +1447,17 @@ export function createAdminRouter(): express.Router {
           res.status(400).json({
             success: false,
             error: "Employeur introuvable",
+          });
+          return;
+        }
+        const workerSnap = await db
+          .collection("employee")
+          .doc(v.employeeId)
+          .get();
+        if (!workerSnap.exists) {
+          res.status(400).json({
+            success: false,
+            error: "Employé introuvable",
           });
           return;
         }
@@ -1451,6 +1471,7 @@ export function createAdminRouter(): express.Router {
         }
         const ref = await db.collection("jobOffers").add({
           employerId: v.employerId,
+          employeeId: v.employeeId,
           jobTitle: v.jobTitle,
           serviceId: v.serviceId,
           createdAt: now,
@@ -1469,7 +1490,8 @@ export function createAdminRouter(): express.Router {
           res.status(400).json({
             success: false,
             error:
-              "Champs invalides (jobOfferId, rating 0,5–5, reviewText, reviewedAt requis)",
+              "Champs invalides : jobOfferId, rating (0,5–5), " +
+              "reviewText, reviewedAt requis",
           });
           return;
         }
@@ -1577,6 +1599,10 @@ export function createAdminRouter(): express.Router {
         built.patch.serviceId !== undefined ?
           String(built.patch.serviceId) :
           String(data.serviceId ?? "");
+      const employeeId =
+        built.patch.employeeId !== undefined ?
+          String(built.patch.employeeId) :
+          String(data.employeeId ?? "");
       if (
         built.patch.employerId !== undefined ||
         built.patch.serviceId !== undefined
@@ -1601,6 +1627,23 @@ export function createAdminRouter(): express.Router {
           res.status(400).json({
             success: false,
             error: "Service introuvable",
+          });
+          return;
+        }
+      }
+      if (built.patch.employeeId !== undefined) {
+        if (!employeeId.trim()) {
+          res.status(400).json({
+            success: false,
+            error: "employeeId requis",
+          });
+          return;
+        }
+        const wSnap = await db.collection("employee").doc(employeeId).get();
+        if (!wSnap.exists) {
+          res.status(400).json({
+            success: false,
+            error: "Employé introuvable",
           });
           return;
         }

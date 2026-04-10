@@ -50,6 +50,8 @@ export type JobOfferDoc = {
   id: string;
   /** Id document collection `employer` (= firebaseUid). */
   employerId: string;
+  /** Id document collection `employee` (= firebaseUid). */
+  employeeId?: string;
   jobTitle: string;
   /** Id document collection `services`. */
   serviceId: string;

@@ -16,6 +16,7 @@ import {
   getPublicServices,
 } from "./public/reference-data.js";
 import {getPublicUiDictionary} from "./public/ui-dictionary-public.js";
+import {getPublicJobReviews} from "./public/job-reviews-public.js";
 import {
   CMS_DEFAULT_COUNTRY,
   normCmsCountryCode,
@@ -253,6 +254,11 @@ app.post("/public/cms", (req, res) => {
  */
 app.get("/public/ui-dictionary", (req, res) => {
   void getPublicUiDictionary(req, res);
+});
+
+/** Avis publics jobReviews (filtre minRating) + employeur / employé. */
+app.get("/public/job-reviews", (req, res) => {
+  void getPublicJobReviews(req, res);
 });
 
 /** CRUD admin (Auth Firebase + option ADMIN_ALLOWED_EMAILS). */

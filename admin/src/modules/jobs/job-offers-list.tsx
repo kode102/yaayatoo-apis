@@ -11,7 +11,11 @@ import {useEditorLocale} from "@/contexts/editor-locale-context";
 import {useUiLocale} from "@/contexts/ui-locale-context";
 import {adminFetch, type ApiDocResponse, type ApiListResponse} from "@/lib/api";
 import {pickRegionalSortLabel, type ServiceDoc} from "@/lib/i18n-types";
-import type {EmployerDoc, JobOfferDoc} from "@/lib/profile-doc-types";
+import type {
+  EmployeeDoc,
+  EmployerDoc,
+  JobOfferDoc,
+} from "@/lib/profile-doc-types";
 
 const col = createColumnHelper<JobOfferDoc>();
 
@@ -21,11 +25,13 @@ export default function JobOffersListView() {
   const {t} = useUiLocale();
   const [items, setItems] = useState<JobOfferDoc[]>([]);
   const [employers, setEmployers] = useState<EmployerDoc[]>([]);
+  const [employees, setEmployees] = useState<EmployeeDoc[]>([]);
   const [services, setServices] = useState<ServiceDoc[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [editRow, setEditRow] = useState<JobOfferDoc | null>(null);
   const [draftEmployerId, setDraftEmployerId] = useState("");
+  const [draftEmployeeId, setDraftEmployeeId] = useState("");
   const [draftJobTitle, setDraftJobTitle] = useState("");
   const [draftServiceId, setDraftServiceId] = useState("");
 
@@ -40,6 +46,14 @@ export default function JobOffersListView() {
     }
     return m;
   }, [employers]);
+
+  const employeeLabelById = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const w of employees) {
+      m.set(w.id, (w.fullName ?? "").trim() || w.id);
+    }
+    return m;
+  }, [employees]);
 
   const serviceLabelById = useMemo(() => {
     const m = new Map<string, string>();
@@ -68,6 +82,14 @@ export default function JobOffersListView() {
     });
   }, [serviceLabelById, services]);
 
+  const employeesSorted = useMemo(() => {
+    return [...employees].sort((a, b) => {
+      const la = employeeLabelById.get(a.id) ?? a.id;
+      const lb = employeeLabelById.get(b.id) ?? b.id;
+      return la.localeCompare(lb, undefined, {sensitivity: "base"});
+    });
+  }, [employeeLabelById, employees]);
+
   const load = useCallback(async () => {
     const token = await getIdToken();
     if (!token) {
@@ -76,13 +98,17 @@ export default function JobOffersListView() {
     }
     setLoadError(null);
     try {
-      const [jobsRes, empRes, svcRes] = await Promise.all([
+      const [jobsRes, empRes, workRes, svcRes] = await Promise.all([
         adminFetch<ApiListResponse<JobOfferDoc>>(
           `/admin/documents/jobOffers?sortLocale=${encodeURIComponent(editorLocale)}`,
           token,
         ),
         adminFetch<ApiListResponse<EmployerDoc>>(
           `/admin/documents/employer?sortLocale=${encodeURIComponent(editorLocale)}`,
+          token,
+        ),
+        adminFetch<ApiListResponse<EmployeeDoc>>(
+          `/admin/documents/employee?sortLocale=${encodeURIComponent(editorLocale)}`,
           token,
         ),
         adminFetch<ApiListResponse<ServiceDoc>>(
@@ -92,6 +118,7 @@ export default function JobOffersListView() {
       ]);
       setItems((jobsRes.data ?? []) as JobOfferDoc[]);
       setEmployers((empRes.data ?? []) as EmployerDoc[]);
+      setEmployees((workRes.data ?? []) as EmployeeDoc[]);
       setServices((svcRes.data ?? []) as ServiceDoc[]);
     } catch (e: unknown) {
       setLoadError(e instanceof Error ? e.message : String(e));
@@ -110,6 +137,7 @@ export default function JobOffersListView() {
     setLoadError(null);
     setEditRow(row);
     setDraftEmployerId(row.employerId ?? "");
+    setDraftEmployeeId(row.employeeId ?? "");
     setDraftJobTitle(row.jobTitle ?? "");
     setDraftServiceId(row.serviceId ?? "");
   }, []);
@@ -117,9 +145,10 @@ export default function JobOffersListView() {
   const saveEdit = useCallback(async () => {
     if (!editRow) return;
     const emp = draftEmployerId.trim();
+    const worker = draftEmployeeId.trim();
     const title = draftJobTitle.trim();
     const svc = draftServiceId.trim();
-    if (!emp || !title || !svc) {
+    if (!emp || !worker || !title || !svc) {
       setLoadError(t("jobs.form.needFields"));
       return;
     }
@@ -135,6 +164,7 @@ export default function JobOffersListView() {
           method: "PUT",
           body: JSON.stringify({
             employerId: emp,
+            employeeId: worker,
             jobTitle: title,
             serviceId: svc,
           }),
@@ -148,6 +178,7 @@ export default function JobOffersListView() {
       setBusy(false);
     }
   }, [
+    draftEmployeeId,
     draftEmployerId,
     draftJobTitle,
     draftServiceId,
@@ -211,6 +242,23 @@ export default function JobOffersListView() {
                 row.original.employerId}
             </span>
           ),
+        }),
+        col.accessor("employeeId", {
+          id: "employee",
+          header: ({column}) => (
+            <SortableHeader column={column}>
+              {t("jobs.col.employee")}
+            </SortableHeader>
+          ),
+          cell: ({row}) => {
+            const id = row.original.employeeId;
+            if (!id) return <span className="text-sm text-gray-400">—</span>;
+            return (
+              <span className="text-sm text-gray-700">
+                {employeeLabelById.get(id) ?? id}
+              </span>
+            );
+          },
         }),
         col.accessor("serviceId", {
           id: "service",
@@ -283,6 +331,7 @@ export default function JobOffersListView() {
       ] as ColumnDef<JobOfferDoc, unknown>[],
     [
       busy,
+      employeeLabelById,
       employerLabelById,
       openEdit,
       removeRow,
@@ -308,7 +357,7 @@ export default function JobOffersListView() {
         columns={columns}
         getRowId={(row) => row.id}
         emptyLabel={t("jobs.list.empty")}
-        minTableWidth={720}
+        minTableWidth={960}
       />
       <EditSheet
         open={!!editRow}
@@ -347,6 +396,21 @@ export default function JobOffersListView() {
               {employersSorted.map((e) => (
                 <option key={e.id} value={e.id}>
                   {employerLabelById.get(e.id) ?? e.id}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block text-sm font-medium text-gray-700">
+            {t("jobs.field.employee")}
+            <select
+              className={inputCls}
+              value={draftEmployeeId}
+              onChange={(e) => setDraftEmployeeId(e.target.value)}
+            >
+              <option value="">{t("jobs.field.employeePlaceholder")}</option>
+              {employeesSorted.map((w) => (
+                <option key={w.id} value={w.id}>
+                  {employeeLabelById.get(w.id) ?? w.id}
                 </option>
               ))}
             </select>
