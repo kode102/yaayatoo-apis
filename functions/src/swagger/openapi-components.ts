@@ -204,6 +204,15 @@ export const openApiComponents = {
           description:
             "Champ interne `notes` du document employé (peut être vide)",
         },
+        homeAddress: {
+          type: "string",
+          description: "Adresse domicile (`address` Firestore employé)",
+        },
+        workType: {
+          type: "string",
+          enum: ["FULL_TIME", "PART_TIME"],
+          description: "Temps plein ou partiel (`workType` Firestore)",
+        },
       },
     },
     FirebaseAuthUser: {

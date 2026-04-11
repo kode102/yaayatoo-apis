@@ -7,6 +7,10 @@ import {CountryCodeSelect} from "@/components/country-code-select";
 import {EmployeeProfileImageField} from "@/components/employee-profile-image-field";
 import {FirebaseUidSearchSelect} from "@/components/firebase-uid-search-select";
 import {
+  EmployeeAddressMapField,
+  type EmployeeAddressValue,
+} from "@/components/employee-address-map-field";
+import {
   EMPLOYEE_BADGE_OPTIONS,
   EmployeeServicesOfferedField,
 } from "@/components/employee-services-offered-field";
@@ -23,6 +27,7 @@ import type {
   EmployeeBadge,
   EmployeeDoc,
   EmployeeStatus,
+  EmployeeWorkType,
 } from "@/lib/profile-doc-types";
 
 export default function EmployeeCreateView() {
@@ -38,8 +43,14 @@ export default function EmployeeCreateView() {
   const [dateOfBirth, setDateOfBirth] = useState("");
   const [badge, setBadge] = useState<EmployeeBadge>("NONE");
   const [status, setStatus] = useState<EmployeeStatus>("FREE");
+  const [workType, setWorkType] = useState<EmployeeWorkType>("FULL_TIME");
   const [profileImageUrl, setProfileImageUrl] = useState("");
   const [offeredServiceIds, setOfferedServiceIds] = useState<string[]>([]);
+  const [addressValue, setAddressValue] = useState<EmployeeAddressValue>({
+    address: "",
+    addressLat: null,
+    addressLng: null,
+  });
   const [services, setServices] = useState<ServiceDoc[]>([]);
   const [countries, setCountries] = useState<CountryDoc[]>([]);
   const [countryCode, setCountryCode] = useState("");
@@ -155,9 +166,18 @@ export default function EmployeeCreateView() {
             dateOfBirth: dateOfBirth.trim() || undefined,
             badge,
             status,
+            workType,
             countryCode,
             profileImageUrl: profileImageUrl.trim(),
             offeredServiceIds,
+            address: addressValue.address.trim(),
+            ...(addressValue.addressLat != null &&
+            addressValue.addressLng != null ?
+              {
+                addressLat: addressValue.addressLat,
+                addressLng: addressValue.addressLng,
+              }
+            : {}),
           }),
         },
       );
@@ -237,6 +257,23 @@ export default function EmployeeCreateView() {
                   ))}
                 </select>
               </label>
+              <label className="block text-sm text-gray-700">
+                {t("users.employee.workType")}
+                <select
+                  value={workType}
+                  onChange={(e) =>
+                    setWorkType(e.target.value as EmployeeWorkType)
+                  }
+                  className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary/70 focus:ring-2 focus:ring-primary/15 focus:outline-none"
+                >
+                  <option value="FULL_TIME">
+                    {t("users.employee.workTypeFullTime")}
+                  </option>
+                  <option value="PART_TIME">
+                    {t("users.employee.workTypePartTime")}
+                  </option>
+                </select>
+              </label>
             </>
           : step === 1 ?
             <>
@@ -300,6 +337,24 @@ export default function EmployeeCreateView() {
                 onChange={setOfferedServiceIds}
                 disabled={busy}
               />
+              <div className="border-t border-gray-100 pt-4">
+                <EmployeeAddressMapField
+                  key={firebaseUid.trim() || "new-employee"}
+                  value={addressValue}
+                  onChange={setAddressValue}
+                  disabled={busy}
+                  labels={{
+                    addressLabel: t("users.employee.addressLabel"),
+                    searchPlaceholder: t(
+                      "users.employee.addressSearchPlaceholder",
+                    ),
+                    mapHint: t("users.employee.addressMapHint"),
+                    missingKey: t("users.employee.addressMissingKey"),
+                    loadError: t("users.employee.addressLoadError"),
+                    clear: t("users.employee.addressClear"),
+                  }}
+                />
+              </div>
             </>
           : <>
               <label className="block text-sm text-gray-700">

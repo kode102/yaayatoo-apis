@@ -272,6 +272,9 @@ export async function getPublicHomeProfiles(
       const fullName = String(emp.fullName ?? "").trim() || id;
       const employeeSlug = publicEmployeeSlug(id, fullName);
 
+      const workRaw = String(emp.workType ?? "FULL_TIME").trim().toUpperCase();
+      const workType = workRaw === "PART_TIME" ? "PART_TIME" : "FULL_TIME";
+
       return {
         id,
         fullName,
@@ -285,6 +288,8 @@ export async function getPublicHomeProfiles(
         totalReviews,
         averageRating,
         employeeNote,
+        homeAddress: String(emp.address ?? "").trim(),
+        workType,
       };
     });
 

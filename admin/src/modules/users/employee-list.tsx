@@ -5,6 +5,10 @@ import {useCallback, useEffect, useMemo, useRef, useState} from "react";
 import {CountryCodeSelect} from "@/components/country-code-select";
 import {EmployeeProfileImageField} from "@/components/employee-profile-image-field";
 import {
+  EmployeeAddressMapField,
+  type EmployeeAddressValue,
+} from "@/components/employee-address-map-field";
+import {
   EMPLOYEE_BADGE_OPTIONS,
   EmployeeServicesOfferedField,
 } from "@/components/employee-services-offered-field";
@@ -33,6 +37,7 @@ import type {
   EmployeeBadge,
   EmployeeDoc,
   EmployeeStatus,
+  EmployeeWorkType,
 } from "@/lib/profile-doc-types";
 
 const col = createColumnHelper<EmployeeDoc>();
@@ -80,9 +85,16 @@ export default function EmployeeListView() {
   const [draftDateOfBirth, setDraftDateOfBirth] = useState("");
   const [draftBadge, setDraftBadge] = useState<EmployeeBadge>("NONE");
   const [draftStatus, setDraftStatus] = useState<EmployeeStatus>("FREE");
+  const [draftWorkType, setDraftWorkType] =
+    useState<EmployeeWorkType>("FULL_TIME");
   const [draftImage, setDraftImage] = useState("");
   const [draftServiceIds, setDraftServiceIds] = useState<string[]>([]);
   const [draftCountryCode, setDraftCountryCode] = useState("");
+  const [draftAddress, setDraftAddress] = useState<EmployeeAddressValue>({
+    address: "",
+    addressLat: null,
+    addressLng: null,
+  });
   const prevDraftCountryRef = useRef<string | undefined>(undefined);
 
   const serviceLabelById = useMemo(() => {
@@ -180,6 +192,8 @@ export default function EmployeeListView() {
     setDraftDateOfBirth(row.dateOfBirth ?? "");
     setDraftBadge(row.badge ?? "NONE");
     setDraftStatus(employeeStatusOrDefault(row.status));
+    const wt = String(row.workType ?? "FULL_TIME").trim().toUpperCase();
+    setDraftWorkType(wt === "PART_TIME" ? "PART_TIME" : "FULL_TIME");
     setDraftImage(row.profileImageUrl ?? "");
     setDraftServiceIds(
       Array.isArray(row.offeredServiceIds) ? [...row.offeredServiceIds] : [],
@@ -188,6 +202,17 @@ export default function EmployeeListView() {
     setDraftCountryCode(
       rawCc && rawCc !== CMS_DEFAULT_COUNTRY_KEY ? rawCc : "",
     );
+    setDraftAddress({
+      address: typeof row.address === "string" ? row.address : "",
+      addressLat:
+        typeof row.addressLat === "number" && Number.isFinite(row.addressLat) ?
+          row.addressLat
+        : null,
+      addressLng:
+        typeof row.addressLng === "number" && Number.isFinite(row.addressLng) ?
+          row.addressLng
+        : null,
+    });
   }, []);
 
   const saveEdit = useCallback(async () => {
@@ -212,9 +237,13 @@ export default function EmployeeListView() {
             dateOfBirth: draftDateOfBirth.trim(),
             badge: draftBadge,
             status: draftStatus,
+            workType: draftWorkType,
             countryCode: draftCountryCode,
             profileImageUrl: draftImage.trim(),
             offeredServiceIds: draftServiceIds,
+            address: draftAddress.address.trim(),
+            addressLat: draftAddress.addressLat,
+            addressLng: draftAddress.addressLng,
           }),
         },
       );
@@ -229,11 +258,13 @@ export default function EmployeeListView() {
   }, [
     draftBadge,
     draftStatus,
+    draftWorkType,
     draftCountryCode,
     draftImage,
     draftName,
     draftNotes,
     draftServiceIds,
+    draftAddress,
     draftStarted,
     draftDateOfBirth,
     editRow,
@@ -609,6 +640,23 @@ export default function EmployeeListView() {
                   ))}
                 </select>
               </label>
+              <label className="block text-sm text-gray-700">
+                {t("users.employee.workType")}
+                <select
+                  value={draftWorkType}
+                  onChange={(e) =>
+                    setDraftWorkType(e.target.value as EmployeeWorkType)
+                  }
+                  className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary/70 focus:ring-2 focus:ring-primary/15 focus:outline-none"
+                >
+                  <option value="FULL_TIME">
+                    {t("users.employee.workTypeFullTime")}
+                  </option>
+                  <option value="PART_TIME">
+                    {t("users.employee.workTypePartTime")}
+                  </option>
+                </select>
+              </label>
             </>
           : editStep === 1 ?
             <>
@@ -674,6 +722,24 @@ export default function EmployeeListView() {
                 onChange={setDraftServiceIds}
                 disabled={busy}
               />
+              <div className="border-t border-gray-100 pt-4">
+                <EmployeeAddressMapField
+                  key={editRow?.id ?? "edit"}
+                  value={draftAddress}
+                  onChange={setDraftAddress}
+                  disabled={busy}
+                  labels={{
+                    addressLabel: t("users.employee.addressLabel"),
+                    searchPlaceholder: t(
+                      "users.employee.addressSearchPlaceholder",
+                    ),
+                    mapHint: t("users.employee.addressMapHint"),
+                    missingKey: t("users.employee.addressMissingKey"),
+                    loadError: t("users.employee.addressLoadError"),
+                    clear: t("users.employee.addressClear"),
+                  }}
+                />
+              </div>
             </>
           : <label className="block text-sm text-gray-700">
               {t("users.employee.colNotes")}

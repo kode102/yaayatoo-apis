@@ -4,6 +4,9 @@ export type EmployeeBadge = "NONE" | "BLUE" | "GREEN" | "YELLOW";
 /** Disponibilité / statut contrat employé (Firestore `status`). */
 export type EmployeeStatus = "FREE" | "BUSY" | "BLOCKED";
 
+/** Temps de travail souhaité / affiché (Firestore `workType`). */
+export type EmployeeWorkType = "FULL_TIME" | "PART_TIME";
+
 /** Document Firestore collection `employee` (id = firebaseUid). */
 export type EmployeeDoc = {
   id: string;
@@ -19,9 +22,17 @@ export type EmployeeDoc = {
   badge?: EmployeeBadge;
   /** Disponibilité (défaut API / affichage : FREE si absent en base). */
   status?: EmployeeStatus;
+  /** Temps plein ou partiel (défaut FULL_TIME si absent). */
+  workType?: EmployeeWorkType;
   profileImageUrl?: string;
   /** Ids documents collection `services`. */
   offeredServiceIds?: string[];
+  /** Adresse affichée (ex. libellé Places). */
+  address?: string;
+  /** Latitude WGS84 (Places / carte). */
+  addressLat?: number;
+  /** Longitude WGS84. */
+  addressLng?: number;
   createdAt?: string;
   updatedAt?: string;
 };

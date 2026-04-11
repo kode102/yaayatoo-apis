@@ -708,7 +708,8 @@ export const openApiPaths = {
         "dans chaque groupe. `totalReviews` et `averageRating` agrègent les " +
         "avis dont l’offre a cet employé en `employeeId`. `employeeNote` " +
         "expose le champ `notes` du document employé. `employeeSlug` " +
-        "(nom + suffixe numérique) sert de segment d’URL employé.",
+        "(nom + suffixe numérique) sert de segment d’URL employé. " +
+        "`homeAddress` = `address`, `workType` = FULL_TIME ou PART_TIME.",
       parameters: [
         localeQuery,
         countryQuery,

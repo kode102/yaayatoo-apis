@@ -271,6 +271,21 @@ function normalizeEmployeeStatus(v: unknown): EmployeeStatus {
   return "FREE";
 }
 
+/** Temps de travail affiché (Firestore `workType`). */
+const EMPLOYEE_WORK_TYPES = new Set(["FULL_TIME", "PART_TIME"]);
+
+type EmployeeWorkType = "FULL_TIME" | "PART_TIME";
+
+/**
+ * @param {unknown} v Valeur brute.
+ * @return {EmployeeWorkType} Temps plein ou partiel.
+ */
+function normalizeEmployeeWorkType(v: unknown): EmployeeWorkType {
+  const s = String(v ?? "FULL_TIME").trim().toUpperCase();
+  if (EMPLOYEE_WORK_TYPES.has(s)) return s as EmployeeWorkType;
+  return "FULL_TIME";
+}
+
 /** Badges profil employeur (Firestore `badge`). */
 const EMPLOYER_BADGES = new Set(["NONE", "TRUSTED"]);
 
@@ -390,6 +405,38 @@ async function validateEmployeeOfferedServicesForCountry(
  * @param {Record<string, unknown>} body JSON.
  * @return {object|null} Payload ou null.
  */
+/**
+ * Adresse texte + coordonnées optionnelles (profil employé).
+ * @param {Record<string, unknown>} body Corps JSON.
+ * @return {{ address: string; addressLat?: number; addressLng?: number }}
+ */
+function parseEmployeeAddressPayload(body: Record<string, unknown>): {
+  address: string;
+  addressLat?: number;
+  addressLng?: number;
+} {
+  const address =
+    typeof body.address === "string" ? body.address.trim() : "";
+  let addressLat: number | undefined;
+  let addressLng: number | undefined;
+  const latRaw = body.addressLat;
+  const lngRaw = body.addressLng;
+  if (
+    typeof latRaw === "number" &&
+    Number.isFinite(latRaw) &&
+    typeof lngRaw === "number" &&
+    Number.isFinite(lngRaw) &&
+    latRaw >= -90 &&
+    latRaw <= 90 &&
+    lngRaw >= -180 &&
+    lngRaw <= 180
+  ) {
+    addressLat = latRaw;
+    addressLng = lngRaw;
+  }
+  return {address, addressLat, addressLng};
+}
+
 function parseEmployeePost(body: Record<string, unknown>): {
   firebaseUid: string;
   fullName: string;
@@ -401,6 +448,10 @@ function parseEmployeePost(body: Record<string, unknown>): {
   countryCode: string;
   profileImageUrl: string;
   offeredServiceIds: string[];
+  address: string;
+  addressLat?: number;
+  addressLng?: number;
+  workType: EmployeeWorkType;
 } | null {
   const firebaseUid =
     typeof body.firebaseUid === "string" ? body.firebaseUid.trim() : "";
@@ -418,6 +469,8 @@ function parseEmployeePost(body: Record<string, unknown>): {
   }
   const countryCode = normCmsCountryCode(String(body.countryCode ?? ""));
   const offeredServiceIds = parseEmployeeOfferedServiceIds(body);
+  const addr = parseEmployeeAddressPayload(body);
+  const workType = normalizeEmployeeWorkType(body.workType);
   return {
     firebaseUid,
     fullName,
@@ -429,6 +482,10 @@ function parseEmployeePost(body: Record<string, unknown>): {
     countryCode,
     profileImageUrl,
     offeredServiceIds,
+    address: addr.address,
+    addressLat: addr.addressLat,
+    addressLng: addr.addressLng,
+    workType,
   };
 }
 
@@ -791,6 +848,9 @@ function buildPutPatch(
       if (body.status !== undefined) {
         patch.status = normalizeEmployeeStatus(body.status);
       }
+      if (body.workType !== undefined) {
+        patch.workType = normalizeEmployeeWorkType(body.workType);
+      }
       if (typeof body.profileImageUrl === "string") {
         patch.profileImageUrl = body.profileImageUrl.trim();
       }
@@ -819,6 +879,65 @@ function buildPutPatch(
           };
         }
         patch.countryCode = c;
+      }
+      if (body.address !== undefined) {
+        if (typeof body.address !== "string") {
+          return {
+            patch: {},
+            error: "address doit être une chaîne",
+          };
+        }
+        const addrTrim = body.address.trim();
+        patch.address = addrTrim;
+        if (!addrTrim) {
+          // eslint-disable-next-line new-cap -- FieldValue.delete()
+          patch.addressLat = FieldValue.delete();
+          // eslint-disable-next-line new-cap -- FieldValue.delete()
+          patch.addressLng = FieldValue.delete();
+        }
+      }
+      const hasLatKey = Object.prototype.hasOwnProperty.call(
+        body,
+        "addressLat",
+      );
+      const hasLngKey = Object.prototype.hasOwnProperty.call(
+        body,
+        "addressLng",
+      );
+      if (hasLatKey || hasLngKey) {
+        if (!hasLatKey || !hasLngKey) {
+          return {
+            patch: {},
+            error: "addressLat et addressLng doivent être envoyés ensemble",
+          };
+        }
+        const latIn = body.addressLat;
+        const lngIn = body.addressLng;
+        if (latIn === null && lngIn === null) {
+          // eslint-disable-next-line new-cap -- FieldValue.delete()
+          patch.addressLat = FieldValue.delete();
+          // eslint-disable-next-line new-cap -- FieldValue.delete()
+          patch.addressLng = FieldValue.delete();
+        } else if (
+          typeof latIn === "number" &&
+          typeof lngIn === "number" &&
+          Number.isFinite(latIn) &&
+          Number.isFinite(lngIn) &&
+          latIn >= -90 &&
+          latIn <= 90 &&
+          lngIn >= -180 &&
+          lngIn <= 180
+        ) {
+          patch.addressLat = latIn;
+          patch.addressLng = lngIn;
+        } else {
+          return {
+            patch: {},
+            error:
+              "addressLat et addressLng : deux nombres finis " +
+              "dans les bornes, ou null tous les deux",
+          };
+        }
       }
     } else {
       if (typeof body.companyName === "string") {
@@ -1385,12 +1504,18 @@ export function createAdminRouter(): express.Router {
           notes: v.notes,
           badge: v.badge,
           status: v.status,
+          workType: v.workType,
           countryCode: v.countryCode,
           profileImageUrl: v.profileImageUrl,
           offeredServiceIds: v.offeredServiceIds,
+          address: v.address,
           createdAt: now,
           updatedAt: now,
         };
+        if (v.addressLat !== undefined && v.addressLng !== undefined) {
+          empDoc.addressLat = v.addressLat;
+          empDoc.addressLng = v.addressLng;
+        }
         if (v.startedWorkingAt) {
           empDoc.startedWorkingAt = v.startedWorkingAt;
         }

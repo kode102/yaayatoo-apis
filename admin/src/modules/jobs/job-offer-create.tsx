@@ -15,6 +15,18 @@ import type {
   JobOfferDoc,
 } from "@/lib/profile-doc-types";
 
+function employeeOffersService(
+  emp: EmployeeDoc,
+  serviceId: string,
+): boolean {
+  const sid = serviceId.trim();
+  if (!sid) return false;
+  const ids = Array.isArray(emp.offeredServiceIds) ?
+    emp.offeredServiceIds
+  : [];
+  return ids.map(String).includes(sid);
+}
+
 export default function JobOfferCreateView() {
   const {getIdToken} = useAuth();
   const {editorLocale} = useEditorLocale();
@@ -78,13 +90,30 @@ export default function JobOfferCreateView() {
     });
   }, [serviceLabelById, services]);
 
+  /** Employés dont `offeredServiceIds` contient le service choisi. */
+  const employeesForSelectedService = useMemo(() => {
+    const sid = serviceId.trim();
+    if (!sid) return [];
+    return employees.filter((w) => employeeOffersService(w, sid));
+  }, [employees, serviceId]);
+
   const employeesSorted = useMemo(() => {
-    return [...employees].sort((a, b) => {
+    return [...employeesForSelectedService].sort((a, b) => {
       const la = employeeLabelById.get(a.id) ?? a.id;
       const lb = employeeLabelById.get(b.id) ?? b.id;
       return la.localeCompare(lb, undefined, {sensitivity: "base"});
     });
-  }, [employeeLabelById, employees]);
+  }, [employeeLabelById, employeesForSelectedService]);
+
+  useEffect(() => {
+    const sid = serviceId.trim();
+    if (!sid) {
+      setEmployeeId("");
+      return;
+    }
+    const ok = employeesForSelectedService.some((w) => w.id === employeeId);
+    if (!ok) setEmployeeId("");
+  }, [serviceId, employeesForSelectedService, employeeId]);
 
   const employerOptions = useMemo(
     () =>
@@ -151,6 +180,9 @@ export default function JobOfferCreateView() {
   const inputCls =
     "mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary/70 focus:ring-2 focus:ring-primary/15 focus:outline-none";
 
+  const serviceChosen = Boolean(serviceId.trim());
+  const employeeSelectDisabled = busy || !serviceChosen;
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     const emp = employerId.trim();
@@ -159,6 +191,11 @@ export default function JobOfferCreateView() {
     const svc = serviceId.trim();
     if (!emp || !worker || !title || !svc) {
       setLoadError(t("jobs.form.needFields"));
+      return;
+    }
+    const selectedWorker = employees.find((w) => w.id === worker);
+    if (!selectedWorker || !employeeOffersService(selectedWorker, svc)) {
+      setLoadError(t("jobs.form.employeeMustOfferService"));
       return;
     }
     const token = await getIdToken();
@@ -220,14 +257,33 @@ export default function JobOfferCreateView() {
           />
         </label>
         <label className="block text-sm font-medium text-gray-700">
+          {t("jobs.field.service")}
+          <SearchableRelationSelect
+            value={serviceId}
+            onChange={setServiceId}
+            options={serviceOptions}
+            emptyOptionLabel={t("jobs.field.servicePlaceholder")}
+            disabled={busy}
+          />
+        </label>
+        <label className="block text-sm font-medium text-gray-700">
           {t("jobs.field.employee")}
           <SearchableRelationSelect
             value={employeeId}
             onChange={setEmployeeId}
             options={employeeOptions}
-            emptyOptionLabel={t("jobs.field.employeePlaceholder")}
-            disabled={busy}
+            emptyOptionLabel={
+              serviceChosen ?
+                t("jobs.field.employeePlaceholder")
+              : t("jobs.field.employeeSelectServiceFirst")
+            }
+            disabled={employeeSelectDisabled}
           />
+          {serviceChosen && employeesForSelectedService.length === 0 ?
+            <p className="mt-1 text-xs text-amber-800">
+              {t("jobs.field.noEmployeesForService")}
+            </p>
+          : null}
         </label>
         <label className="block text-sm font-medium text-gray-700">
           {t("jobs.field.jobTitle")}
@@ -237,16 +293,6 @@ export default function JobOfferCreateView() {
             className={inputCls}
             value={jobTitle}
             onChange={(e) => setJobTitle(e.target.value)}
-          />
-        </label>
-        <label className="block text-sm font-medium text-gray-700">
-          {t("jobs.field.service")}
-          <SearchableRelationSelect
-            value={serviceId}
-            onChange={setServiceId}
-            options={serviceOptions}
-            emptyOptionLabel={t("jobs.field.servicePlaceholder")}
-            disabled={busy}
           />
         </label>
         <button
