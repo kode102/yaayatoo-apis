@@ -23,6 +23,7 @@ import {
   languageDocToNested,
   serviceDocToNested,
 } from "../admin/reference-nested.js";
+import {isPublicActiveDoc} from "../lib/public-active-doc.js";
 
 /**
  * Sérialise un document Firestore pour JSON (timestamps → ISO).
@@ -80,7 +81,7 @@ function normalizeOut(
  * @return {boolean} Inclure dans l’API publique.
  */
 function isActiveRow(row: Record<string, unknown>): boolean {
-  return row.active !== false;
+  return isPublicActiveDoc(row);
 }
 
 /**
@@ -142,20 +143,24 @@ async function loadReviewStatsByServiceId(): Promise<
   Map<string, {reviewCount: number; averageRating: number}>
   > {
   const [offersSnap, reviewsSnap] = await Promise.all([
-    db.collection("jobOffers").select("serviceId").get(),
-    db.collection("jobReviews").select("jobOfferId", "rating").get(),
+    db.collection("jobOffers").select("serviceId", "active").get(),
+    db.collection("jobReviews").select("jobOfferId", "rating", "active").get(),
   ]);
   const offerToService = new Map<string, string>();
   for (const d of offersSnap.docs) {
-    const sid = String(d.data().serviceId ?? "").trim();
+    const od = d.data();
+    if (!isPublicActiveDoc(od)) continue;
+    const sid = String(od.serviceId ?? "").trim();
     if (sid) offerToService.set(d.id, sid);
   }
   const acc = new Map<string, {count: number; sum: number}>();
   for (const d of reviewsSnap.docs) {
-    const oid = String(d.data().jobOfferId ?? "").trim();
+    const rd = d.data();
+    if (!isPublicActiveDoc(rd)) continue;
+    const oid = String(rd.jobOfferId ?? "").trim();
     const sid = offerToService.get(oid);
     if (!sid) continue;
-    const r = reviewRatingNum(d.data().rating);
+    const r = reviewRatingNum(rd.rating);
     if (r === null) continue;
     const cur = acc.get(sid) ?? {count: 0, sum: 0};
     cur.count += 1;

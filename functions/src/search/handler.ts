@@ -2,6 +2,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import type {Request, Response} from "express";
 import {db} from "../lib/admin.js";
+import {isPublicActiveDoc} from "../lib/public-active-doc.js";
 import {populateDocuments} from "./populate.js";
 import {
   buildRelationWeightMap,
@@ -122,10 +123,12 @@ export async function runSearchData(req: Request, res: Response): Promise<void> 
 
     const allDocuments: any[] = [];
     snapshot.forEach((doc) => {
-      allDocuments.push({
+      const row = {
         id: doc.id,
         ...doc.data(),
-      });
+      };
+      if (!isPublicActiveDoc(row)) return;
+      allDocuments.push(row);
     });
 
     if (

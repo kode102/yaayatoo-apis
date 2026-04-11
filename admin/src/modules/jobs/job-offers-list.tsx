@@ -219,6 +219,27 @@ export default function JobOffersListView() {
     t,
   ]);
 
+  const toggleOfferActive = useCallback(
+    async (row: JobOfferDoc) => {
+      const token = await getIdToken();
+      if (!token) return;
+      setBusy(true);
+      try {
+        await adminFetch<ApiDocResponse<JobOfferDoc>>(
+          `/admin/documents/jobOffers/${encodeURIComponent(row.id)}`,
+          token,
+          {method: "PUT", body: JSON.stringify({active: row.active === false})},
+        );
+        await load();
+      } catch (e: unknown) {
+        setLoadError(e instanceof Error ? e.message : String(e));
+      } finally {
+        setBusy(false);
+      }
+    },
+    [getIdToken, load],
+  );
+
   const removeRow = useCallback(
     async (id: string) => {
       if (!confirm(t("jobs.deleteConfirm"))) return;
@@ -305,6 +326,32 @@ export default function JobOffersListView() {
             </span>
           ),
         }),
+        col.accessor(
+          (row) => (row.active === false ? 0 : 1),
+          {
+            id: "active",
+            header: ({column}) => (
+              <SortableHeader column={column}>{t("common.active")}</SortableHeader>
+            ),
+            cell: ({row}) => (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void toggleOfferActive(row.original)}
+                className={`rounded-lg px-2.5 py-1 text-xs font-medium ${
+                  row.original.active === false ?
+                    "bg-gray-100 text-gray-500"
+                  : "bg-emerald-100 text-emerald-800"
+                }`}
+              >
+                {row.original.active === false ? t("common.no") : t("common.yes")}
+              </button>
+            ),
+            sortingFn: (a, b) =>
+              Number(a.original.active !== false) -
+              Number(b.original.active !== false),
+          },
+        ),
         col.display({
           id: "actions",
           enableSorting: false,
@@ -368,6 +415,7 @@ export default function JobOffersListView() {
       removeRow,
       serviceLabelById,
       t,
+      toggleOfferActive,
     ],
   );
 

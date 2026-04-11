@@ -5,6 +5,7 @@
 
 import type {Request, Response} from "express";
 import {db} from "../lib/admin.js";
+import {isPublicActiveDoc} from "../lib/public-active-doc.js";
 import {readUiDictionaryTranslations} from "../lib/ui-dictionary-shared.js";
 
 /**
@@ -23,6 +24,7 @@ export async function getPublicUiDictionary(
     const data: Record<string, Record<string, string>> = {};
     for (const d of snap.docs) {
       const raw = d.data() as Record<string, unknown>;
+      if (!isPublicActiveDoc(raw)) continue;
       data[d.id] = readUiDictionaryTranslations(raw);
     }
     res.status(200).json({success: true, data});

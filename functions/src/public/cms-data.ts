@@ -5,6 +5,7 @@
 import type {Request, Response} from "express";
 import type {DocumentData} from "firebase-admin/firestore";
 import {db} from "../lib/admin.js";
+import {isPublicActiveDoc} from "../lib/public-active-doc.js";
 import {
   flattenCmsForSort,
   normCmsCountryCode,
@@ -162,15 +163,6 @@ function chunkIds(ids: string[], size: number): string[][] {
 }
 
 /**
- * Document public si `active` n’est pas explicitement `false`.
- * @param {Record<string, unknown>} row Ligne normalisée.
- * @return {boolean} Inclure dans la réponse.
- */
-function isActiveRow(row: Record<string, unknown>): boolean {
-  return row.active !== false;
-}
-
-/**
  * GET ou POST /public/cms — sections CMS pour un ou plusieurs espaces.
  *
  * Query / corps JSON :
@@ -218,13 +210,13 @@ export async function getPublicCms(req: Request, res: Response): Promise<void> {
     const targetIds = new Set<string>();
     for (const id of idSet) {
       const data = byId.get(id);
-      if (data && data.active !== false) {
+      if (data && isPublicActiveDoc(data)) {
         targetIds.add(id);
       }
     }
     for (const k of keySet) {
       const found = byKey.get(k);
-      if (found && found.data.active !== false) {
+      if (found && isPublicActiveDoc(found.data)) {
         targetIds.add(found.id);
       }
     }
@@ -244,7 +236,7 @@ export async function getPublicCms(req: Request, res: Response): Promise<void> {
       const data = byId.get(nid);
       if (!data) continue;
       const row = normalizeCmsNamespace(nid, data);
-      if (!isActiveRow(row)) continue;
+      if (!isPublicActiveDoc(row)) continue;
       namespaces.push(row);
     }
 
@@ -257,7 +249,7 @@ export async function getPublicCms(req: Request, res: Response): Promise<void> {
         .get();
       for (const d of secSnap.docs) {
         const row = normalizeCmsSection(d.id, d.data());
-        if (!isActiveRow(row)) continue;
+        if (!isPublicActiveDoc(row)) continue;
         const nested = toNestedCmsTranslations(row.translations);
         row.resolvedTranslation = resolveCmsBlock(
           nested,

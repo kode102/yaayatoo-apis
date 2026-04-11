@@ -31,6 +31,7 @@ import {
   type TranslationsMap,
 } from "./i18n.js";
 import {attachFirebaseUserRoutes} from "./firebase-users-routes.js";
+import {isPublicActiveDoc} from "../lib/public-active-doc.js";
 
 const ALLOWED = new Set([
   "services",
@@ -391,6 +392,9 @@ async function validateEmployeeOfferedServicesForCountry(
     const snap = await db.collection("services").doc(id).get();
     if (!snap.exists) {
       return `Service inexistant (id: ${id})`;
+    }
+    if (!isPublicActiveDoc(snap.data()!)) {
+      return `Service désactivé ou indisponible (id: ${id})`;
     }
     if (cc !== CMS_DEFAULT_COUNTRY) {
       const nested = serviceDocToNested(snap.data()!);
@@ -1512,6 +1516,8 @@ export function createAdminRouter(): express.Router {
           res.status(400).json({success: false, error: svcErr});
           return;
         }
+        const activeEmp =
+          typeof body.active === "boolean" ? body.active : true;
         const empDoc: Record<string, unknown> = {
           firebaseUid: v.firebaseUid,
           fullName: v.fullName,
@@ -1523,6 +1529,7 @@ export function createAdminRouter(): express.Router {
           profileImageUrl: v.profileImageUrl,
           offeredServiceIds: v.offeredServiceIds,
           address: v.address,
+          active: activeEmp,
           createdAt: now,
           updatedAt: now,
         };
@@ -1578,6 +1585,8 @@ export function createAdminRouter(): express.Router {
           });
           return;
         }
+        const activeEmpl =
+          typeof body.active === "boolean" ? body.active : true;
         const emplDoc: Record<string, unknown> = {
           firebaseUid: v.firebaseUid,
           companyName: v.companyName,
@@ -1587,6 +1596,7 @@ export function createAdminRouter(): express.Router {
           countryCode: v.countryCode,
           profileImageUrl: v.profileImageUrl,
           occupation: v.occupation,
+          active: activeEmpl,
           createdAt: now,
           updatedAt: now,
         };
@@ -1620,6 +1630,13 @@ export function createAdminRouter(): express.Router {
           });
           return;
         }
+        if (!isPublicActiveDoc(empSnap.data()!)) {
+          res.status(400).json({
+            success: false,
+            error: "Employeur désactivé",
+          });
+          return;
+        }
         const workerSnap = await db
           .collection("employee")
           .doc(v.employeeId)
@@ -1631,6 +1648,13 @@ export function createAdminRouter(): express.Router {
           });
           return;
         }
+        if (!isPublicActiveDoc(workerSnap.data()!)) {
+          res.status(400).json({
+            success: false,
+            error: "Employé désactivé",
+          });
+          return;
+        }
         const svcSnap = await db.collection("services").doc(v.serviceId).get();
         if (!svcSnap.exists) {
           res.status(400).json({
@@ -1639,11 +1663,21 @@ export function createAdminRouter(): express.Router {
           });
           return;
         }
+        if (!isPublicActiveDoc(svcSnap.data()!)) {
+          res.status(400).json({
+            success: false,
+            error: "Service désactivé",
+          });
+          return;
+        }
+        const activeOffer =
+          typeof body.active === "boolean" ? body.active : true;
         const ref = await db.collection("jobOffers").add({
           employerId: v.employerId,
           employeeId: v.employeeId,
           jobTitle: v.jobTitle,
           serviceId: v.serviceId,
+          active: activeOffer,
           createdAt: now,
           updatedAt: now,
         });
@@ -1676,11 +1710,21 @@ export function createAdminRouter(): express.Router {
           });
           return;
         }
+        if (!isPublicActiveDoc(offerSnap.data()!)) {
+          res.status(400).json({
+            success: false,
+            error: "Offre d’emploi désactivée",
+          });
+          return;
+        }
+        const activeReview =
+          typeof body.active === "boolean" ? body.active : true;
         const ref = await db.collection("jobReviews").add({
           jobOfferId: v.jobOfferId,
           rating: v.rating,
           reviewText: v.reviewText,
           reviewedAt: v.reviewedAt,
+          active: activeReview,
           createdAt: now,
           updatedAt: now,
         });
@@ -1792,11 +1836,25 @@ export function createAdminRouter(): express.Router {
           });
           return;
         }
+        if (!isPublicActiveDoc(eSnap.data()!)) {
+          res.status(400).json({
+            success: false,
+            error: "Employeur désactivé",
+          });
+          return;
+        }
         const sSnap = await db.collection("services").doc(serviceId).get();
         if (!sSnap.exists) {
           res.status(400).json({
             success: false,
             error: "Service introuvable",
+          });
+          return;
+        }
+        if (!isPublicActiveDoc(sSnap.data()!)) {
+          res.status(400).json({
+            success: false,
+            error: "Service désactivé",
           });
           return;
         }
@@ -1814,6 +1872,13 @@ export function createAdminRouter(): express.Router {
           res.status(400).json({
             success: false,
             error: "Employé introuvable",
+          });
+          return;
+        }
+        if (!isPublicActiveDoc(wSnap.data()!)) {
+          res.status(400).json({
+            success: false,
+            error: "Employé désactivé",
           });
           return;
         }
@@ -1839,6 +1904,13 @@ export function createAdminRouter(): express.Router {
           res.status(400).json({
             success: false,
             error: "Offre d’emploi introuvable",
+          });
+          return;
+        }
+        if (!isPublicActiveDoc(oSnap.data()!)) {
+          res.status(400).json({
+            success: false,
+            error: "Offre d’emploi désactivée",
           });
           return;
         }
@@ -1940,8 +2012,15 @@ export function createAdminRouter(): express.Router {
     const merged = {...prevMap, ...incoming};
     // eslint-disable-next-line new-cap -- FieldValue.serverTimestamp
     const now = FieldValue.serverTimestamp();
+    const activeUi =
+      typeof body.active === "boolean" ?
+        body.active :
+      typeof prev.active === "boolean" ?
+        prev.active :
+      true;
     const payload: Record<string, unknown> = {
       translations: merged,
+      active: activeUi,
       updatedAt: now,
     };
     if (!existing.exists) {

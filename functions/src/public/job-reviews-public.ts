@@ -5,6 +5,7 @@
 import type {Request, Response} from "express";
 import {Timestamp, type DocumentData} from "firebase-admin/firestore";
 import {db} from "../lib/admin.js";
+import {isPublicActiveDoc} from "../lib/public-active-doc.js";
 import {publicEmployeeSlug} from "./employee-slug.js";
 
 /** Réponse JSON pour une carte témoignage. */
@@ -152,6 +153,7 @@ export async function getPublicJobReviews(
     for (const doc of snap.docs) {
       if (cards.length >= limit) break;
       const r = doc.data() as DocumentData;
+      if (!isPublicActiveDoc(r)) continue;
       const rating = numRating(r.rating);
       if (rating === null || rating <= minRating) continue;
 
@@ -163,6 +165,7 @@ export async function getPublicJobReviews(
       const offerSnap = await db.collection("jobOffers").doc(jobOfferId).get();
       if (!offerSnap.exists) continue;
       const offer = offerSnap.data()!;
+      if (!isPublicActiveDoc(offer)) continue;
       const employerId = String(offer.employerId ?? "").trim();
       const employeeId = String(offer.employeeId ?? "").trim();
       const jobTitle = String(offer.jobTitle ?? "").trim();
@@ -174,20 +177,21 @@ export async function getPublicJobReviews(
       let reviewerBadge = "NONE";
       if (employerId) {
         const emSnap = await db.collection("employer").doc(employerId).get();
-        if (emSnap.exists) {
-          const e = emSnap.data()!;
-          const cn = String(e.contactName ?? "").trim();
-          const comp = String(e.companyName ?? "").trim();
-          const occ = String(e.occupation ?? "").trim();
-          // Nom affiché : employeur (companyName), pas l’e-mail (contactName).
-          reviewerName = comp || cn || employerId;
-          reviewerSubtitle =
-            occ || (reviewerName !== comp ? comp : "");
-          reviewerImage = String(e.profileImageUrl ?? "").trim();
-          reviewerBadge =
-            String(e.badge ?? "NONE").trim().toUpperCase() || "NONE";
-          reviewerVerified = reviewerBadge === "TRUSTED";
+        if (!emSnap.exists || !isPublicActiveDoc(emSnap.data()!)) {
+          continue;
         }
+        const e = emSnap.data()!;
+        const cn = String(e.contactName ?? "").trim();
+        const comp = String(e.companyName ?? "").trim();
+        const occ = String(e.occupation ?? "").trim();
+        // Nom affiché : employeur (companyName), pas l’e-mail (contactName).
+        reviewerName = comp || cn || employerId;
+        reviewerSubtitle =
+          occ || (reviewerName !== comp ? comp : "");
+        reviewerImage = String(e.profileImageUrl ?? "").trim();
+        reviewerBadge =
+          String(e.badge ?? "NONE").trim().toUpperCase() || "NONE";
+        reviewerVerified = reviewerBadge === "TRUSTED";
       }
 
       let empName = "—";
@@ -200,19 +204,20 @@ export async function getPublicJobReviews(
       let employeeSlug = "";
       if (employeeId) {
         const wSnap = await db.collection("employee").doc(employeeId).get();
-        if (wSnap.exists) {
-          const w = wSnap.data()!;
-          empName = String(w.fullName ?? "").trim() || employeeId;
-          empSubtitle = jobTitle;
-          empImage = String(w.profileImageUrl ?? "").trim();
-          empBadge = String(w.badge ?? "NONE").trim().toUpperCase() || "NONE";
-          empVerified = empBadge !== "NONE";
-          const startYmd = employeeStartedAtToYmd(w.startedWorkingAt);
-          experienceYears = fullYearsSinceYmd(startYmd);
-          const dobYmd = employeeStartedAtToYmd(w.dateOfBirth);
-          ageYears = fullYearsSinceYmd(dobYmd);
-          employeeSlug = publicEmployeeSlug(employeeId, empName);
+        if (!wSnap.exists || !isPublicActiveDoc(wSnap.data()!)) {
+          continue;
         }
+        const w = wSnap.data()!;
+        empName = String(w.fullName ?? "").trim() || employeeId;
+        empSubtitle = jobTitle;
+        empImage = String(w.profileImageUrl ?? "").trim();
+        empBadge = String(w.badge ?? "NONE").trim().toUpperCase() || "NONE";
+        empVerified = empBadge !== "NONE";
+        const startYmd = employeeStartedAtToYmd(w.startedWorkingAt);
+        experienceYears = fullYearsSinceYmd(startYmd);
+        const dobYmd = employeeStartedAtToYmd(w.dateOfBirth);
+        ageYears = fullYearsSinceYmd(dobYmd);
+        employeeSlug = publicEmployeeSlug(employeeId, empName);
       }
       if (!employeeSlug && employeeId) {
         employeeSlug = publicEmployeeSlug(employeeId, "");

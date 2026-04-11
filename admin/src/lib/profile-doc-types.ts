@@ -10,6 +10,8 @@ export type EmployeeWorkType = "FULL_TIME" | "PART_TIME";
 /** Document Firestore collection `employee` (id = firebaseUid). */
 export type EmployeeDoc = {
   id: string;
+  /** Vitrine : masqué si `false`. */
+  active?: boolean;
   firebaseUid: string;
   /** Code pays ISO2 (ex. CM) ; `__` si non renseigné (anciens documents). */
   countryCode?: string;
@@ -43,6 +45,8 @@ export type EmployerBadge = "NONE" | "TRUSTED";
 /** Document Firestore collection `employer` (id = firebaseUid). */
 export type EmployerDoc = {
   id: string;
+  /** Vitrine : masqué si `false`. */
+  active?: boolean;
   firebaseUid: string;
   /** Code pays ISO2 (ex. CM) ; `__` si non renseigné (anciens documents). */
   countryCode?: string;
@@ -61,6 +65,8 @@ export type EmployerDoc = {
 /** Document Firestore collection `jobOffers` (id auto). */
 export type JobOfferDoc = {
   id: string;
+  /** Vitrine : masqué si `false`. */
+  active?: boolean;
   /** Id document collection `employer` (= firebaseUid). */
   employerId: string;
   /** Id document collection `employee` (= firebaseUid). */
@@ -75,6 +81,8 @@ export type JobOfferDoc = {
 /** Document Firestore collection `jobReviews` (id auto). */
 export type JobReviewDoc = {
   id: string;
+  /** Vitrine : masqué si `false`. */
+  active?: boolean;
   /** Id document collection `jobOffers`. */
   jobOfferId: string;
   /** Note de 0,5 à 5 (demi-points). */

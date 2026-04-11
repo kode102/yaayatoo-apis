@@ -13,6 +13,7 @@ import {
 import {serviceDocToNested} from "../admin/reference-nested.js";
 import {DEFAULT_LOCALE, normLocale} from "../admin/i18n.js";
 import {db} from "../lib/admin.js";
+import {isPublicActiveDoc} from "../lib/public-active-doc.js";
 import {publicEmployeeSlug} from "./employee-slug.js";
 
 const MAX_FETCH = 150;
@@ -111,7 +112,9 @@ async function jobOfferIdsForEmployee(employeeId: string): Promise<string[]> {
     .collection("jobOffers")
     .where("employeeId", "==", employeeId)
     .get();
-  return snap.docs.map((d) => d.id);
+  return snap.docs
+    .filter((d) => isPublicActiveDoc(d.data()))
+    .map((d) => d.id);
 }
 
 /**
@@ -216,6 +219,7 @@ export async function getPublicHomeProfiles(
     const candidates: {id: string; data: DocumentData}[] = [];
     for (const d of snap.docs) {
       const data = d.data();
+      if (!isPublicActiveDoc(data)) continue;
       if (!isEmployableStatus(data)) continue;
       if (!matchesCountryFilter(data, countryCode)) continue;
       candidates.push({id: d.id, data});
@@ -242,6 +246,7 @@ export async function getPublicHomeProfiles(
       [...serviceIds].map(async (sid) => {
         const s = await db.collection("services").doc(sid).get();
         if (!s.exists) return;
+        if (!isPublicActiveDoc(s.data())) return;
         const name = servicePrimaryName(s.data()!, countryCode, locale);
         if (name) serviceNames.set(sid, name);
       }),

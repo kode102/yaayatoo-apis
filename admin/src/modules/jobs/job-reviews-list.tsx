@@ -154,6 +154,27 @@ export default function JobReviewsListView() {
     t,
   ]);
 
+  const toggleReviewActive = useCallback(
+    async (row: JobReviewDoc) => {
+      const token = await getIdToken();
+      if (!token) return;
+      setBusy(true);
+      try {
+        await adminFetch<ApiDocResponse<JobReviewDoc>>(
+          `/admin/documents/jobReviews/${encodeURIComponent(row.id)}`,
+          token,
+          {method: "PUT", body: JSON.stringify({active: row.active === false})},
+        );
+        await load();
+      } catch (e: unknown) {
+        setLoadError(e instanceof Error ? e.message : String(e));
+      } finally {
+        setBusy(false);
+      }
+    },
+    [getIdToken, load],
+  );
+
   const removeRow = useCallback(
     async (id: string) => {
       if (!confirm(t("jobs.reviews.deleteConfirm"))) return;
@@ -240,6 +261,32 @@ export default function JobReviewsListView() {
             </span>
           ),
         }),
+        col.accessor(
+          (row) => (row.active === false ? 0 : 1),
+          {
+            id: "active",
+            header: ({column}) => (
+              <SortableHeader column={column}>{t("common.active")}</SortableHeader>
+            ),
+            cell: ({row}) => (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void toggleReviewActive(row.original)}
+                className={`rounded-lg px-2.5 py-1 text-xs font-medium ${
+                  row.original.active === false ?
+                    "bg-gray-100 text-gray-500"
+                  : "bg-emerald-100 text-emerald-800"
+                }`}
+              >
+                {row.original.active === false ? t("common.no") : t("common.yes")}
+              </button>
+            ),
+            sortingFn: (a, b) =>
+              Number(a.original.active !== false) -
+              Number(b.original.active !== false),
+          },
+        ),
         col.display({
           id: "actions",
           enableSorting: false,
@@ -295,7 +342,7 @@ export default function JobReviewsListView() {
           ),
         }),
       ] as ColumnDef<JobReviewDoc, unknown>[],
-    [busy, offerLabelById, openEdit, removeRow, t],
+    [busy, offerLabelById, openEdit, removeRow, t, toggleReviewActive],
   );
 
   return (
