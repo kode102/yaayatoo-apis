@@ -2,7 +2,12 @@
 
 import {useEffect, useMemo, useState} from "react";
 import {useUiLocale} from "@/contexts/ui-locale-context";
-import {labelForLocale, type LanguageDoc, type LocaleTextDraft} from "@/lib/i18n-types";
+import {
+  emptyLocaleTextDraft,
+  labelForLocale,
+  type LanguageDoc,
+  type LocaleTextDraft,
+} from "@/lib/i18n-types";
 
 function tabLabel(lang: LanguageDoc, editorLocale: string): string {
   const n = labelForLocale(lang.translations, editorLocale).trim();
@@ -15,8 +20,11 @@ type Props = {
   drafts: Record<string, LocaleTextDraft>;
   onDraftChange: (code: string, next: LocaleTextDraft) => void;
   showDescription: boolean;
+  /** Affiche le champ « libellé vitrine » (services). */
+  showLabel?: boolean;
   nameLabel: string;
   descriptionLabel: string;
+  labelLabel?: string;
 };
 
 export function TranslationLocaleTabs({
@@ -25,8 +33,10 @@ export function TranslationLocaleTabs({
   drafts,
   onDraftChange,
   showDescription,
+  showLabel = false,
   nameLabel,
   descriptionLabel,
+  labelLabel = "",
 }: Props) {
   const {t} = useUiLocale();
   const sorted = useMemo(
@@ -61,7 +71,7 @@ export function TranslationLocaleTabs({
     );
   }
 
-  const current = drafts[activeCode] ?? {name: "", description: ""};
+  const current = drafts[activeCode] ?? emptyLocaleTextDraft();
   const activeLang = sorted.find(
     (l) => l.code.trim().toLowerCase() === activeCode,
   );
@@ -77,7 +87,10 @@ export function TranslationLocaleTabs({
         {sorted.map((lang) => {
           const code = lang.code.trim().toLowerCase();
           const selected = code === activeCode;
-          const filled = Boolean(drafts[code]?.name?.trim());
+          const filled = Boolean(
+            drafts[code]?.name?.trim() ||
+              (showLabel && drafts[code]?.label?.trim()),
+          );
           return (
             <button
               key={lang.id}
@@ -117,6 +130,25 @@ export function TranslationLocaleTabs({
             className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary/70 focus:ring-2 focus:ring-primary/15 focus:outline-none"
           />
         </label>
+        {showLabel ?
+          <label className="block text-sm text-gray-700">
+            {labelLabel}{" "}
+            <span className="font-normal text-gray-400">({activeCode})</span>
+            <input
+              value={current.label}
+              onChange={(e) =>
+                onDraftChange(activeCode, {
+                  ...current,
+                  label: e.target.value,
+                })
+              }
+              className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary/70 focus:ring-2 focus:ring-primary/15 focus:outline-none"
+            />
+            <p className="mt-1 text-xs text-gray-500">
+              {t("common.labelFieldHint")}
+            </p>
+          </label>
+        : null}
         {showDescription ?
           <label className="block text-sm text-gray-700">
             {descriptionLabel}

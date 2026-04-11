@@ -23,7 +23,9 @@ export async function persistServiceEditDrafts(
       const name = d.name.trim();
       const description = d.description;
       const hasDesc = description.trim().length > 0;
-      if (!name && !hasDesc) continue;
+      const labelTrim = (d.label ?? "").trim();
+      const hasLabel = labelTrim.length > 0;
+      if (!name && !hasDesc && !hasLabel) continue;
 
       const body: Record<string, unknown> = {
         locale: loc,
@@ -31,6 +33,7 @@ export async function persistServiceEditDrafts(
       };
       if (name) body.name = name;
       body.description = description;
+      body.label = labelTrim;
       if (!sentLocale) {
         body.imageUrl = imageUrl;
         if (marketingPatch) {

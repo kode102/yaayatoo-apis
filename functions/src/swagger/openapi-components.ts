@@ -50,6 +50,11 @@ export const openApiComponents = {
       properties: {
         name: {type: "string"},
         description: {type: "string"},
+        label: {
+          type: "string",
+          description:
+            "Libellé court vitrine (cartes, liste) ; sans valeur, affichage = name",
+        },
       },
     },
     ReferenceDocument: {

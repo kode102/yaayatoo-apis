@@ -784,6 +784,10 @@ export const openApiPaths = {
                     locale: {type: "string"},
                     name: {type: "string"},
                     description: {type: "string"},
+                    label: {
+                      type: "string",
+                      description: "Libellé vitrine optionnel (repli sur name)",
+                    },
                     imageUrl: {type: "string", description: "URL image service"},
                     active: {type: "boolean"},
                   },
@@ -860,7 +864,7 @@ export const openApiPaths = {
       description:
         "Au moins un parmi : `active`, `locale`+champs traduction, " +
         "`imageUrl` (services), `code`/`flagLink` (pays), `flagIconUrl` (langue). " +
-        "Avec `locale` : services exigent name ou description ; " +
+        "Avec `locale` : services exigent au moins un parmi name, description, label ; " +
         "pays/langues exigent `name`.",
       security: [{bearerAuth: []}],
       parameters: [collectionParam, idParam],
@@ -874,6 +878,7 @@ export const openApiPaths = {
                 locale: {type: "string"},
                 name: {type: "string"},
                 description: {type: "string"},
+                label: {type: "string"},
                 imageUrl: {type: "string"},
                 code: {type: "string"},
                 flagLink: {type: "string"},

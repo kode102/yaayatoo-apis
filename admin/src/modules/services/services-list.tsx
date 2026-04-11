@@ -170,7 +170,8 @@ export default function ServicesListView() {
       const d = editDraftsByCountry[cc]?.[loc];
       if (!d) return false;
       if (d.name.trim()) return true;
-      return d.description.trim().length > 0;
+      if (d.description.trim().length > 0) return true;
+      return Boolean(d.label?.trim());
     });
   }
 
@@ -447,8 +448,10 @@ export default function ServicesListView() {
             }))
           }
           showDescription
+          showLabel
           nameLabel={t("common.name")}
           descriptionLabel={t("common.description")}
+          labelLabel={t("common.shortLabel")}
         />
         {editRow ?
           <>

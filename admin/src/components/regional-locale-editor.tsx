@@ -25,8 +25,10 @@ type Props = {
   draftsByCountry: RegionalLocaleDrafts;
   onDraftChange: (country: string, locale: string, next: LocaleTextDraft) => void;
   showDescription: boolean;
+  showLabel?: boolean;
   nameLabel: string;
   descriptionLabel: string;
+  labelLabel?: string;
 };
 
 function countryTabLabel(
@@ -59,8 +61,10 @@ export function RegionalCountryLocaleEditor({
   draftsByCountry,
   onDraftChange,
   showDescription,
+  showLabel = false,
   nameLabel,
   descriptionLabel,
+  labelLabel = "",
 }: Props) {
   const draftsForCountry =
     draftsByCountry[activeCountryCode] ??
@@ -95,8 +99,10 @@ export function RegionalCountryLocaleEditor({
         editorLocale={editorLocale}
         drafts={draftsForCountry}
         showDescription={showDescription}
+        showLabel={showLabel}
         nameLabel={nameLabel}
         descriptionLabel={descriptionLabel}
+        labelLabel={labelLabel}
         onDraftChange={(code, next) =>
           onDraftChange(activeCountryCode, code, next)
         }

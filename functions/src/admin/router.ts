@@ -625,6 +625,8 @@ function parseServicePost(body: Record<string, unknown>): {
   if (!locale || !name) return null;
   const description =
     typeof body.description === "string" ? body.description : "";
+  const label =
+    typeof body.label === "string" ? body.label.trim() : "";
   const imageUrl =
     typeof body.imageUrl === "string" ? body.imageUrl.trim() : "";
   const active =
@@ -636,7 +638,7 @@ function parseServicePost(body: Record<string, unknown>): {
     {},
     country,
     locale,
-    {name, description},
+    {name, description, label},
   );
   return {active, locale, translations, imageUrl};
 }
@@ -1110,18 +1112,24 @@ function buildPutPatch(
         typeof body.name === "string" ? body.name.trim() : undefined;
       const description =
         typeof body.description === "string" ? body.description : undefined;
+      const labelIsString = typeof body.label === "string";
       if (
         name === undefined &&
-        description === undefined
+        description === undefined &&
+        !labelIsString
       ) {
-        return {patch: {}, error: "name ou description requis avec locale"};
+        return {
+          patch: {},
+          error: "name, description ou label requis avec locale",
+        };
       }
       if (name !== undefined && !name) {
         return {patch: {}, error: "name vide"};
       }
-      const block: {name?: string; description?: string} = {};
+      const block: {name?: string; description?: string; label?: string} = {};
       if (name !== undefined) block.name = name;
       if (description !== undefined) block.description = description;
+      if (labelIsString) block.label = String(body.label).trim();
       const nested = serviceDocToNested(existing);
       const country = normCmsCountryCode(
         String(body.countryCode ?? body.country ?? ""),

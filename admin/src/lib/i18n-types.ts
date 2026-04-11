@@ -3,7 +3,7 @@ import {uiLocaleFromEditorCode} from "@/lib/ui-locale-constants";
 /** Bloc de texte par langue (clé = code locale, ex. fr, en). */
 export type TranslationMap = Record<
   string,
-  {name?: string; description?: string}
+  {name?: string; description?: string; label?: string}
 >;
 
 /**
@@ -224,7 +224,7 @@ export function labelForLocale(
 export function translationBlockForEditorLocale(
   translations: TranslationMap | undefined,
   editorLocale: string,
-): {name?: string; description?: string} | undefined {
+): {name?: string; description?: string; label?: string} | undefined {
   if (!translations || !editorLocale?.trim()) return undefined;
   const loc = editorLocale.trim().toLowerCase();
   const base = uiLocaleFromEditorCode(editorLocale);
@@ -241,10 +241,20 @@ export function translationBlockForEditorLocale(
 
   for (const k of keysToTry) {
     const b = translations[k];
-    if (b && (b.name?.trim() || b.description?.trim())) return b;
+    if (
+      b &&
+      (b.name?.trim() ||
+        b.description?.trim() ||
+        b.label?.trim())
+    ) {
+      return b;
+    }
   }
   return Object.values(translations).find(
-    (b) => b?.name?.trim() || b?.description?.trim(),
+    (b) =>
+      b?.name?.trim() ||
+      b?.description?.trim() ||
+      b?.label?.trim(),
   );
 }
 
@@ -269,6 +279,15 @@ export function editDescriptionPrefill(
   return block?.description ?? "";
 }
 
+/** Libellé vitrine (services) pour le formulaire d’édition. */
+export function editLabelPrefill(
+  translations: TranslationMap | undefined,
+  editorLocale: string,
+): string {
+  const block = translationBlockForEditorLocale(translations, editorLocale);
+  return (block?.label ?? "").trim();
+}
+
 export function pickSortLabel(
   translations: TranslationMap | undefined,
   locale: string,
@@ -280,8 +299,20 @@ export function pickSortLabel(
   return first?.name?.trim() || fallback;
 }
 
-/** Brouillon nom + description par code locale (clé = minuscules). */
-export type LocaleTextDraft = {name: string; description: string};
+/** Brouillon nom + description (+ libellé vitrine services) par locale. */
+export type LocaleTextDraft = {
+  name: string;
+  description: string;
+  /** Libellé court affiché sur la vitrine ; vide = utiliser le nom. */
+  label: string;
+};
+
+/** Valeur initiale des champs traduction (hors CMS riches). */
+export const emptyLocaleTextDraft = (): LocaleTextDraft => ({
+  name: "",
+  description: "",
+  label: "",
+});
 
 /** Brouillons édition : pays → locale → texte. */
 export type RegionalLocaleDrafts = Record<
@@ -306,6 +337,7 @@ export function buildLocaleDraftsFromTranslations(
     out[code] = {
       name: (b?.name ?? "").trim(),
       description: typeof b?.description === "string" ? b.description : "",
+      label: (b?.label ?? "").trim(),
     };
   }
   return out;
@@ -332,6 +364,7 @@ export function mergeRegionalDraftsFromTranslations(
       out[c][loc] = {
         name: (b?.name ?? "").trim(),
         description: typeof b?.description === "string" ? b.description : "",
+        label: (b?.label ?? "").trim(),
       };
     }
   }

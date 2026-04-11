@@ -110,7 +110,8 @@ export default function ServicesCreateView() {
       const d = draftsByCountry[cc]?.[loc];
       if (!d) return false;
       if (d.name.trim()) return true;
-      return d.description.trim().length > 0;
+      if (d.description.trim().length > 0) return true;
+      return Boolean(d.label?.trim());
     });
   }
 
@@ -158,6 +159,7 @@ export default function ServicesCreateView() {
             countryCode: primaryCountry,
             name: primaryDraft.name.trim(),
             description: primaryDraft.description ?? "",
+            label: (primaryDraft.label ?? "").trim(),
             imageUrl,
             active: activeNew,
             ...marketingBody,
@@ -174,13 +176,15 @@ export default function ServicesCreateView() {
           if (!d) continue;
           const name = d.name.trim();
           const desc = d.description;
-          if (!name && !desc.trim()) continue;
+          const lab = (d.label ?? "").trim();
+          if (!name && !desc.trim() && !lab) continue;
           const body: Record<string, unknown> = {
             locale: loc,
             countryCode: c,
           };
           if (name) body.name = name;
           body.description = desc;
+          body.label = lab;
           await adminFetch<ApiDocResponse<ServiceDoc>>(
             `/admin/documents/services/${id}`,
             token,
@@ -245,8 +249,10 @@ export default function ServicesCreateView() {
             }))
           }
           showDescription
+          showLabel
           nameLabel={t("common.name")}
           descriptionLabel={t("common.description")}
+          labelLabel={t("common.shortLabel")}
         />
         <div className="flex items-center gap-2 text-sm text-gray-700">
           <input

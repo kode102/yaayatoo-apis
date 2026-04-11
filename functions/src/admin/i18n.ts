@@ -12,7 +12,12 @@ export function normLocale(s: string): string {
   return String(s || "").trim().toLowerCase().replace(/_/g, "-");
 }
 
-export type TranslationBlock = {name?: string; description?: string};
+export type TranslationBlock = {
+  name?: string;
+  description?: string;
+  /** Libellé court vitrine (cartes, recherche) ; repli sur `name` si absent. */
+  label?: string;
+};
 
 export type TranslationsMap = Record<string, TranslationBlock>;
 
