@@ -810,20 +810,12 @@ function parseStringList(
 }
 
 function parseCmsSettingsPost(body: Record<string, unknown>): {
-  googlePlayStoreLink: string;
-  appleAppStoreLink: string;
-  facebookLink: string;
-  twitterXLink: string;
-  instagramLink: string;
-  linkedInLink: string;
-  tiktokLink: string;
-  youtubeLink: string;
-  whatsappLink: string;
-  phoneNumbers: string[];
-  emailAddresses: string[];
+  countryCode: string;
+  region: Record<string, unknown>;
   active: boolean;
 } {
-  return {
+  const countryCode = normCmsCountryCode(String(body.countryCode ?? ""));
+  const region = {
     googlePlayStoreLink:
       typeof body.googlePlayStoreLink === "string" ?
         body.googlePlayStoreLink.trim() :
@@ -846,9 +838,45 @@ function parseCmsSettingsPost(body: Record<string, unknown>): {
       typeof body.youtubeLink === "string" ? body.youtubeLink.trim() : "",
     whatsappLink:
       typeof body.whatsappLink === "string" ? body.whatsappLink.trim() : "",
+    addresses: parseStringList(body.addresses, 30, 512),
     phoneNumbers: parseStringList(body.phoneNumbers, 30, 64),
     emailAddresses: parseStringList(body.emailAddresses, 30, 254),
+  };
+  return {
+    countryCode,
+    region,
     active: typeof body.active === "boolean" ? body.active : true,
+  };
+}
+
+function readCmsSettingsPerCountry(
+  doc: Record<string, unknown>,
+): Record<string, Record<string, unknown>> {
+  const raw = doc.perCountry;
+  if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+    const out: Record<string, Record<string, unknown>> = {};
+    for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+      if (v && typeof v === "object" && !Array.isArray(v)) {
+        out[normCmsCountryCode(k)] = v as Record<string, unknown>;
+      }
+    }
+    if (Object.keys(out).length > 0) return out;
+  }
+  return {
+    [CMS_DEFAULT_COUNTRY]: {
+      googlePlayStoreLink: String(doc.googlePlayStoreLink ?? "").trim(),
+      appleAppStoreLink: String(doc.appleAppStoreLink ?? "").trim(),
+      facebookLink: String(doc.facebookLink ?? "").trim(),
+      twitterXLink: String(doc.twitterXLink ?? "").trim(),
+      instagramLink: String(doc.instagramLink ?? "").trim(),
+      linkedInLink: String(doc.linkedInLink ?? "").trim(),
+      tiktokLink: String(doc.tiktokLink ?? "").trim(),
+      youtubeLink: String(doc.youtubeLink ?? "").trim(),
+      whatsappLink: String(doc.whatsappLink ?? "").trim(),
+      addresses: parseStringList(doc.addresses, 30, 512),
+      phoneNumbers: parseStringList(doc.phoneNumbers, 30, 64),
+      emailAddresses: parseStringList(doc.emailAddresses, 30, 254),
+    },
   };
 }
 
@@ -1130,9 +1158,13 @@ function buildPutPatch(
       "youtubeLink",
       "whatsappLink",
     ] as const;
+    const countryCode = normCmsCountryCode(String(body.countryCode ?? ""));
+    const incomingRegion: Record<string, unknown> = {};
+    let hasRegionPatch = false;
     for (const key of stringFields) {
       if (typeof body[key] === "string") {
-        patch[key] = body[key].trim();
+        incomingRegion[key] = body[key].trim();
+        hasRegionPatch = true;
       }
     }
     if (body.phoneNumbers !== undefined) {
@@ -1142,7 +1174,15 @@ function buildPutPatch(
           error: "phoneNumbers doit être un tableau de chaînes",
         };
       }
-      patch.phoneNumbers = parseStringList(body.phoneNumbers, 30, 64);
+      incomingRegion.phoneNumbers = parseStringList(body.phoneNumbers, 30, 64);
+      hasRegionPatch = true;
+    }
+    if (body.addresses !== undefined) {
+      if (!Array.isArray(body.addresses)) {
+        return {patch: {}, error: "addresses doit être un tableau de chaînes"};
+      }
+      incomingRegion.addresses = parseStringList(body.addresses, 30, 512);
+      hasRegionPatch = true;
     }
     if (body.emailAddresses !== undefined) {
       if (!Array.isArray(body.emailAddresses)) {
@@ -1151,7 +1191,20 @@ function buildPutPatch(
           error: "emailAddresses doit être un tableau de chaînes",
         };
       }
-      patch.emailAddresses = parseStringList(body.emailAddresses, 30, 254);
+      incomingRegion.emailAddresses = parseStringList(
+        body.emailAddresses,
+        30,
+        254,
+      );
+      hasRegionPatch = true;
+    }
+    if (hasRegionPatch) {
+      const perCountry = readCmsSettingsPerCountry(
+        existing as Record<string, unknown>,
+      );
+      const prev = perCountry[countryCode] ?? {};
+      perCountry[countryCode] = {...prev, ...incomingRegion};
+      patch.perCountry = perCountry;
     }
     if (typeof body.active === "boolean") {
       patch.active = body.active;
@@ -1592,17 +1645,9 @@ export function createAdminRouter(): express.Router {
     } else if (collection === "cmsSettings") {
       const v = parseCmsSettingsPost(body);
       payload = {
-        googlePlayStoreLink: v.googlePlayStoreLink,
-        appleAppStoreLink: v.appleAppStoreLink,
-        facebookLink: v.facebookLink,
-        twitterXLink: v.twitterXLink,
-        instagramLink: v.instagramLink,
-        linkedInLink: v.linkedInLink,
-        tiktokLink: v.tiktokLink,
-        youtubeLink: v.youtubeLink,
-        whatsappLink: v.whatsappLink,
-        phoneNumbers: v.phoneNumbers,
-        emailAddresses: v.emailAddresses,
+        perCountry: {
+          [v.countryCode]: v.region,
+        },
         active: v.active,
       };
     } else if (

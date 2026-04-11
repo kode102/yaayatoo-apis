@@ -68,6 +68,10 @@ export const openApiComponents = {
         "Champs selon collection.",
       properties: {
         id: {type: "string"},
+        countryCode: {
+          type: "string",
+          description: "Pays résolu pour cmsSettings (ISO2 ou __)",
+        },
         slug: {
           type: "string",
           description:
@@ -148,6 +152,7 @@ export const openApiComponents = {
         tiktokLink: {type: "string"},
         youtubeLink: {type: "string"},
         whatsappLink: {type: "string"},
+        addresses: {type: "array", items: {type: "string"}},
         phoneNumbers: {type: "array", items: {type: "string"}},
         emailAddresses: {type: "array", items: {type: "string"}},
         createdAt: {type: "string", format: "date-time"},

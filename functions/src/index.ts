@@ -18,6 +18,7 @@ import {
 import {getPublicUiDictionary} from "./public/ui-dictionary-public.js";
 import {getPublicJobReviews} from "./public/job-reviews-public.js";
 import {getPublicHomeProfiles} from "./public/employees-public.js";
+import {getPublicCmsSettings} from "./public/cms-settings.js";
 import {
   CMS_DEFAULT_COUNTRY,
   normCmsCountryCode,
@@ -255,6 +256,11 @@ app.post("/public/cms", (req, res) => {
  */
 app.get("/public/ui-dictionary", (req, res) => {
   void getPublicUiDictionary(req, res);
+});
+
+/** Réglages CMS publics (contacts / stores / réseaux). */
+app.get("/public/cms-settings", (req, res) => {
+  void getPublicCmsSettings(req, res);
 });
 
 /** Avis publics jobReviews (filtre minRating) + employeur / employé. */

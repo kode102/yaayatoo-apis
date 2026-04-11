@@ -225,10 +225,27 @@ export type CmsSettingsDoc = {
   tiktokLink?: string;
   youtubeLink?: string;
   whatsappLink?: string;
+  addresses?: string[];
   phoneNumbers?: string[];
   emailAddresses?: string[];
+  perCountry?: Record<string, CmsSettingsRegion>;
   createdAt?: string;
   updatedAt?: string;
+};
+
+export type CmsSettingsRegion = {
+  googlePlayStoreLink?: string;
+  appleAppStoreLink?: string;
+  facebookLink?: string;
+  twitterXLink?: string;
+  instagramLink?: string;
+  linkedInLink?: string;
+  tiktokLink?: string;
+  youtubeLink?: string;
+  whatsappLink?: string;
+  addresses?: string[];
+  phoneNumbers?: string[];
+  emailAddresses?: string[];
 };
 
 export function localeFilledCount(translations: TranslationMap | undefined): number {

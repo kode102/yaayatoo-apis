@@ -4,7 +4,12 @@ import {useCallback, useEffect, useState} from "react";
 import {useAuth} from "@/contexts/auth-context";
 import {useUiLocale} from "@/contexts/ui-locale-context";
 import {adminFetch, type ApiDocResponse, type ApiListResponse} from "@/lib/api";
-import type {CmsSettingsDoc} from "@/lib/i18n-types";
+import {
+  CMS_DEFAULT_COUNTRY_KEY,
+  type CmsSettingsDoc,
+  type CmsSettingsRegion,
+  type CountryDoc,
+} from "@/lib/i18n-types";
 
 type SettingsDraft = {
   googlePlayStoreLink: string;
@@ -16,23 +21,49 @@ type SettingsDraft = {
   tiktokLink: string;
   youtubeLink: string;
   whatsappLink: string;
+  addresses: string[];
   phoneNumbers: string[];
   emailAddresses: string[];
 };
 
-function toDraft(doc?: CmsSettingsDoc): SettingsDraft {
+function toDraftRegion(region?: CmsSettingsRegion): SettingsDraft {
   return {
-    googlePlayStoreLink: doc?.googlePlayStoreLink ?? "",
-    appleAppStoreLink: doc?.appleAppStoreLink ?? "",
-    facebookLink: doc?.facebookLink ?? "",
-    twitterXLink: doc?.twitterXLink ?? "",
-    instagramLink: doc?.instagramLink ?? "",
-    linkedInLink: doc?.linkedInLink ?? "",
-    tiktokLink: doc?.tiktokLink ?? "",
-    youtubeLink: doc?.youtubeLink ?? "",
-    whatsappLink: doc?.whatsappLink ?? "",
-    phoneNumbers: doc?.phoneNumbers?.length ? doc.phoneNumbers : [""],
-    emailAddresses: doc?.emailAddresses?.length ? doc.emailAddresses : [""],
+    googlePlayStoreLink: region?.googlePlayStoreLink ?? "",
+    appleAppStoreLink: region?.appleAppStoreLink ?? "",
+    facebookLink: region?.facebookLink ?? "",
+    twitterXLink: region?.twitterXLink ?? "",
+    instagramLink: region?.instagramLink ?? "",
+    linkedInLink: region?.linkedInLink ?? "",
+    tiktokLink: region?.tiktokLink ?? "",
+    youtubeLink: region?.youtubeLink ?? "",
+    whatsappLink: region?.whatsappLink ?? "",
+    addresses: region?.addresses?.length ? region.addresses : [""],
+    phoneNumbers: region?.phoneNumbers?.length ? region.phoneNumbers : [""],
+    emailAddresses: region?.emailAddresses?.length ? region.emailAddresses : [""],
+  };
+}
+
+function readPerCountry(
+  doc?: CmsSettingsDoc,
+): Record<string, CmsSettingsRegion> {
+  if (doc?.perCountry && typeof doc.perCountry === "object") {
+    return doc.perCountry;
+  }
+  return {
+    [CMS_DEFAULT_COUNTRY_KEY]: {
+      googlePlayStoreLink: doc?.googlePlayStoreLink ?? "",
+      appleAppStoreLink: doc?.appleAppStoreLink ?? "",
+      facebookLink: doc?.facebookLink ?? "",
+      twitterXLink: doc?.twitterXLink ?? "",
+      instagramLink: doc?.instagramLink ?? "",
+      linkedInLink: doc?.linkedInLink ?? "",
+      tiktokLink: doc?.tiktokLink ?? "",
+      youtubeLink: doc?.youtubeLink ?? "",
+      whatsappLink: doc?.whatsappLink ?? "",
+      addresses: doc?.addresses ?? [],
+      phoneNumbers: doc?.phoneNumbers ?? [],
+      emailAddresses: doc?.emailAddresses ?? [],
+    },
   };
 }
 
@@ -40,7 +71,7 @@ type StringListFieldsetProps = {
   label: string;
   addLabel: string;
   placeholder: string;
-  type: "tel" | "email";
+  type: "text" | "tel" | "email";
   values: string[];
   onChange: (next: string[]) => void;
 };
@@ -104,7 +135,15 @@ export default function CmsSettingsView() {
   const {getIdToken} = useAuth();
   const {t} = useUiLocale();
   const [settingsId, setSettingsId] = useState<string | null>(null);
-  const [draft, setDraft] = useState<SettingsDraft>(() => toDraft());
+  const [draftsByCountry, setDraftsByCountry] = useState<
+    Record<string, SettingsDraft>
+  >({});
+  const [countryCodes, setCountryCodes] = useState<string[]>([
+    CMS_DEFAULT_COUNTRY_KEY,
+  ]);
+  const [activeCountryCode, setActiveCountryCode] = useState(
+    CMS_DEFAULT_COUNTRY_KEY,
+  );
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -121,13 +160,37 @@ export default function CmsSettingsView() {
     setSuccess(null);
     setLoading(true);
     try {
-      const res = await adminFetch<ApiListResponse<CmsSettingsDoc>>(
-        "/admin/documents/cmsSettings",
-        token,
-      );
-      const first = (res.data ?? [])[0];
+      const [settingsRes, countriesRes] = await Promise.all([
+        adminFetch<ApiListResponse<CmsSettingsDoc>>(
+          "/admin/documents/cmsSettings",
+          token,
+        ),
+        adminFetch<ApiListResponse<CountryDoc>>(
+          "/admin/documents/countries",
+          token,
+        ),
+      ]);
+      const first = (settingsRes.data ?? [])[0];
+      const countries = (countriesRes.data ?? []) as CountryDoc[];
+      const dynamicCountryCodes = countries
+        .filter((c) => c.active !== false)
+        .map((c) => String(c.code ?? "").trim().toUpperCase().slice(0, 2))
+        .filter(Boolean);
+      const nextCountryCodes = [
+        CMS_DEFAULT_COUNTRY_KEY,
+        ...new Set(dynamicCountryCodes),
+      ];
+      const byCountry = readPerCountry(first);
+      const nextDrafts: Record<string, SettingsDraft> = {};
+      for (const cc of nextCountryCodes) {
+        nextDrafts[cc] = toDraftRegion(byCountry[cc]);
+      }
       setSettingsId(first?.id ?? null);
-      setDraft(toDraft(first));
+      setCountryCodes(nextCountryCodes);
+      setDraftsByCountry(nextDrafts);
+      setActiveCountryCode((prev) =>
+        nextCountryCodes.includes(prev) ? prev : CMS_DEFAULT_COUNTRY_KEY,
+      );
     } catch {
       setError(t("cms.settings.errorLoad"));
     } finally {
@@ -139,6 +202,18 @@ export default function CmsSettingsView() {
     void load();
   }, [load]);
 
+  const currentDraft = draftsByCountry[activeCountryCode] ?? toDraftRegion();
+
+  function patchDraft(next: Partial<SettingsDraft>) {
+    setDraftsByCountry((prev) => ({
+      ...prev,
+      [activeCountryCode]: {
+        ...(prev[activeCountryCode] ?? toDraftRegion()),
+        ...next,
+      },
+    }));
+  }
+
   async function save() {
     const token = await getIdToken();
     if (!token) {
@@ -148,8 +223,11 @@ export default function CmsSettingsView() {
     setSaving(true);
     setError(null);
     setSuccess(null);
+    const draft = currentDraft;
     const payload = {
       ...draft,
+      countryCode: activeCountryCode,
+      addresses: draft.addresses.map((x) => x.trim()).filter(Boolean),
       phoneNumbers: draft.phoneNumbers.map((x) => x.trim()).filter(Boolean),
       emailAddresses: draft.emailAddresses.map((x) => x.trim()).filter(Boolean),
     };
@@ -186,6 +264,25 @@ export default function CmsSettingsView() {
         <h1 className="text-2xl font-semibold text-gray-900">{t("cms.settings.title")}</h1>
         <p className="text-sm text-gray-500">{t("cms.settings.subtitle")}</p>
       </div>
+      <div className="flex flex-wrap gap-1 border-b border-gray-200 pb-2">
+        {countryCodes.map((cc) => {
+          const isActive = cc === activeCountryCode;
+          return (
+            <button
+              key={cc}
+              type="button"
+              onClick={() => setActiveCountryCode(cc)}
+              className={`rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                isActive ?
+                  "bg-slate-800 text-white"
+                : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+              }`}
+            >
+              {cc === CMS_DEFAULT_COUNTRY_KEY ? "DEFAULT" : cc}
+            </button>
+          );
+        })}
+      </div>
 
       {error ?
         <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
@@ -206,9 +303,9 @@ export default function CmsSettingsView() {
           {t("cms.settings.googlePlayStoreLink")}
           <input
             type="url"
-            value={draft.googlePlayStoreLink}
+            value={currentDraft.googlePlayStoreLink}
             onChange={(e) =>
-              setDraft((prev) => ({...prev, googlePlayStoreLink: e.target.value}))
+              patchDraft({googlePlayStoreLink: e.target.value})
             }
             className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
           />
@@ -217,9 +314,9 @@ export default function CmsSettingsView() {
           {t("cms.settings.appleAppStoreLink")}
           <input
             type="url"
-            value={draft.appleAppStoreLink}
+            value={currentDraft.appleAppStoreLink}
             onChange={(e) =>
-              setDraft((prev) => ({...prev, appleAppStoreLink: e.target.value}))
+              patchDraft({appleAppStoreLink: e.target.value})
             }
             className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
           />
@@ -243,9 +340,9 @@ export default function CmsSettingsView() {
             {t(labelKey)}
             <input
               type="url"
-              value={draft[key]}
+              value={currentDraft[key]}
               onChange={(e) =>
-                setDraft((prev) => ({...prev, [key]: e.target.value}))
+                patchDraft({[key]: e.target.value} as Partial<SettingsDraft>)
               }
               className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
             />
@@ -253,24 +350,30 @@ export default function CmsSettingsView() {
         ))}
       </section>
 
-      <section className="grid gap-4 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm md:grid-cols-2">
+      <section className="grid gap-4 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm md:grid-cols-3">
+        <StringListFieldset
+          label={t("cms.settings.addresses")}
+          addLabel={t("cms.settings.addAddress")}
+          placeholder={t("cms.settings.addressPlaceholder")}
+          type="text"
+          values={currentDraft.addresses}
+          onChange={(next) => patchDraft({addresses: next})}
+        />
         <StringListFieldset
           label={t("cms.settings.phoneNumbers")}
           addLabel={t("cms.settings.addPhone")}
           placeholder={t("cms.settings.phonePlaceholder")}
           type="tel"
-          values={draft.phoneNumbers}
-          onChange={(next) => setDraft((prev) => ({...prev, phoneNumbers: next}))}
+          values={currentDraft.phoneNumbers}
+          onChange={(next) => patchDraft({phoneNumbers: next})}
         />
         <StringListFieldset
           label={t("cms.settings.emailAddresses")}
           addLabel={t("cms.settings.addEmail")}
           placeholder={t("cms.settings.emailPlaceholder")}
           type="email"
-          values={draft.emailAddresses}
-          onChange={(next) =>
-            setDraft((prev) => ({...prev, emailAddresses: next}))
-          }
+          values={currentDraft.emailAddresses}
+          onChange={(next) => patchDraft({emailAddresses: next})}
         />
       </section>
 

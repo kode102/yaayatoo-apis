@@ -641,6 +641,45 @@ export const openApiPaths = {
       },
     },
   },
+  "/public/cms-settings": {
+    get: {
+      tags: ["Public"],
+      summary: "Réglages CMS publics (contacts + liens)",
+      description:
+        "Retourne le premier document actif de `cmsSettings` avec " +
+        "adresses, téléphones, e-mails et liens applicatifs / réseaux, " +
+        "résolus par pays (`country` / `countryCode`).",
+      parameters: [countryQuery, countryCodeQuery],
+      responses: {
+        "200": {
+          description: "OK",
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  success: {type: "boolean", example: true},
+                  data: {
+                    oneOf: [
+                      {$ref: "#/components/schemas/ReferenceDocument"},
+                      {type: "null"},
+                    ],
+                  },
+                },
+              },
+            },
+          },
+        },
+        "500": {
+          content: {
+            "application/json": {
+              schema: {$ref: "#/components/schemas/ApiError"},
+            },
+          },
+        },
+      },
+    },
+  },
   "/public/job-reviews": {
     get: {
       tags: ["Public"],
@@ -821,6 +860,7 @@ export const openApiPaths = {
                   title: "cmsSettings",
                   type: "object",
                   properties: {
+                    countryCode: {type: "string", description: "ISO2 ou __"},
                     googlePlayStoreLink: {type: "string"},
                     appleAppStoreLink: {type: "string"},
                     facebookLink: {type: "string"},
@@ -830,6 +870,7 @@ export const openApiPaths = {
                     tiktokLink: {type: "string"},
                     youtubeLink: {type: "string"},
                     whatsappLink: {type: "string"},
+                    addresses: {type: "array", items: {type: "string"}},
                     phoneNumbers: {type: "array", items: {type: "string"}},
                     emailAddresses: {type: "array", items: {type: "string"}},
                     active: {type: "boolean"},
@@ -894,6 +935,7 @@ export const openApiPaths = {
               type: "object",
               properties: {
                 active: {type: "boolean"},
+                countryCode: {type: "string", description: "ISO2 ou __"},
                 locale: {type: "string"},
                 name: {type: "string"},
                 description: {type: "string"},
@@ -912,6 +954,7 @@ export const openApiPaths = {
                 tiktokLink: {type: "string"},
                 youtubeLink: {type: "string"},
                 whatsappLink: {type: "string"},
+                addresses: {type: "array", items: {type: "string"}},
                 phoneNumbers: {type: "array", items: {type: "string"}},
                 emailAddresses: {type: "array", items: {type: "string"}},
               },
