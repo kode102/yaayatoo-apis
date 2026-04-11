@@ -279,15 +279,6 @@ export function editDescriptionPrefill(
   return block?.description ?? "";
 }
 
-/** Libellé vitrine (services) pour le formulaire d’édition. */
-export function editLabelPrefill(
-  translations: TranslationMap | undefined,
-  editorLocale: string,
-): string {
-  const block = translationBlockForEditorLocale(translations, editorLocale);
-  return (block?.label ?? "").trim();
-}
-
 export function pickSortLabel(
   translations: TranslationMap | undefined,
   locale: string,
