@@ -41,6 +41,7 @@ const ALLOWED = new Set([
   "cmsSections",
   "cmsNamespaces",
   "cmsSettings",
+  "newsFeed",
   "employee",
   "employer",
   "jobOffers",
@@ -155,6 +156,10 @@ function normalizeOut(
     base.translations = languageDocToNested(data);
     return base;
   }
+  if (collection === "newsFeed") {
+    base.translations = toNestedCmsTranslations(data.translations);
+    return base;
+  }
   let tr: TranslationsMap;
   if (collection === "countries") {
     tr = normalizeLegacyCountryTranslations(data);
@@ -197,6 +202,9 @@ function sortListFallback(
   }
   if (collection === "jobReviews") {
     return String((row as {reviewedAt?: string}).reviewedAt ?? row.id);
+  }
+  if (collection === "newsFeed") {
+    return String(row.id);
   }
   return String(row.id);
 }
@@ -849,6 +857,30 @@ function parseCmsSettingsPost(body: Record<string, unknown>): {
   };
 }
 
+function stripHtmlToText(html: string): string {
+  return html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function parseNewsFeedPost(body: Record<string, unknown>): {
+  locale: string;
+  titleHtml: string;
+  redirectUrl: string;
+  active: boolean;
+} | null {
+  const locale = normLocale(String(body.locale ?? ""));
+  const titleHtml =
+    typeof body.titleHtml === "string" ? body.titleHtml.trim() : "";
+  if (!locale || !titleHtml) return null;
+  const redirectUrl =
+    typeof body.redirectUrl === "string" ? body.redirectUrl.trim() : "";
+  return {
+    locale,
+    titleHtml,
+    redirectUrl,
+    active: typeof body.active === "boolean" ? body.active : true,
+  };
+}
+
 function readCmsSettingsPerCountry(
   doc: Record<string, unknown>,
 ): Record<string, Record<string, unknown>> {
@@ -1216,6 +1248,52 @@ function buildPutPatch(
     return {patch};
   }
 
+  if (collection === "newsFeed") {
+    if (typeof body.redirectUrl === "string") {
+      patch.redirectUrl = body.redirectUrl.trim();
+    }
+    if (
+      localeRaw !== undefined &&
+      localeRaw !== null &&
+      String(localeRaw).trim() !== ""
+    ) {
+      const locale = normLocale(String(localeRaw));
+      if (!locale) {
+        return {patch: {}, error: "locale invalide"};
+      }
+      if (typeof body.titleHtml !== "string") {
+        return {
+          patch: {},
+          error: "titleHtml requis avec locale pour newsFeed",
+        };
+      }
+      const titleHtml = body.titleHtml.trim();
+      if (!titleHtml) {
+        return {patch: {}, error: "titleHtml vide"};
+      }
+      const nested = toNestedCmsTranslations(existing.translations);
+      patch.translations = mergeTranslationBlockNested(
+        nested,
+        CMS_DEFAULT_COUNTRY,
+        locale,
+        {
+          name: stripHtmlToText(titleHtml).slice(0, 256),
+          labelHtml: titleHtml.slice(0, 16_000),
+        },
+      );
+    } else if (body.titleHtml !== undefined) {
+      return {
+        patch: {},
+        error: "locale requis pour mettre à jour titleHtml",
+      };
+    }
+    const newsFeedKeys = Object.keys(patch).filter((k) => k !== "updatedAt");
+    if (newsFeedKeys.length === 0) {
+      return {patch: {}, error: "Aucun champ à mettre à jour"};
+    }
+    return {patch};
+  }
+
   if (collection === "jobReviews") {
     if (
       localeRaw !== undefined &&
@@ -1509,7 +1587,8 @@ export function createAdminRouter(): express.Router {
         if (
           collection === "cmsSections" ||
           collection === "services" ||
-          collection === "languages"
+          collection === "languages" ||
+          collection === "newsFeed"
         ) {
           trA = flattenCmsForSort(
             (a as {translations?: CmsNestedTranslations}).translations ??
@@ -1649,6 +1728,28 @@ export function createAdminRouter(): express.Router {
           [v.countryCode]: v.region,
         },
         active: v.active,
+      };
+    } else if (collection === "newsFeed") {
+      const v = parseNewsFeedPost(body);
+      if (!v) {
+        res.status(400).json({
+          success: false,
+          error: "Champs invalides (locale, titleHtml requis)",
+        });
+        return;
+      }
+      payload = {
+        active: v.active,
+        redirectUrl: v.redirectUrl,
+        translations: mergeTranslationBlockNested(
+          {},
+          CMS_DEFAULT_COUNTRY,
+          v.locale,
+          {
+            name: stripHtmlToText(v.titleHtml).slice(0, 256),
+            labelHtml: v.titleHtml.slice(0, 16_000),
+          },
+        ),
       };
     } else if (
       collection === "employee" ||

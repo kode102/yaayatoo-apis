@@ -54,6 +54,15 @@ export const ADMIN_NAV_MODULES: AdminNavModule[] = [
     ],
   },
   {
+    id: "blogNews",
+    labelKey: "nav.module.blogNews",
+    pathPrefix: "/cms/blog-news",
+    items: [
+      {href: "/cms/blog-news/articles", labelKey: "nav.blogNews.articles"},
+      {href: "/cms/blog-news/news-feed", labelKey: "nav.blogNews.newsFeed"},
+    ],
+  },
+  {
     id: "job",
     labelKey: "nav.module.job",
     pathPrefix: "/jobs",

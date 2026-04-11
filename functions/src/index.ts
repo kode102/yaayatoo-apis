@@ -19,6 +19,7 @@ import {getPublicUiDictionary} from "./public/ui-dictionary-public.js";
 import {getPublicJobReviews} from "./public/job-reviews-public.js";
 import {getPublicHomeProfiles} from "./public/employees-public.js";
 import {getPublicCmsSettings} from "./public/cms-settings.js";
+import {getPublicNewsFeed} from "./public/news-feed.js";
 import {
   CMS_DEFAULT_COUNTRY,
   normCmsCountryCode,
@@ -261,6 +262,11 @@ app.get("/public/ui-dictionary", (req, res) => {
 /** Réglages CMS publics (contacts / stores / réseaux). */
 app.get("/public/cms-settings", (req, res) => {
   void getPublicCmsSettings(req, res);
+});
+
+/** Bandeau Blog & News (footer). */
+app.get("/public/news-feed", (req, res) => {
+  void getPublicNewsFeed(req, res);
 });
 
 /** Avis publics jobReviews (filtre minRating) + employeur / employé. */

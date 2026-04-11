@@ -152,6 +152,8 @@ export const openApiComponents = {
         tiktokLink: {type: "string"},
         youtubeLink: {type: "string"},
         whatsappLink: {type: "string"},
+        redirectUrl: {type: "string"},
+        titleHtml: {type: "string"},
         addresses: {type: "array", items: {type: "string"}},
         phoneNumbers: {type: "array", items: {type: "string"}},
         emailAddresses: {type: "array", items: {type: "string"}},
@@ -159,6 +161,14 @@ export const openApiComponents = {
         updatedAt: {type: "string", format: "date-time"},
       },
       additionalProperties: true,
+    },
+    NewsFeedItem: {
+      type: "object",
+      properties: {
+        id: {type: "string"},
+        titleHtml: {type: "string"},
+        redirectUrl: {type: "string"},
+      },
     },
     UiDictionaryData: {
       type: "object",

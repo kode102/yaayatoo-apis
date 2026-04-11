@@ -14,6 +14,7 @@ const collectionParam = {
       "cmsSections",
       "cmsNamespaces",
       "cmsSettings",
+      "newsFeed",
       "employee",
       "employer",
       "jobOffers",
@@ -680,6 +681,53 @@ export const openApiPaths = {
       },
     },
   },
+  "/public/news-feed": {
+    get: {
+      tags: ["Public"],
+      summary: "News feed public (footer)",
+      description:
+        "Retourne les entrées actives de `newsFeed` avec titre HTML " +
+        "résolu par locale et pays.",
+      parameters: [
+        localeQuery,
+        sortLocaleQuery,
+        countryQuery,
+        countryCodeQuery,
+        {
+          name: "limit",
+          in: "query" as const,
+          schema: {type: "integer" as const, default: 20, minimum: 1, maximum: 50},
+          description: "Nombre max d’entrées (1–50, défaut 20)",
+        },
+      ],
+      responses: {
+        "200": {
+          description: "OK",
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  success: {type: "boolean", example: true},
+                  data: {
+                    type: "array",
+                    items: {$ref: "#/components/schemas/NewsFeedItem"},
+                  },
+                },
+              },
+            },
+          },
+        },
+        "500": {
+          content: {
+            "application/json": {
+              schema: {$ref: "#/components/schemas/ApiError"},
+            },
+          },
+        },
+      },
+    },
+  },
   "/public/job-reviews": {
     get: {
       tags: ["Public"],
@@ -876,6 +924,17 @@ export const openApiPaths = {
                     active: {type: "boolean"},
                   },
                 },
+                {
+                  title: "newsFeed",
+                  type: "object",
+                  required: ["locale", "titleHtml"],
+                  properties: {
+                    locale: {type: "string"},
+                    titleHtml: {type: "string"},
+                    redirectUrl: {type: "string"},
+                    active: {type: "boolean"},
+                  },
+                },
               ],
             },
           },
@@ -957,6 +1016,8 @@ export const openApiPaths = {
                 addresses: {type: "array", items: {type: "string"}},
                 phoneNumbers: {type: "array", items: {type: "string"}},
                 emailAddresses: {type: "array", items: {type: "string"}},
+                titleHtml: {type: "string"},
+                redirectUrl: {type: "string"},
               },
             },
           },

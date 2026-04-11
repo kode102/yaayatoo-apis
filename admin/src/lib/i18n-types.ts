@@ -248,6 +248,15 @@ export type CmsSettingsRegion = {
   emailAddresses?: string[];
 };
 
+export type NewsFeedDoc = {
+  id: string;
+  active: boolean;
+  redirectUrl?: string;
+  translations?: RegionalTranslationMap;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
 export function localeFilledCount(translations: TranslationMap | undefined): number {
   if (!translations) return 0;
   return Object.keys(translations).filter((k) => translations[k]?.name?.trim()).length;
