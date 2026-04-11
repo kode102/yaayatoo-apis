@@ -64,6 +64,58 @@ export const openApiComponents = {
         flagLink: {type: "string", description: "URL drapeau pays"},
         flagIconUrl: {type: "string", description: "URL icône langue"},
         imageUrl: {type: "string", description: "URL image service"},
+        color1: {type: "string", description: "Couleur dégradé bannière (#RGB)"},
+        color2: {type: "string", description: "Couleur dégradé bannière (#RGB)"},
+        bannerImageUrl: {type: "string", description: "Image bannière page service"},
+        featureImageUrl: {
+          type: "string",
+          description: "Image mise en avant (héros)",
+        },
+        labelHtml: {type: "string", description: "Libellé HTML sous le titre"},
+        joinAction: {
+          type: "object",
+          properties: {
+            text: {type: "string"},
+            linkOrRoute: {
+              type: "string",
+              description: "URL absolue ou chemin interne",
+            },
+          },
+        },
+        postAction: {
+          type: "object",
+          properties: {
+            text: {type: "string"},
+            linkOrRoute: {type: "string"},
+          },
+        },
+        featureTexts: {
+          type: "array",
+          items: {type: "string"},
+          description: "Liste de puces marketing",
+        },
+        benefits: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              imageUrl: {type: "string"},
+              title: {type: "string"},
+              description: {type: "string"},
+            },
+          },
+        },
+        reviewCount: {
+          type: "integer",
+          description:
+            "GET public uniquement : nombre d’avis (jobReviews) liés au service",
+        },
+        averageRating: {
+          type: "number",
+          nullable: true,
+          description:
+            "GET public uniquement : note moyenne (null si aucun avis)",
+        },
         translations: {
           type: "object",
           additionalProperties: {$ref: "#/components/schemas/TranslationBlock"},

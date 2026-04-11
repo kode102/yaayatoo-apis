@@ -47,24 +47,42 @@ async function uploadValidatedImageToFolder(
   return getDownloadURL(storageRef);
 }
 
+export type ServiceImageVariant = "main" | "banner" | "feature" | "benefit";
+
 /**
  * Envoie une image service dans Firebase Storage et retourne l’URL de téléchargement.
- * Chemin : `admin/services/{serviceId|uploads}/{timestamp}_{uuid}.ext`
+ * Chemin : `admin/services/{serviceId|uploads}/…` (+ sous-dossiers banner, feature, benefits).
  *
  * Règles Storage : autoriser en écriture aux utilisateurs authentifiés sur `admin/services/**`.
  *
  * @param file Fichier image local.
  * @param opts.serviceId Si défini (édition), classe les fichiers sous ce dossier.
+ * @param opts.variant Sous-dossier pour bannière / visuel / picto avantage.
+ * @param opts.benefitKey Sous-chemin stable pour un bloc avantage (ex. index).
  * @return URL publique (token) pour `imageUrl` Firestore.
  */
 export async function uploadServiceImageToStorage(
   file: File,
-  opts: {serviceId?: string},
+  opts: {
+    serviceId?: string;
+    variant?: ServiceImageVariant;
+    benefitKey?: string;
+  },
 ): Promise<string> {
-  const folder =
+  const variant = opts.variant ?? "main";
+  const base =
     opts.serviceId?.trim() ?
       `admin/services/${opts.serviceId.trim()}`
     : "admin/services/uploads";
+  let folder = base;
+  if (variant === "banner") {
+    folder = `${base}/banner`;
+  } else if (variant === "feature") {
+    folder = `${base}/feature`;
+  } else if (variant === "benefit") {
+    const k = opts.benefitKey?.trim() || randomId();
+    folder = `${base}/benefits/${k}`;
+  }
   return uploadValidatedImageToFolder(file, folder);
 }
 

@@ -121,6 +121,57 @@ function attachResolvedTranslation(
 }
 
 /**
+ * Note d’avis (nombre fini ou null).
+ * @param {unknown} v Valeur Firestore.
+ * @return {number|null} Note ou null.
+ */
+function reviewRatingNum(v: unknown): number | null {
+  if (typeof v === "number" && Number.isFinite(v)) return v;
+  if (typeof v === "string") {
+    const n = parseFloat(v.replace(",", "."));
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+}
+
+/**
+ * Agrège avis par service via jobOffers.jobOfferId → serviceId.
+ * @return {Promise<Map>} Map serviceId → stats.
+ */
+async function loadReviewStatsByServiceId(): Promise<
+  Map<string, {reviewCount: number; averageRating: number}>
+  > {
+  const [offersSnap, reviewsSnap] = await Promise.all([
+    db.collection("jobOffers").select("serviceId").get(),
+    db.collection("jobReviews").select("jobOfferId", "rating").get(),
+  ]);
+  const offerToService = new Map<string, string>();
+  for (const d of offersSnap.docs) {
+    const sid = String(d.data().serviceId ?? "").trim();
+    if (sid) offerToService.set(d.id, sid);
+  }
+  const acc = new Map<string, {count: number; sum: number}>();
+  for (const d of reviewsSnap.docs) {
+    const oid = String(d.data().jobOfferId ?? "").trim();
+    const sid = offerToService.get(oid);
+    if (!sid) continue;
+    const r = reviewRatingNum(d.data().rating);
+    if (r === null) continue;
+    const cur = acc.get(sid) ?? {count: 0, sum: 0};
+    cur.count += 1;
+    cur.sum += r;
+    acc.set(sid, cur);
+  }
+  const out = new Map<string, {reviewCount: number; averageRating: number}>();
+  for (const [sid, {count, sum}] of acc) {
+    const averageRating =
+      count > 0 ? Math.round((sum / count) * 10) / 10 : 0;
+    out.set(sid, {reviewCount: count, averageRating});
+  }
+  return out;
+}
+
+/**
  * Liste une collection : actifs uniquement, tri par libellé.
  * @param {"countries"|"languages"|"services"} collection Collection.
  * @param {string} sortLocale Locale pour l’ordre d’affichage.
@@ -161,8 +212,21 @@ async function listActiveByCollection(
       "fr",
     );
   });
+  let reviewByService: Map<
+    string,
+    {reviewCount: number; averageRating: number}
+  > | null = null;
+  if (collection === "services") {
+    reviewByService = await loadReviewStatsByServiceId();
+  }
   for (const row of data) {
     attachResolvedTranslation(collection, row, cc, loc);
+    if (reviewByService && collection === "services") {
+      const stats = reviewByService.get(String(row.id));
+      row.reviewCount = stats?.reviewCount ?? 0;
+      row.averageRating =
+        stats && stats.reviewCount > 0 ? stats.averageRating : null;
+    }
   }
   return data;
 }

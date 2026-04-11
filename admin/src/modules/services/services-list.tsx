@@ -25,8 +25,15 @@ import {
   type ServiceDoc,
 } from "@/lib/i18n-types";
 import {persistServiceEditDrafts} from "@/lib/translation-persist";
+import {
+  emptyServiceMarketingDraft,
+  serviceMarketingDraftFromDoc,
+  serviceMarketingDraftToApiPatch,
+  type ServiceMarketingDraft,
+} from "@/lib/service-marketing";
 import {uiLocaleFromEditorCode} from "@/lib/ui-locale-constants";
 import {ServiceImageUploadField} from "@/components/service-image-upload-field";
+import {ServiceMarketingEditor} from "@/components/service-marketing-editor";
 
 const serviceColumnHelper = createColumnHelper<ServiceDoc>();
 
@@ -45,6 +52,9 @@ export default function ServicesListView() {
     CMS_DEFAULT_COUNTRY_KEY,
   );
   const [editImageUrl, setEditImageUrl] = useState("");
+  const [editMarketing, setEditMarketing] = useState<ServiceMarketingDraft>(
+    emptyServiceMarketingDraft,
+  );
 
   const sortedCodes = useMemo(
     () => sortedActiveLanguageCodes(activeLanguages),
@@ -150,6 +160,7 @@ export default function ServicesListView() {
         ),
       );
       setEditImageUrl(row.imageUrl ?? "");
+      setEditMarketing(serviceMarketingDraftFromDoc(row));
     },
     [sortedCountryCodes, sortedCodes],
   );
@@ -176,6 +187,7 @@ export default function ServicesListView() {
         sortedCodes,
         editDraftsByCountry,
         editImageUrl,
+        serviceMarketingDraftToApiPatch(editMarketing),
       );
       setEditRow(null);
       await load();
@@ -437,12 +449,20 @@ export default function ServicesListView() {
           descriptionLabel={t("common.description")}
         />
         {editRow ?
-          <ServiceImageUploadField
-            value={editImageUrl}
-            onChange={setEditImageUrl}
-            serviceId={editRow.id}
-            disabled={busy}
-          />
+          <>
+            <ServiceImageUploadField
+              value={editImageUrl}
+              onChange={setEditImageUrl}
+              serviceId={editRow.id}
+              disabled={busy}
+            />
+            <ServiceMarketingEditor
+              serviceId={editRow.id}
+              disabled={busy}
+              value={editMarketing}
+              onChange={setEditMarketing}
+            />
+          </>
         : null}
       </EditSheet>
     </div>

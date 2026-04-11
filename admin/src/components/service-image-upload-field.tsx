@@ -5,6 +5,7 @@ import {ensureFirebaseApp} from "@/lib/firebase";
 import {
   SERVICE_IMAGE_MAX_BYTES,
   uploadServiceImageToStorage,
+  type ServiceImageVariant,
 } from "@/lib/storage-upload";
 import {useUiLocale} from "@/contexts/ui-locale-context";
 
@@ -13,6 +14,11 @@ type Props = {
   onChange: (url: string) => void;
   /** Document Firestore existant : sous-dossier dédié dans Storage. */
   serviceId?: string;
+  variant?: ServiceImageVariant;
+  /** Avec `variant: "benefit"`, sous-dossier stable (ex. b-0). */
+  benefitKey?: string;
+  labelKey?: string;
+  hintKey?: string;
   disabled?: boolean;
 };
 
@@ -20,6 +26,10 @@ export function ServiceImageUploadField({
   value,
   onChange,
   serviceId,
+  variant = "main",
+  benefitKey,
+  labelKey = "services.image.label",
+  hintKey = "services.image.hint",
   disabled,
 }: Props) {
   const {t} = useUiLocale();
@@ -35,7 +45,11 @@ export function ServiceImageUploadField({
     setUploading(true);
     try {
       await ensureFirebaseApp();
-      const url = await uploadServiceImageToStorage(file, {serviceId});
+      const url = await uploadServiceImageToStorage(file, {
+        serviceId,
+        variant,
+        benefitKey,
+      });
       onChange(url);
     } catch (err: unknown) {
       const code = err instanceof Error ? err.message : String(err);
@@ -62,10 +76,10 @@ export function ServiceImageUploadField({
   return (
     <div className="space-y-2">
       <span className="block text-sm font-medium text-gray-700">
-        {t("services.image.label")}
+        {t(labelKey)}
       </span>
       <p className="text-xs text-gray-500">
-        {t("services.image.hint", {
+        {t(hintKey, {
           maxMb: String(Math.round(SERVICE_IMAGE_MAX_BYTES / (1024 * 1024))),
         })}
       </p>

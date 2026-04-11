@@ -18,6 +18,10 @@ import {
 } from "../lib/ui-dictionary-shared.js";
 import {languageDocToNested, serviceDocToNested} from "./reference-nested.js";
 import {
+  applyServiceMarketingPatch,
+  parseServiceMarketingForCreate,
+} from "./service-doc-fields.js";
+import {
   DEFAULT_LOCALE,
   mergeTranslations,
   normLocale,
@@ -1216,6 +1220,10 @@ function buildPutPatch(
     if (typeof body.imageUrl === "string") {
       patch.imageUrl = body.imageUrl.trim();
     }
+    const marketingErr = applyServiceMarketingPatch(body, patch);
+    if (marketingErr) {
+      return {patch: {}, error: marketingErr};
+    }
   }
 
   if (collection === "cmsSections") {
@@ -1364,10 +1372,16 @@ export function createAdminRouter(): express.Router {
         });
         return;
       }
+      const marketing = parseServiceMarketingForCreate(body);
+      if (!marketing.ok) {
+        res.status(400).json({success: false, error: marketing.error});
+        return;
+      }
       payload = {
         active: v.active,
         translations: v.translations,
         imageUrl: v.imageUrl,
+        ...marketing.fields,
       };
     } else if (collection === "countries") {
       const v = parseCountryPost(body);

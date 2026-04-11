@@ -18,6 +18,12 @@ import {
   type ServiceDoc,
 } from "@/lib/i18n-types";
 import {ServiceImageUploadField} from "@/components/service-image-upload-field";
+import {ServiceMarketingEditor} from "@/components/service-marketing-editor";
+import {
+  emptyServiceMarketingDraft,
+  serviceMarketingDraftToApiPatch,
+  type ServiceMarketingDraft,
+} from "@/lib/service-marketing";
 
 export default function ServicesCreateView() {
   const {getIdToken} = useAuth();
@@ -32,6 +38,9 @@ export default function ServicesCreateView() {
     CMS_DEFAULT_COUNTRY_KEY,
   );
   const [imageUrl, setImageUrl] = useState("");
+  const [createMarketing, setCreateMarketing] = useState<ServiceMarketingDraft>(
+    emptyServiceMarketingDraft,
+  );
   const [activeNew, setActiveNew] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -138,6 +147,7 @@ export default function ServicesCreateView() {
     setLoadError(null);
     try {
       const primaryDraft = draftsByCountry[primaryCountry]![primaryLocale]!;
+      const marketingBody = serviceMarketingDraftToApiPatch(createMarketing);
       const res = await adminFetch<ApiDocResponse<ServiceDoc>>(
         "/admin/documents/services",
         token,
@@ -150,6 +160,7 @@ export default function ServicesCreateView() {
             description: primaryDraft.description ?? "",
             imageUrl,
             active: activeNew,
+            ...marketingBody,
           }),
         },
       );
@@ -180,6 +191,7 @@ export default function ServicesCreateView() {
 
       setDraftsByCountry({});
       setImageUrl("");
+      setCreateMarketing(emptyServiceMarketingDraft());
       setActiveNew(true);
       router.push("/services/list");
     } catch (err: unknown) {
@@ -249,6 +261,11 @@ export default function ServicesCreateView() {
           value={imageUrl}
           onChange={setImageUrl}
           disabled={busy}
+        />
+        <ServiceMarketingEditor
+          disabled={busy}
+          value={createMarketing}
+          onChange={setCreateMarketing}
         />
         <button
           type="submit"

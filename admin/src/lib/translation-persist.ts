@@ -13,6 +13,7 @@ export async function persistServiceEditDrafts(
   sortedLocaleCodes: string[],
   drafts: Record<string, Record<string, LocaleTextDraft>>,
   imageUrl: string,
+  marketingPatch?: Record<string, unknown>,
 ): Promise<void> {
   let sentLocale = false;
   for (const country of sortedCountryCodes) {
@@ -32,6 +33,9 @@ export async function persistServiceEditDrafts(
       body.description = description;
       if (!sentLocale) {
         body.imageUrl = imageUrl;
+        if (marketingPatch) {
+          Object.assign(body, marketingPatch);
+        }
       }
       sentLocale = true;
       await adminFetch<ApiDocResponse<ServiceDoc>>(
@@ -42,10 +46,14 @@ export async function persistServiceEditDrafts(
     }
   }
   if (!sentLocale) {
+    const body: Record<string, unknown> = {imageUrl};
+    if (marketingPatch) {
+      Object.assign(body, marketingPatch);
+    }
     await adminFetch<ApiDocResponse<ServiceDoc>>(
       `/admin/documents/services/${serviceId}`,
       token,
-      {method: "PUT", body: JSON.stringify({imageUrl})},
+      {method: "PUT", body: JSON.stringify(body)},
     );
   }
 }

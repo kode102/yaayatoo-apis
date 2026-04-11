@@ -12,14 +12,41 @@ export type TranslationMap = Record<
  */
 export type RegionalTranslationMap = Record<string, TranslationMap>;
 
+/** Bouton CTA (libellé + lien absolu ou route interne). */
+export type ServiceActionButton = {
+  text: string;
+  linkOrRoute: string;
+};
+
+/** Carte « avantage » (section page service). */
+export type ServiceBenefit = {
+  imageUrl?: string;
+  title: string;
+  description: string;
+};
+
 export type ServiceDoc = {
   id: string;
   active: boolean;
   /** URL image (icône / visuel service), optionnelle */
   imageUrl?: string;
+  /** Dégradé bannière (hex). */
+  color1?: string;
+  color2?: string;
+  bannerImageUrl?: string;
+  featureImageUrl?: string;
+  /** Sous-titre / accroche HTML (sanitaire côté affichage vitrine). */
+  labelHtml?: string;
+  joinAction?: ServiceActionButton;
+  postAction?: ServiceActionButton;
+  featureTexts?: string[];
+  benefits?: ServiceBenefit[];
   translations: RegionalTranslationMap;
   createdAt?: string;
   updatedAt?: string;
+  /** Renseignés par l’API publique / catalogue (agrégation jobReviews). */
+  reviewCount?: number;
+  averageRating?: number | null;
 };
 
 export type CountryDoc = {
