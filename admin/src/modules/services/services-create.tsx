@@ -202,7 +202,7 @@ export default function ServicesCreateView() {
   }
 
   return (
-    <div className="mx-auto max-w-xl space-y-6">
+    <div className="mx-auto max-w-5xl space-y-6 px-4 pb-10 sm:px-6">
       <div>
         <h1 className="text-2xl font-semibold text-gray-900">
           {t("services.create.title")}

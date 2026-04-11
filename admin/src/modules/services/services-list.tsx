@@ -406,6 +406,8 @@ export default function ServicesListView() {
         open={!!editRow}
         title={t("services.edit.sheetTitle")}
         onClose={() => setEditRow(null)}
+        scrollableContent
+        panelClassName="max-w-5xl w-full"
         footer={
           <>
             <button
