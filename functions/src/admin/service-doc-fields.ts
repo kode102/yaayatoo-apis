@@ -36,15 +36,6 @@ function normNonEmptyString(
   return t;
 }
 
-function normHtmlString(v: unknown, max: number): string | null | undefined {
-  if (v === undefined) return undefined;
-  if (v === null) return null;
-  if (typeof v !== "string") return undefined;
-  const t = v.slice(0, max);
-  if (!t.trim()) return null;
-  return t;
-}
-
 export type ServiceActionButton = {
   text: string;
   linkOrRoute: string;
@@ -198,10 +189,6 @@ export function parseServiceMarketingForCreate(
   if (fImg !== undefined && fImg !== null) {
     fields.featureImageUrl = fImg;
   }
-  const label = normHtmlString(body.labelHtml, 16_000);
-  if (label !== undefined && label !== null) {
-    fields.labelHtml = label;
-  }
   const ja = parseAction(body.joinAction);
   if (ja !== undefined && ja !== null) {
     fields.joinAction = ja;
@@ -270,13 +257,6 @@ export function applyServiceMarketingPatch(
       return "featureImageUrl invalide";
     }
     setDel("featureImageUrl", u);
-  }
-  if (Object.prototype.hasOwnProperty.call(body, "labelHtml")) {
-    const h = normHtmlString(body.labelHtml, 16_000);
-    if (h === undefined && body.labelHtml !== null) {
-      return "labelHtml invalide";
-    }
-    setDel("labelHtml", h);
   }
 
   if (Object.prototype.hasOwnProperty.call(body, "joinAction")) {

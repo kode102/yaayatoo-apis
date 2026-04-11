@@ -864,7 +864,7 @@ export const openApiPaths = {
       description:
         "Au moins un parmi : `active`, `locale`+champs traduction, " +
         "`imageUrl` (services), `code`/`flagLink` (pays), `flagIconUrl` (langue). " +
-        "Avec `locale` : services exigent au moins un parmi name, description, label ; " +
+        "Avec `locale` : services exigent au moins un parmi name, description, label, labelHtml ; " +
         "pays/langues exigent `name`.",
       security: [{bearerAuth: []}],
       parameters: [collectionParam, idParam],
@@ -879,6 +879,7 @@ export const openApiPaths = {
                 name: {type: "string"},
                 description: {type: "string"},
                 label: {type: "string"},
+                labelHtml: {type: "string"},
                 imageUrl: {type: "string"},
                 code: {type: "string"},
                 flagLink: {type: "string"},

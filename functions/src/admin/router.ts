@@ -28,6 +28,7 @@ import {
   normalizeLegacyCountryTranslations,
   normalizeLegacyLanguageTranslations,
   pickSortLabel,
+  type TranslationBlock,
   type TranslationsMap,
 } from "./i18n.js";
 import {attachFirebaseUserRoutes} from "./firebase-users-routes.js";
@@ -634,11 +635,15 @@ function parseServicePost(body: Record<string, unknown>): {
   const country = normCmsCountryCode(
     String(body.countryCode ?? body.country ?? ""),
   );
+  const block: TranslationBlock = {name, description, label};
+  if (typeof body.labelHtml === "string") {
+    block.labelHtml = body.labelHtml.slice(0, 16_000);
+  }
   const translations = mergeTranslationBlockNested(
     {},
     country,
     locale,
-    {name, description, label},
+    block,
   );
   return {active, locale, translations, imageUrl};
 }
@@ -1113,23 +1118,28 @@ function buildPutPatch(
       const description =
         typeof body.description === "string" ? body.description : undefined;
       const labelIsString = typeof body.label === "string";
+      const labelHtmlIsString = typeof body.labelHtml === "string";
       if (
         name === undefined &&
         description === undefined &&
-        !labelIsString
+        !labelIsString &&
+        !labelHtmlIsString
       ) {
         return {
           patch: {},
-          error: "name, description ou label requis avec locale",
+          error: "name, description, label ou labelHtml requis avec locale",
         };
       }
       if (name !== undefined && !name) {
         return {patch: {}, error: "name vide"};
       }
-      const block: {name?: string; description?: string; label?: string} = {};
+      const block: TranslationBlock = {};
       if (name !== undefined) block.name = name;
       if (description !== undefined) block.description = description;
       if (labelIsString) block.label = String(body.label).trim();
+      if (labelHtmlIsString) {
+        block.labelHtml = String(body.labelHtml).slice(0, 16_000);
+      }
       const nested = serviceDocToNested(existing);
       const country = normCmsCountryCode(
         String(body.countryCode ?? body.country ?? ""),

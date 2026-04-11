@@ -122,6 +122,27 @@ function attachResolvedTranslation(
 }
 
 /**
+ * Repli : ancien `labelHtml` à la racine du document service.
+ * @param {Record<string, unknown>} row Ligne service normalisée.
+ * @return {void}
+ */
+function mergeLegacyRootLabelHtmlIntoResolved(
+  row: Record<string, unknown>,
+): void {
+  if (String(row.labelHtml ?? "").trim()) {
+    const resolved = row.resolvedTranslation;
+    if (!resolved || typeof resolved !== "object") return;
+    const r = resolved as Record<string, unknown>;
+    const fromBlock = r.labelHtml;
+    if (typeof fromBlock === "string" && fromBlock.trim()) return;
+    const root = row.labelHtml;
+    if (typeof root === "string" && root.trim()) {
+      row.resolvedTranslation = {...r, labelHtml: root.trim()};
+    }
+  }
+}
+
+/**
  * Note d’avis (nombre fini ou null).
  * @param {unknown} v Valeur Firestore.
  * @return {number|null} Note ou null.
@@ -226,6 +247,9 @@ async function listActiveByCollection(
   }
   for (const row of data) {
     attachResolvedTranslation(collection, row, cc, loc);
+    if (collection === "services") {
+      mergeLegacyRootLabelHtmlIntoResolved(row);
+    }
     if (reviewByService && collection === "services") {
       const stats = reviewByService.get(String(row.id));
       row.reviewCount = stats?.reviewCount ?? 0;

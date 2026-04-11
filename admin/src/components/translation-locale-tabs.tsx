@@ -2,6 +2,7 @@
 
 import {useEffect, useMemo, useState} from "react";
 import {useUiLocale} from "@/contexts/ui-locale-context";
+import {ServiceLabelHtmlEditor} from "@/components/service-label-html-editor";
 import {
   emptyLocaleTextDraft,
   labelForLocale,
@@ -22,9 +23,12 @@ type Props = {
   showDescription: boolean;
   /** Affiche le champ « libellé vitrine » (services). */
   showLabel?: boolean;
+  /** Éditeur HTML par langue (services). */
+  showLabelHtml?: boolean;
   nameLabel: string;
   descriptionLabel: string;
   labelLabel?: string;
+  labelHtmlLabel?: string;
 };
 
 export function TranslationLocaleTabs({
@@ -34,9 +38,11 @@ export function TranslationLocaleTabs({
   onDraftChange,
   showDescription,
   showLabel = false,
+  showLabelHtml = false,
   nameLabel,
   descriptionLabel,
   labelLabel = "",
+  labelHtmlLabel = "",
 }: Props) {
   const {t} = useUiLocale();
   const sorted = useMemo(
@@ -89,7 +95,8 @@ export function TranslationLocaleTabs({
           const selected = code === activeCode;
           const filled = Boolean(
             drafts[code]?.name?.trim() ||
-              (showLabel && drafts[code]?.label?.trim()),
+              (showLabel && drafts[code]?.label?.trim()) ||
+              (showLabelHtml && drafts[code]?.labelHtml?.trim()),
           );
           return (
             <button
@@ -164,6 +171,26 @@ export function TranslationLocaleTabs({
               className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary/70 focus:ring-2 focus:ring-primary/15 focus:outline-none"
             />
           </label>
+        : null}
+        {showLabelHtml ?
+          <div className="space-y-2">
+            <span className="block text-sm font-medium text-gray-700">
+              {labelHtmlLabel}{" "}
+              <span className="font-normal text-gray-400">({activeCode})</span>
+            </span>
+            <ServiceLabelHtmlEditor
+              value={current.labelHtml}
+              onChange={(html) =>
+                onDraftChange(activeCode, {
+                  ...current,
+                  labelHtml: html,
+                })
+              }
+            />
+            <p className="text-xs text-gray-500">
+              {t("common.labelHtmlFieldHint")}
+            </p>
+          </div>
         : null}
       </div>
     </div>

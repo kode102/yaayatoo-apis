@@ -3,7 +3,12 @@ import {uiLocaleFromEditorCode} from "@/lib/ui-locale-constants";
 /** Bloc de texte par langue (clé = code locale, ex. fr, en). */
 export type TranslationMap = Record<
   string,
-  {name?: string; description?: string; label?: string}
+  {
+    name?: string;
+    description?: string;
+    label?: string;
+    labelHtml?: string;
+  }
 >;
 
 /**
@@ -35,7 +40,10 @@ export type ServiceDoc = {
   color2?: string;
   bannerImageUrl?: string;
   featureImageUrl?: string;
-  /** Sous-titre / accroche HTML (sanitaire côté affichage vitrine). */
+  /**
+   * @deprecated Préférer `translations[country][locale].labelHtml`.
+   * Conservé pour migration / lecture API.
+   */
   labelHtml?: string;
   joinAction?: ServiceActionButton;
   postAction?: ServiceActionButton;
@@ -224,7 +232,9 @@ export function labelForLocale(
 export function translationBlockForEditorLocale(
   translations: TranslationMap | undefined,
   editorLocale: string,
-): {name?: string; description?: string; label?: string} | undefined {
+):
+  | {name?: string; description?: string; label?: string; labelHtml?: string}
+  | undefined {
   if (!translations || !editorLocale?.trim()) return undefined;
   const loc = editorLocale.trim().toLowerCase();
   const base = uiLocaleFromEditorCode(editorLocale);
@@ -245,7 +255,8 @@ export function translationBlockForEditorLocale(
       b &&
       (b.name?.trim() ||
         b.description?.trim() ||
-        b.label?.trim())
+        b.label?.trim() ||
+        b.labelHtml?.trim())
     ) {
       return b;
     }
@@ -254,7 +265,8 @@ export function translationBlockForEditorLocale(
     (b) =>
       b?.name?.trim() ||
       b?.description?.trim() ||
-      b?.label?.trim(),
+      b?.label?.trim() ||
+      b?.labelHtml?.trim(),
   );
 }
 
@@ -296,6 +308,8 @@ export type LocaleTextDraft = {
   description: string;
   /** Libellé court affiché sur la vitrine ; vide = utiliser le nom. */
   label: string;
+  /** Libellé HTML (sous-titre riche), par langue. */
+  labelHtml: string;
 };
 
 /** Valeur initiale des champs traduction (hors CMS riches). */
@@ -303,6 +317,7 @@ export const emptyLocaleTextDraft = (): LocaleTextDraft => ({
   name: "",
   description: "",
   label: "",
+  labelHtml: "",
 });
 
 /** Brouillons édition : pays → locale → texte. */
@@ -329,6 +344,7 @@ export function buildLocaleDraftsFromTranslations(
       name: (b?.name ?? "").trim(),
       description: typeof b?.description === "string" ? b.description : "",
       label: (b?.label ?? "").trim(),
+      labelHtml: typeof b?.labelHtml === "string" ? b.labelHtml : "",
     };
   }
   return out;
@@ -356,8 +372,58 @@ export function mergeRegionalDraftsFromTranslations(
         name: (b?.name ?? "").trim(),
         description: typeof b?.description === "string" ? b.description : "",
         label: (b?.label ?? "").trim(),
+        labelHtml: typeof b?.labelHtml === "string" ? b.labelHtml : "",
       };
     }
+  }
+  return out;
+}
+
+function cloneRegionalLocaleDrafts(d: RegionalLocaleDrafts): RegionalLocaleDrafts {
+  const out: RegionalLocaleDrafts = {};
+  for (const [c, m] of Object.entries(d)) {
+    out[c] = {};
+    for (const [loc, v] of Object.entries(m)) {
+      out[c][loc] = {...v};
+    }
+  }
+  return out;
+}
+
+/**
+ * Brouillons régionaux + repli `labelHtml` à la racine (données avant migration).
+ */
+export function mergeRegionalDraftsFromServiceDoc(
+  doc: Pick<ServiceDoc, "translations" | "labelHtml"> | undefined,
+  sortedCountryCodes: string[],
+  sortedLocaleCodes: string[],
+): RegionalLocaleDrafts {
+  const base = mergeRegionalDraftsFromTranslations(
+    doc?.translations,
+    sortedCountryCodes,
+    sortedLocaleCodes,
+  );
+  const legacy = doc?.labelHtml?.trim();
+  if (!legacy) return base;
+  const out = cloneRegionalLocaleDrafts(base);
+  let anyCell = false;
+  for (const c of sortedCountryCodes) {
+    for (const loc of sortedLocaleCodes) {
+      if (out[c]?.[loc]?.labelHtml?.trim()) {
+        anyCell = true;
+        break;
+      }
+    }
+    if (anyCell) break;
+  }
+  if (anyCell) return out;
+  const cc = CMS_DEFAULT_COUNTRY_KEY;
+  const loc0 = sortedLocaleCodes[0];
+  if (loc0 && out[cc]?.[loc0]) {
+    out[cc] = {
+      ...out[cc],
+      [loc0]: {...out[cc][loc0], labelHtml: legacy},
+    };
   }
   return out;
 }

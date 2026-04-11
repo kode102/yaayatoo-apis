@@ -6,8 +6,6 @@ import type {ServiceBenefit} from "@/lib/i18n-types";
 import type {ServiceMarketingDraft} from "@/lib/service-marketing";
 import {ServiceGradientColorField} from "@/components/service-gradient-color-field";
 import {ServiceImageUploadField} from "@/components/service-image-upload-field";
-import {ServiceLabelHtmlEditor} from "@/components/service-label-html-editor";
-
 type Props = {
   serviceId?: string;
   disabled?: boolean;
@@ -15,7 +13,7 @@ type Props = {
   onChange: (next: ServiceMarketingDraft) => void;
 };
 
-const STEP_COUNT = 5;
+const STEP_COUNT = 4;
 
 export function ServiceMarketingEditor({
   serviceId,
@@ -34,7 +32,6 @@ export function ServiceMarketingEditor({
     () => [
       t("services.marketing.step.colors"),
       t("services.marketing.step.media"),
-      t("services.marketing.step.label"),
       t("services.marketing.step.actions"),
       t("services.marketing.step.benefits"),
     ],
@@ -156,19 +153,6 @@ export function ServiceMarketingEditor({
         : null}
 
         {step === 2 ?
-          <div className="space-y-2">
-            <span className="block text-sm font-medium text-gray-700">
-              {t("services.marketing.labelHtml")}
-            </span>
-            <ServiceLabelHtmlEditor
-              value={value.labelHtml}
-              onChange={(html) => set("labelHtml", html)}
-              disabled={disabled}
-            />
-          </div>
-        : null}
-
-        {step === 3 ?
           <div className="space-y-5">
             <fieldset className="space-y-3 rounded-lg border border-gray-200 p-4">
               <legend className="px-1 text-sm font-medium text-gray-800">
@@ -249,7 +233,7 @@ export function ServiceMarketingEditor({
           </div>
         : null}
 
-        {step === 4 ?
+        {step === 3 ?
           <fieldset className="space-y-4 rounded-lg border border-gray-200 p-4">
             <legend className="px-1 text-sm font-medium text-gray-800">
               {t("services.marketing.benefits")}

@@ -111,7 +111,8 @@ export default function ServicesCreateView() {
       if (!d) return false;
       if (d.name.trim()) return true;
       if (d.description.trim().length > 0) return true;
-      return Boolean(d.label?.trim());
+      if (d.label?.trim()) return true;
+      return Boolean(d.labelHtml?.trim());
     });
   }
 
@@ -160,6 +161,7 @@ export default function ServicesCreateView() {
             name: primaryDraft.name.trim(),
             description: primaryDraft.description ?? "",
             label: (primaryDraft.label ?? "").trim(),
+            labelHtml: primaryDraft.labelHtml ?? "",
             imageUrl,
             active: activeNew,
             ...marketingBody,
@@ -250,9 +252,11 @@ export default function ServicesCreateView() {
           }
           showDescription
           showLabel
+          showLabelHtml
           nameLabel={t("common.name")}
           descriptionLabel={t("common.description")}
           labelLabel={t("common.shortLabel")}
+          labelHtmlLabel={t("services.marketing.labelHtml")}
         />
         <div className="flex items-center gap-2 text-sm text-gray-700">
           <input

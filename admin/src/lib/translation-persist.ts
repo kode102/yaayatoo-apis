@@ -25,7 +25,10 @@ export async function persistServiceEditDrafts(
       const hasDesc = description.trim().length > 0;
       const labelTrim = (d.label ?? "").trim();
       const hasLabel = labelTrim.length > 0;
-      if (!name && !hasDesc && !hasLabel) continue;
+      const labelHtmlTrim =
+        typeof d.labelHtml === "string" ? d.labelHtml.trim() : "";
+      const hasLabelHtml = labelHtmlTrim.length > 0;
+      if (!name && !hasDesc && !hasLabel && !hasLabelHtml) continue;
 
       const body: Record<string, unknown> = {
         locale: loc,
@@ -34,6 +37,7 @@ export async function persistServiceEditDrafts(
       if (name) body.name = name;
       body.description = description;
       body.label = labelTrim;
+      body.labelHtml = typeof d.labelHtml === "string" ? d.labelHtml : "";
       if (!sentLocale) {
         body.imageUrl = imageUrl;
         if (marketingPatch) {

@@ -33,7 +33,8 @@ export default function CountriesCreateView() {
       for (const lang of activeLanguages) {
         const c = lang.code.trim().toLowerCase();
         if (!c) continue;
-        if (!(c in next)) next[c] = {name: "", description: "", label: ""};
+        if (!(c in next))
+          next[c] = {name: "", description: "", label: "", labelHtml: ""};
       }
       for (const k of Object.keys(next)) {
         if (!activeLanguages.some((l) => l.code.trim().toLowerCase() === k)) {

@@ -17,7 +17,7 @@ import {
   getCmsLocaleBlock,
   hasAnyRegionalDraftName,
   localeFilledCountRegional,
-  mergeRegionalDraftsFromTranslations,
+  mergeRegionalDraftsFromServiceDoc,
   pickRegionalSortLabel,
   sortedActiveLanguageCodes,
   type CmsTranslationsByCountry,
@@ -153,8 +153,8 @@ export default function ServicesListView() {
     (row: ServiceDoc) => {
       setEditRow(row);
       setEditDraftsByCountry(
-        mergeRegionalDraftsFromTranslations(
-          row.translations,
+        mergeRegionalDraftsFromServiceDoc(
+          row,
           sortedCountryCodes,
           sortedCodes,
         ),
@@ -171,7 +171,8 @@ export default function ServicesListView() {
       if (!d) return false;
       if (d.name.trim()) return true;
       if (d.description.trim().length > 0) return true;
-      return Boolean(d.label?.trim());
+      if (d.label?.trim()) return true;
+      return Boolean(d.labelHtml?.trim());
     });
   }
 
@@ -449,9 +450,11 @@ export default function ServicesListView() {
           }
           showDescription
           showLabel
+          showLabelHtml
           nameLabel={t("common.name")}
           descriptionLabel={t("common.description")}
           labelLabel={t("common.shortLabel")}
+          labelHtmlLabel={t("services.marketing.labelHtml")}
         />
         {editRow ?
           <>

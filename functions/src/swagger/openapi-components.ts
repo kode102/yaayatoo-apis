@@ -55,6 +55,10 @@ export const openApiComponents = {
           description:
             "Libellé court vitrine (cartes, liste) ; sans valeur, affichage = name",
         },
+        labelHtml: {
+          type: "string",
+          description: "Libellé HTML (sous-titre riche), par langue et pays",
+        },
       },
     },
     ReferenceDocument: {
@@ -76,7 +80,11 @@ export const openApiComponents = {
           type: "string",
           description: "Image mise en avant (héros)",
         },
-        labelHtml: {type: "string", description: "Libellé HTML sous le titre"},
+        labelHtml: {
+          type: "string",
+          description:
+            "Obsolète : préférer translations.*.*.labelHtml ; repli public si bloc sans labelHtml",
+        },
         joinAction: {
           type: "object",
           properties: {

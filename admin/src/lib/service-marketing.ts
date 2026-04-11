@@ -5,7 +5,6 @@ export type ServiceMarketingDraft = {
   color2: string;
   bannerImageUrl: string;
   featureImageUrl: string;
-  labelHtml: string;
   joinText: string;
   joinLink: string;
   postText: string;
@@ -23,7 +22,6 @@ export function emptyServiceMarketingDraft(): ServiceMarketingDraft {
     color2: DEFAULT_C2,
     bannerImageUrl: "",
     featureImageUrl: "",
-    labelHtml: "",
     joinText: "",
     joinLink: "",
     postText: "",
@@ -39,7 +37,6 @@ export function serviceMarketingDraftFromDoc(row: ServiceDoc): ServiceMarketingD
     color2: row.color2?.trim() || DEFAULT_C2,
     bannerImageUrl: row.bannerImageUrl ?? "",
     featureImageUrl: row.featureImageUrl ?? "",
-    labelHtml: row.labelHtml ?? "",
     joinText: row.joinAction?.text ?? "",
     joinLink: row.joinAction?.linkOrRoute ?? "",
     postText: row.postAction?.text ?? "",
@@ -87,7 +84,6 @@ export function serviceMarketingDraftToApiPatch(
     color2: d.color2.trim() ? d.color2.trim() : null,
     bannerImageUrl: d.bannerImageUrl.trim() || null,
     featureImageUrl: d.featureImageUrl.trim() || null,
-    labelHtml: d.labelHtml.trim() ? d.labelHtml : null,
     joinAction: join,
     postAction: post,
     featureTexts: lines.length ? lines : null,

@@ -17,6 +17,8 @@ export type TranslationBlock = {
   description?: string;
   /** Libellé court vitrine (cartes, recherche) ; repli sur `name` si absent. */
   label?: string;
+  /** Libellé riche (HTML) sous le titre, par langue / pays. */
+  labelHtml?: string;
 };
 
 export type TranslationsMap = Record<string, TranslationBlock>;
