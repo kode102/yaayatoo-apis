@@ -50,6 +50,7 @@ export const ADMIN_NAV_MODULES: AdminNavModule[] = [
     items: [
       {href: "/cms/namespaces/list", labelKey: "nav.cms.namespaces"},
       {href: "/cms/sections", labelKey: "nav.cms.sections"},
+      {href: "/cms/settings", labelKey: "nav.cms.settings"},
     ],
   },
   {

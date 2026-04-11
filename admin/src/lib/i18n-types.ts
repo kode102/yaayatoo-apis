@@ -213,6 +213,24 @@ export type CmsNamespaceDoc = {
   updatedAt?: string;
 };
 
+export type CmsSettingsDoc = {
+  id: string;
+  active: boolean;
+  googlePlayStoreLink?: string;
+  appleAppStoreLink?: string;
+  facebookLink?: string;
+  twitterXLink?: string;
+  instagramLink?: string;
+  linkedInLink?: string;
+  tiktokLink?: string;
+  youtubeLink?: string;
+  whatsappLink?: string;
+  phoneNumbers?: string[];
+  emailAddresses?: string[];
+  createdAt?: string;
+  updatedAt?: string;
+};
+
 export function localeFilledCount(translations: TranslationMap | undefined): number {
   if (!translations) return 0;
   return Object.keys(translations).filter((k) => translations[k]?.name?.trim()).length;

@@ -40,6 +40,7 @@ const ALLOWED = new Set([
   "languages",
   "cmsSections",
   "cmsNamespaces",
+  "cmsSettings",
   "employee",
   "employer",
   "jobOffers",
@@ -792,6 +793,65 @@ function parseCmsSectionPost(body: Record<string, unknown>): {
   };
 }
 
+function parseStringList(
+  raw: unknown,
+  maxItems = 50,
+  maxItemLength = 512,
+): string[] {
+  if (!Array.isArray(raw)) return [];
+  const out: string[] = [];
+  for (const item of raw) {
+    if (typeof item !== "string") continue;
+    const trimmed = item.trim();
+    if (!trimmed) continue;
+    out.push(trimmed.slice(0, maxItemLength));
+  }
+  return [...new Set(out)].slice(0, maxItems);
+}
+
+function parseCmsSettingsPost(body: Record<string, unknown>): {
+  googlePlayStoreLink: string;
+  appleAppStoreLink: string;
+  facebookLink: string;
+  twitterXLink: string;
+  instagramLink: string;
+  linkedInLink: string;
+  tiktokLink: string;
+  youtubeLink: string;
+  whatsappLink: string;
+  phoneNumbers: string[];
+  emailAddresses: string[];
+  active: boolean;
+} {
+  return {
+    googlePlayStoreLink:
+      typeof body.googlePlayStoreLink === "string" ?
+        body.googlePlayStoreLink.trim() :
+        "",
+    appleAppStoreLink:
+      typeof body.appleAppStoreLink === "string" ?
+        body.appleAppStoreLink.trim() :
+        "",
+    facebookLink:
+      typeof body.facebookLink === "string" ? body.facebookLink.trim() : "",
+    twitterXLink:
+      typeof body.twitterXLink === "string" ? body.twitterXLink.trim() : "",
+    instagramLink:
+      typeof body.instagramLink === "string" ? body.instagramLink.trim() : "",
+    linkedInLink:
+      typeof body.linkedInLink === "string" ? body.linkedInLink.trim() : "",
+    tiktokLink:
+      typeof body.tiktokLink === "string" ? body.tiktokLink.trim() : "",
+    youtubeLink:
+      typeof body.youtubeLink === "string" ? body.youtubeLink.trim() : "",
+    whatsappLink:
+      typeof body.whatsappLink === "string" ? body.whatsappLink.trim() : "",
+    phoneNumbers: parseStringList(body.phoneNumbers, 30, 64),
+    emailAddresses: parseStringList(body.emailAddresses, 30, 254),
+    active: typeof body.active === "boolean" ? body.active : true,
+  };
+}
+
 /**
  * Fusionne un PATCH sur translations + champs scalaires.
  * @param {string} collection Collection.
@@ -1043,6 +1103,61 @@ function buildPutPatch(
     }
     const jobKeys = Object.keys(patch).filter((k) => k !== "updatedAt");
     if (jobKeys.length === 0) {
+      return {patch: {}, error: "Aucun champ à mettre à jour"};
+    }
+    return {patch};
+  }
+
+  if (collection === "cmsSettings") {
+    if (
+      localeRaw !== undefined &&
+      localeRaw !== null &&
+      String(localeRaw).trim() !== ""
+    ) {
+      return {
+        patch: {},
+        error: "Ne pas envoyer « locale » pour les documents cmsSettings",
+      };
+    }
+    const stringFields = [
+      "googlePlayStoreLink",
+      "appleAppStoreLink",
+      "facebookLink",
+      "twitterXLink",
+      "instagramLink",
+      "linkedInLink",
+      "tiktokLink",
+      "youtubeLink",
+      "whatsappLink",
+    ] as const;
+    for (const key of stringFields) {
+      if (typeof body[key] === "string") {
+        patch[key] = body[key].trim();
+      }
+    }
+    if (body.phoneNumbers !== undefined) {
+      if (!Array.isArray(body.phoneNumbers)) {
+        return {
+          patch: {},
+          error: "phoneNumbers doit être un tableau de chaînes",
+        };
+      }
+      patch.phoneNumbers = parseStringList(body.phoneNumbers, 30, 64);
+    }
+    if (body.emailAddresses !== undefined) {
+      if (!Array.isArray(body.emailAddresses)) {
+        return {
+          patch: {},
+          error: "emailAddresses doit être un tableau de chaînes",
+        };
+      }
+      patch.emailAddresses = parseStringList(body.emailAddresses, 30, 254);
+    }
+    if (typeof body.active === "boolean") {
+      patch.active = body.active;
+    }
+    const settingsKeys = Object.keys(patch).filter((k) => k !== "updatedAt");
+    if (settingsKeys.length === 0) {
       return {patch: {}, error: "Aucun champ à mettre à jour"};
     }
     return {patch};
@@ -1473,6 +1588,22 @@ export function createAdminRouter(): express.Router {
         profileListingImageUrl: v.profileListingImageUrl,
         videoLink: v.videoLink,
         readMoreUrl: v.readMoreUrl,
+      };
+    } else if (collection === "cmsSettings") {
+      const v = parseCmsSettingsPost(body);
+      payload = {
+        googlePlayStoreLink: v.googlePlayStoreLink,
+        appleAppStoreLink: v.appleAppStoreLink,
+        facebookLink: v.facebookLink,
+        twitterXLink: v.twitterXLink,
+        instagramLink: v.instagramLink,
+        linkedInLink: v.linkedInLink,
+        tiktokLink: v.tiktokLink,
+        youtubeLink: v.youtubeLink,
+        whatsappLink: v.whatsappLink,
+        phoneNumbers: v.phoneNumbers,
+        emailAddresses: v.emailAddresses,
+        active: v.active,
       };
     } else if (
       collection === "employee" ||
