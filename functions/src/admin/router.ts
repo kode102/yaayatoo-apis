@@ -70,6 +70,7 @@ const CMS_TRANSLATABLE_FIELDS = [
   "bannerTrustLabel",
   "statRows",
   "featureItems",
+  "faqSections",
 ] as const;
 
 /**

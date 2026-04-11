@@ -24,6 +24,7 @@ import {
   serviceDocToNested,
 } from "../admin/reference-nested.js";
 import {isPublicActiveDoc} from "../lib/public-active-doc.js";
+import {publicServiceSlug} from "./service-slug.js";
 
 /**
  * Sérialise un document Firestore pour JSON (timestamps → ISO).
@@ -249,6 +250,10 @@ async function listActiveByCollection(
     attachResolvedTranslation(collection, row, cc, loc);
     if (collection === "services") {
       mergeLegacyRootLabelHtmlIntoResolved(row);
+      row.slug = publicServiceSlug(
+        String(row.id),
+        (row.translations ?? {}) as CmsNestedTranslations,
+      );
     }
     if (reviewByService && collection === "services") {
       const stats = reviewByService.get(String(row.id));

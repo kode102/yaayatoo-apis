@@ -183,6 +183,11 @@ const CMS_FIELDS = [
    * [{ sectionTitle, iconSvg, iconStyle, sectionContent }].
    */
   "featureItems",
+  /**
+   * FAQ accueil : JSON
+   * [{ title, items: [{ question, answer (HTML) }] }].
+   */
+  "faqSections",
 ] as const;
 
 /**

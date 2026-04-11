@@ -20,6 +20,7 @@ import {
 } from "@/lib/i18n-types";
 import {CmsVideoThumbnailField} from "@/components/cms-video-thumbnail-field";
 import {SearchableRelationSelect} from "@/components/searchable-relation-select";
+import {ServiceLabelHtmlEditor} from "@/components/service-label-html-editor";
 
 type SiteLocaleDraft = {
   name: string;
@@ -74,12 +75,17 @@ type FeaturesLocaleDraft = {
   items: FeatureItemDraft[];
 };
 
+type FaqItemDraft = {question: string; answer: string};
+type FaqColumnDraft = {title: string; items: FaqItemDraft[]};
+type FaqLocaleDraft = {name: string; columns: FaqColumnDraft[]};
+
 /** Ordre du menu : blocs page d’accueil regroupés, puis blog, puis réglages. */
 const SECTION_TYPES: {id: CmsSectionTypeId; labelKey: string}[] = [
   {id: "why_choose_us", labelKey: "cms.sectionType.whyChooseUs"},
   {id: "banner", labelKey: "cms.sectionType.banner"},
   {id: "stat", labelKey: "cms.sectionType.stat"},
   {id: "features", labelKey: "cms.sectionType.features"},
+  {id: "faq", labelKey: "cms.sectionType.faq"},
   {id: "blog_section", labelKey: "cms.sectionType.blogSection"},
   {id: "profile_listing", labelKey: "cms.sectionType.profileListing"},
   {id: "site_settings", labelKey: "cms.sectionType.siteSettings"},
@@ -332,6 +338,80 @@ function featuresFromBlock(
 
 function featuresToStored(items: FeatureItemDraft[]): string {
   return JSON.stringify(items);
+}
+
+function emptyFaqItem(): FaqItemDraft {
+  return {question: "", answer: ""};
+}
+
+function emptyFaqColumn(): FaqColumnDraft {
+  return {title: "", items: [emptyFaqItem()]};
+}
+
+function emptyFaq(): FaqLocaleDraft {
+  return {
+    name: "",
+    columns: [emptyFaqColumn(), emptyFaqColumn(), emptyFaqColumn()],
+  };
+}
+
+function parseFaqItemRow(o: unknown): FaqItemDraft | null {
+  if (!o || typeof o !== "object" || Array.isArray(o)) return null;
+  const r = o as Record<string, unknown>;
+  return {
+    question: typeof r.question === "string" ? r.question : "",
+    answer: typeof r.answer === "string" ? r.answer : "",
+  };
+}
+
+function parseFaqColumnRow(o: unknown): FaqColumnDraft | null {
+  if (!o || typeof o !== "object" || Array.isArray(o)) return null;
+  const r = o as Record<string, unknown>;
+  const title = typeof r.title === "string" ? r.title : "";
+  const rawItems = r.items;
+  let items: FaqItemDraft[] = [emptyFaqItem()];
+  if (Array.isArray(rawItems)) {
+    const parsed = rawItems
+      .map(parseFaqItemRow)
+      .filter((x): x is FaqItemDraft => x !== null);
+    if (parsed.length > 0) items = parsed;
+  }
+  return {title, items};
+}
+
+function faqFromBlock(b: Record<string, unknown> | undefined): FaqLocaleDraft {
+  const d = emptyFaq();
+  if (!b) return d;
+  const name = typeof b.name === "string" ? b.name : "";
+  const raw = typeof b.faqSections === "string" ? b.faqSections : "";
+  if (!raw.trim()) return {...d, name};
+  try {
+    const arr = JSON.parse(raw) as unknown;
+    if (!Array.isArray(arr)) return {...d, name};
+    const columns = arr
+      .map(parseFaqColumnRow)
+      .filter((x): x is FaqColumnDraft => x !== null);
+    return {
+      name,
+      columns:
+        columns.length > 0 ? columns : [emptyFaqColumn(), emptyFaqColumn(), emptyFaqColumn()],
+    };
+  } catch {
+    return {...d, name};
+  }
+}
+
+function faqToStored(columns: FaqColumnDraft[]): string {
+  return JSON.stringify(columns);
+}
+
+function filledFaq(d: FaqLocaleDraft): boolean {
+  if (d.name.trim()) return true;
+  return d.columns.some(
+    (col) =>
+      col.title.trim() ||
+      col.items.some((it) => it.question.trim() || it.answer.trim()),
+  );
 }
 
 function filledFeatures(d: FeaturesLocaleDraft): boolean {
@@ -624,6 +704,166 @@ function FeaturesFieldset({
   );
 }
 
+type FaqFieldsetLabels = {
+  columnLegend: string;
+  columnTitle: string;
+  question: string;
+  answer: string;
+  addQuestion: string;
+  removeQuestion: string;
+  addColumn: string;
+  removeColumn: string;
+};
+
+type FaqFieldsetProps = {
+  hint?: string;
+  columns: FaqColumnDraft[];
+  onColumnsChange: (next: FaqColumnDraft[]) => void;
+  labels: FaqFieldsetLabels;
+};
+
+function FaqFieldset({
+  hint,
+  columns,
+  onColumnsChange,
+  labels,
+}: FaqFieldsetProps) {
+  function updateColumn(index: number, patch: Partial<FaqColumnDraft>) {
+    const next = columns.map((c, i) => (i === index ? {...c, ...patch} : c));
+    onColumnsChange(next);
+  }
+  function updateItem(
+    colIndex: number,
+    itemIndex: number,
+    patch: Partial<FaqItemDraft>,
+  ) {
+    const col = columns[colIndex];
+    if (!col) return;
+    const items = col.items.map((it, i) =>
+      i === itemIndex ? {...it, ...patch} : it,
+    );
+    updateColumn(colIndex, {items});
+  }
+  function addItem(colIndex: number) {
+    const col = columns[colIndex];
+    if (!col) return;
+    updateColumn(colIndex, {items: [...col.items, emptyFaqItem()]});
+  }
+  function removeItem(colIndex: number, itemIndex: number) {
+    const col = columns[colIndex];
+    if (!col) return;
+    if (col.items.length <= 1) {
+      updateColumn(colIndex, {items: [emptyFaqItem()]});
+      return;
+    }
+    updateColumn(colIndex, {
+      items: col.items.filter((_, i) => i !== itemIndex),
+    });
+  }
+  function addColumn() {
+    onColumnsChange([...columns, emptyFaqColumn()]);
+  }
+  function removeColumn(index: number) {
+    if (columns.length <= 1) {
+      onColumnsChange([emptyFaqColumn()]);
+      return;
+    }
+    onColumnsChange(columns.filter((_, i) => i !== index));
+  }
+
+  return (
+    <fieldset className="space-y-4">
+      <legend className="block text-sm font-medium text-gray-700">
+        {labels.columnLegend}
+      </legend>
+      {hint ? <p className="text-xs text-gray-500">{hint}</p> : null}
+      <div className="space-y-6">
+        {columns.map((col, cIdx) => (
+          <div
+            key={cIdx}
+            className="space-y-3 rounded-xl border border-gray-200 bg-gray-50/80 p-3"
+          >
+            <div className="flex flex-wrap items-end justify-between gap-2">
+              <label className="block min-w-[200px] flex-1 text-xs font-medium text-gray-600">
+                {labels.columnTitle} ({cIdx + 1})
+                <input
+                  type="text"
+                  value={col.title}
+                  onChange={(e) =>
+                    updateColumn(cIdx, {title: e.target.value})
+                  }
+                  className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm"
+                />
+              </label>
+              <button
+                type="button"
+                onClick={() => removeColumn(cIdx)}
+                className="shrink-0 rounded-lg border border-gray-200 bg-white px-2.5 py-2 text-xs text-gray-600 hover:bg-red-50 hover:text-red-700"
+              >
+                {labels.removeColumn}
+              </button>
+            </div>
+            <div className="space-y-4 border-t border-gray-200/80 pt-3">
+              {col.items.map((it, iIdx) => (
+                <div
+                  key={iIdx}
+                  className="space-y-2 rounded-lg border border-gray-100 bg-white/90 p-3"
+                >
+                  <label className="block text-xs font-medium text-gray-600">
+                    {labels.question}
+                    <input
+                      type="text"
+                      value={it.question}
+                      onChange={(e) =>
+                        updateItem(cIdx, iIdx, {question: e.target.value})
+                      }
+                      className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm"
+                    />
+                  </label>
+                  <div>
+                    <span className="text-xs font-medium text-gray-600">
+                      {labels.answer}
+                    </span>
+                    <div className="mt-1">
+                      <ServiceLabelHtmlEditor
+                        value={it.answer}
+                        onChange={(html) =>
+                          updateItem(cIdx, iIdx, {answer: html})
+                        }
+                      />
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => removeItem(cIdx, iIdx)}
+                    className="rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs text-gray-600 hover:bg-red-50 hover:text-red-700"
+                  >
+                    {labels.removeQuestion}
+                  </button>
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={() => addItem(cIdx)}
+                className="rounded-lg border border-dashed border-primary/40 bg-white px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/5"
+              >
+                {labels.addQuestion}
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+      <button
+        type="button"
+        onClick={addColumn}
+        className="mt-1 rounded-lg border border-dashed border-primary/40 bg-white px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/5"
+      >
+        {labels.addColumn}
+      </button>
+    </fieldset>
+  );
+}
+
 export default function CmsSectionsView() {
   const {getIdToken} = useAuth();
   const {t} = useUiLocale();
@@ -658,6 +898,9 @@ export default function CmsSectionsView() {
   >({});
   const [featuresDraftsByCountry, setFeaturesDraftsByCountry] = useState<
     Record<string, Record<string, FeaturesLocaleDraft>>
+  >({});
+  const [faqDraftsByCountry, setFaqDraftsByCountry] = useState<
+    Record<string, Record<string, FaqLocaleDraft>>
   >({});
   const [active, setActive] = useState(true);
   const [registrationActive, setRegistrationActive] = useState(false);
@@ -756,9 +999,21 @@ export default function CmsSectionsView() {
       cType === "features" &&
       (cSub === "why-choose-us" ||
         cSub === "banner" ||
-        cSub === "stat")
+        cSub === "stat" ||
+        cSub === "faq")
     ) {
       setCSub("features");
+    }
+    if (
+      cType === "faq" &&
+      (cSub === "why-choose-us" ||
+        cSub === "banner" ||
+        cSub === "stat" ||
+        cSub === "features" ||
+        cSub === "blog-section" ||
+        cSub === "profile-listing")
+    ) {
+      setCSub("faq");
     }
     if (
       cType === "profile_listing" &&
@@ -766,6 +1021,7 @@ export default function CmsSectionsView() {
         cSub === "banner" ||
         cSub === "stat" ||
         cSub === "features" ||
+        cSub === "faq" ||
         cSub === "blog-section")
     ) {
       setCSub("profile-listing");
@@ -780,6 +1036,7 @@ export default function CmsSectionsView() {
       setBannerDraftsByCountry({});
       setStatsDraftsByCountry({});
       setFeaturesDraftsByCountry({});
+      setFaqDraftsByCountry({});
       setAssignNamespaceId("");
       return;
     }
@@ -790,6 +1047,7 @@ export default function CmsSectionsView() {
     const nextStats: Record<string, Record<string, StatsLocaleDraft>> = {};
     const nextFeatures: Record<string, Record<string, FeaturesLocaleDraft>> =
       {};
+    const nextFaq: Record<string, Record<string, FaqLocaleDraft>> = {};
     for (const country of sortedCountryCodes) {
       for (const code of sortedCodes) {
         const block = selected.translations?.[country]?.[code] as
@@ -801,12 +1059,14 @@ export default function CmsSectionsView() {
         if (!nextBanner[country]) nextBanner[country] = {};
         if (!nextStats[country]) nextStats[country] = {};
         if (!nextFeatures[country]) nextFeatures[country] = {};
+        if (!nextFaq[country]) nextFaq[country] = {};
         nextSite[country][code] = siteFromBlock(block);
         nextWhy[country][code] = whyFromBlock(block);
         nextBlog[country][code] = blogFromBlock(block);
         nextBanner[country][code] = bannerFromBlock(block);
         nextStats[country][code] = statsFromBlock(block);
         nextFeatures[country][code] = featuresFromBlock(block);
+        nextFaq[country][code] = faqFromBlock(block);
       }
     }
     setSiteDraftsByCountry(nextSite);
@@ -815,6 +1075,7 @@ export default function CmsSectionsView() {
     setBannerDraftsByCountry(nextBanner);
     setStatsDraftsByCountry(nextStats);
     setFeaturesDraftsByCountry(nextFeatures);
+    setFaqDraftsByCountry(nextFaq);
     setActive(selected.active ?? true);
     setRegistrationActive(Boolean(selected.registrationActive));
     setVideoImageUrl(selected.videoImageUrl ?? "");
@@ -914,6 +1175,21 @@ export default function CmsSectionsView() {
     [activeCountryCode, activeLocaleCode],
   );
 
+  const patchFaq = useCallback(
+    (fn: (d: FaqLocaleDraft) => FaqLocaleDraft) => {
+      const c = activeCountryCode;
+      const loc = activeLocaleCode;
+      setFaqDraftsByCountry((p) => {
+        const cur = p[c]?.[loc] ?? emptyFaq();
+        return {
+          ...p,
+          [c]: {...(p[c] ?? {}), [loc]: fn(cur)},
+        };
+      });
+    },
+    [activeCountryCode, activeLocaleCode],
+  );
+
   const grouped = useMemo(() => {
     const orphan: CmsSectionDoc[] = [];
     const byNs = new Map<string, CmsSectionDoc[]>();
@@ -978,6 +1254,10 @@ export default function CmsSectionsView() {
               featuresDraftsByCountry[country]?.[code] ?? emptyFeatures(),
             )
           ) {
+            filledPairs.push({country, locale: code});
+          }
+        } else if (kind === "faq") {
+          if (filledFaq(faqDraftsByCountry[country]?.[code] ?? emptyFaq())) {
             filledPairs.push({country, locale: code});
           }
         } else if (filledSite(siteDraftsByCountry[country]?.[code] ?? emptySite())) {
@@ -1077,6 +1357,17 @@ export default function CmsSectionsView() {
           Object.assign(body, {
             name: d.name.trim(),
             featureItems: featuresToStored(d.items),
+          });
+        } else if (kind === "faq") {
+          const d = faqDraftsByCountry[country]?.[code] ?? emptyFaq();
+          if (!d.name.trim()) {
+            setLoadError(t("cms.faq.errorNeedTitle"));
+            setSaving(false);
+            return;
+          }
+          Object.assign(body, {
+            name: d.name.trim(),
+            faqSections: faqToStored(d.columns),
           });
         } else {
           const d = siteDraftsByCountry[country]?.[code] ?? emptySite();
@@ -1207,6 +1498,8 @@ export default function CmsSectionsView() {
   const currentFeatures =
     featuresDraftsByCountry[activeCountryCode]?.[activeLocaleCode] ??
     emptyFeatures();
+  const currentFaq =
+    faqDraftsByCountry[activeCountryCode]?.[activeLocaleCode] ?? emptyFaq();
   const hasLocales = sortedCodes.length > 0;
 
   function tabFilledLocale(code: string): boolean {
@@ -1229,6 +1522,9 @@ export default function CmsSectionsView() {
       return filledFeatures(
         featuresDraftsByCountry[c]?.[code] ?? emptyFeatures(),
       );
+    }
+    if (k === "faq") {
+      return filledFaq(faqDraftsByCountry[c]?.[code] ?? emptyFaq());
     }
     return filledSite(siteDraftsByCountry[c]?.[code] ?? emptySite());
   }
@@ -1253,6 +1549,9 @@ export default function CmsSectionsView() {
         return filledFeatures(
           featuresDraftsByCountry[cc]?.[loc] ?? emptyFeatures(),
         );
+      }
+      if (k === "faq") {
+        return filledFaq(faqDraftsByCountry[cc]?.[loc] ?? emptyFaq());
       }
       return filledSite(siteDraftsByCountry[cc]?.[loc] ?? emptySite());
     });
@@ -1775,6 +2074,36 @@ export default function CmsSectionsView() {
                       style1: t("cms.features.iconStyle1"),
                       style2: t("cms.features.iconStyle2"),
                       style3: t("cms.features.iconStyle3"),
+                    }}
+                  />
+                </div>
+              : sectionKind === "faq" ?
+                <div className="space-y-4">
+                  <label className="block text-sm text-gray-700">
+                    {t("cms.faq.fieldMainTitle")} *
+                    <input
+                      value={currentFaq.name}
+                      onChange={(e) =>
+                        patchFaq((cur) => ({...cur, name: e.target.value}))
+                      }
+                      className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                    />
+                  </label>
+                  <FaqFieldset
+                    hint={t("cms.faq.sectionsHint")}
+                    columns={currentFaq.columns}
+                    onColumnsChange={(next) =>
+                      patchFaq((cur) => ({...cur, columns: next}))
+                    }
+                    labels={{
+                      columnLegend: t("cms.faq.fieldColumns"),
+                      columnTitle: t("cms.faq.columnTitle"),
+                      question: t("cms.faq.question"),
+                      answer: t("cms.faq.answer"),
+                      addQuestion: t("cms.faq.addQuestion"),
+                      removeQuestion: t("cms.faq.removeQuestion"),
+                      addColumn: t("cms.faq.addColumn"),
+                      removeColumn: t("cms.faq.removeColumn"),
                     }}
                   />
                 </div>

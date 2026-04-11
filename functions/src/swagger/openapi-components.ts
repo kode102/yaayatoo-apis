@@ -68,6 +68,12 @@ export const openApiComponents = {
         "Champs selon collection.",
       properties: {
         id: {type: "string"},
+        slug: {
+          type: "string",
+          description:
+            "GET public / services uniquement : segment d’URL stable " +
+            "(libellé FR défaut + suffixe numérique dérivé de l’id)",
+        },
         active: {type: "boolean"},
         code: {type: "string", description: "Pays / langues"},
         flagLink: {type: "string", description: "URL drapeau pays"},
