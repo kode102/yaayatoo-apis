@@ -33,6 +33,86 @@ import {
 } from "./i18n.js";
 import {attachFirebaseUserRoutes} from "./firebase-users-routes.js";
 import {isPublicActiveDoc} from "../lib/public-active-doc.js";
+import {publicServiceSlug} from "../public/service-slug.js";
+import {
+  publicEmployeeSlug,
+  employeeNumericSuffix,
+  slugifyEmployeeNameSegment,
+} from "../public/employee-slug.js";
+
+/**
+ * Génère un slug URL-safe unique pour un nouveau document admin.
+ * Le slug est dérivé du contenu + suffixe numérique stable (id Firestore).
+ * Il est écrit une seule fois à la création et ne doit jamais être modifié.
+ * @param {string} collection Nom Firestore.
+ * @param {string} docId Id du document (pré-généré avant .set()).
+ * @param {Record<string, unknown>} payload Champs du document.
+ * @return {string} Slug URL.
+ */
+function generateAdminSlug(
+  collection: string,
+  docId: string,
+  payload: Record<string, unknown>,
+): string {
+  const suffix = employeeNumericSuffix(docId);
+  switch (collection) {
+    case "services":
+    case "onDemandServices": {
+      const nested = serviceDocToNested(payload as DocumentData);
+      return publicServiceSlug(docId, nested);
+    }
+    case "countries": {
+      const code = String(payload.code ?? "").trim().toLowerCase();
+      return code ? `country-${code}` : `country-${suffix}`;
+    }
+    case "languages": {
+      const code = String(payload.code ?? "").trim().toLowerCase();
+      return code ? `lang-${code}` : `lang-${suffix}`;
+    }
+    case "cmsNamespaces": {
+      const key = String(payload.namespaceKey ?? "").trim().toLowerCase();
+      return key || `namespace-${suffix}`;
+    }
+    case "cmsSections": {
+      const sk = slugifyEmployeeNameSegment(
+        String(payload.sectionKey ?? "").trim(),
+      );
+      const sub = slugifyEmployeeNameSegment(
+        String(payload.subsectionKey ?? "").trim(),
+      );
+      const base = [sk, sub].filter(Boolean).join("-");
+      return base ? `${base}-${suffix}` : `section-${suffix}`;
+    }
+    case "cmsSettings":
+      return `settings-${suffix}`;
+    case "newsFeed": {
+      const rawTitle = String(payload.redirectUrl ?? "").trim();
+      const titlePart = slugifyEmployeeNameSegment(rawTitle.slice(0, 80));
+      return titlePart ? `news-${titlePart}-${suffix}` : `news-${suffix}`;
+    }
+    case "employee":
+      return publicEmployeeSlug(
+        docId,
+        String(payload.fullName ?? "").trim(),
+      );
+    case "employer": {
+      const name = slugifyEmployeeNameSegment(
+        String(payload.companyName ?? payload.contactName ?? "").trim(),
+      );
+      return name ? `employer-${name}-${suffix}` : `employer-${suffix}`;
+    }
+    case "jobOffers": {
+      const title = slugifyEmployeeNameSegment(
+        String(payload.jobTitle ?? "").trim(),
+      );
+      return title ? `offer-${title}-${suffix}` : `offer-${suffix}`;
+    }
+    case "jobReviews":
+      return `review-${suffix}`;
+    default:
+      return `doc-${suffix}`;
+  }
+}
 
 const ALLOWED = new Set([
   "services",
@@ -962,6 +1042,22 @@ function buildPutPatch(
   existing: DocumentData,
   body: Record<string, unknown>,
 ): {patch: Record<string, unknown>; error?: string} | null {
+  // Slug is write-once: reject any PUT that tries to change an existing slug.
+  if (Object.prototype.hasOwnProperty.call(body, "slug")) {
+    const existingSlug = String(existing.slug ?? "").trim();
+    if (existingSlug) {
+      const incomingSlug = String(body.slug ?? "").trim();
+      if (incomingSlug && incomingSlug !== existingSlug) {
+        return {
+          patch: {},
+          error: "Le slug est immuable une fois créé",
+        };
+      }
+      // Same value or empty — silently ignore.
+    }
+    // If no slug yet (legacy doc), skip — will be set via normalizeOut.
+  }
+
   // eslint-disable-next-line new-cap -- FieldValue.serverTimestamp
   const ts = FieldValue.serverTimestamp();
   const patch: Record<string, unknown> = {updatedAt: ts};
@@ -1969,6 +2065,7 @@ export function createAdminRouter(): express.Router {
           offeredServiceIds: v.offeredServiceIds,
           address: v.address,
           active: activeEmp,
+          slug: generateAdminSlug("employee", ref.id, {fullName: v.fullName}),
           createdAt: now,
           updatedAt: now,
         };
@@ -2036,6 +2133,10 @@ export function createAdminRouter(): express.Router {
           profileImageUrl: v.profileImageUrl,
           occupation: v.occupation,
           active: activeEmpl,
+          slug: generateAdminSlug("employer", ref.id, {
+            companyName: v.companyName,
+            contactName: v.contactName,
+          }),
           createdAt: now,
           updatedAt: now,
         };
@@ -2111,15 +2212,21 @@ export function createAdminRouter(): express.Router {
         }
         const activeOffer =
           typeof body.active === "boolean" ? body.active : true;
-        const ref = await db.collection("jobOffers").add({
+        const offerRef = db.collection("jobOffers").doc();
+        const offerSlug = generateAdminSlug("jobOffers", offerRef.id, {
+          jobTitle: v.jobTitle,
+        });
+        await offerRef.set({
           employerId: v.employerId,
           employeeId: v.employeeId,
           jobTitle: v.jobTitle,
           serviceId: v.serviceId,
           active: activeOffer,
+          slug: offerSlug,
           createdAt: now,
           updatedAt: now,
         });
+        const ref = offerRef;
         const created = await ref.get();
         res.status(201).json({
           success: true,
@@ -2158,15 +2265,19 @@ export function createAdminRouter(): express.Router {
         }
         const activeReview =
           typeof body.active === "boolean" ? body.active : true;
-        const ref = await db.collection("jobReviews").add({
+        const reviewRef = db.collection("jobReviews").doc();
+        const reviewSlug = generateAdminSlug("jobReviews", reviewRef.id, {});
+        await reviewRef.set({
           jobOfferId: v.jobOfferId,
           rating: v.rating,
           reviewText: v.reviewText,
           reviewedAt: v.reviewedAt,
           active: activeReview,
+          slug: reviewSlug,
           createdAt: now,
           updatedAt: now,
         });
+        const ref = reviewRef;
         const created = await ref.get();
         res.status(201).json({
           success: true,
@@ -2175,8 +2286,16 @@ export function createAdminRouter(): express.Router {
         return;
       }
 
-      const ref = await db.collection(collection).add({
+      // Pre-generate the doc ID so the slug can reference it.
+      const ref = db.collection(collection).doc();
+      const slug = generateAdminSlug(collection, ref.id, payload);
+      // Ensure active is always present (default true).
+      const activeVal =
+        typeof payload.active === "boolean" ? payload.active : true;
+      await ref.set({
         ...payload,
+        active: activeVal,
+        slug,
         createdAt: now,
         updatedAt: now,
       });
@@ -2409,17 +2528,26 @@ export function createAdminRouter(): express.Router {
           return;
         }
         const src = snap.data()!;
-        // Strip identity / timestamp fields; server will set new ones.
+        // Strip identity / timestamp / slug fields; regenerate for copy.
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const {createdAt: _ca, updatedAt: _ua, ...rest} = src;
+        const {createdAt: _ca, updatedAt: _ua, slug: _sl, ...rest} = src;
+        // Pre-generate ID so slug can reference it.
+        const newRef = db.collection(collection).doc();
+        const newSlug = generateAdminSlug(
+          collection,
+          newRef.id,
+          rest as Record<string, unknown>,
+        );
         const payload = {
           ...rest,
+          slug: newSlug,
+          active: rest.active !== false ? (rest.active ?? true) : false,
           // eslint-disable-next-line new-cap -- FieldValue.serverTimestamp()
           createdAt: FieldValue.serverTimestamp(),
           // eslint-disable-next-line new-cap -- FieldValue.serverTimestamp()
           updatedAt: FieldValue.serverTimestamp(),
         };
-        const newRef = await db.collection(collection).add(payload);
+        await newRef.set(payload);
         const newSnap = await newRef.get();
         res.status(201).json({
           success: true,

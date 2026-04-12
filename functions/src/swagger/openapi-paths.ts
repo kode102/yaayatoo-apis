@@ -152,6 +152,52 @@ export const openApiPaths = {
       responses: {"200": {description: "OK"}},
     },
   },
+  "/graph": {
+    get: {
+      tags: ["GraphQL"],
+      summary: "Aide endpoint GraphQL (HTML)",
+      description:
+        "Page d’aide minimale. Le schéma GraphQL est un placeholder ; " +
+        "la vitrine utilise les routes REST.",
+      responses: {
+        "200": {description: "HTML"},
+      },
+    },
+    post: {
+      tags: ["GraphQL"],
+      summary: "Exécution GraphQL",
+      description:
+        "Corps JSON : `{ \"query\": \"{ ping }\", \"variables\": {} }`. " +
+        "Réservé à un usage futur.",
+      requestBody: {
+        required: true,
+        content: {
+          "application/json": {
+            schema: {
+              type: "object",
+              properties: {
+                query: {type: "string"},
+                variables: {type: "object"},
+              },
+              required: ["query"],
+            },
+          },
+        },
+      },
+      responses: {
+        "200": {
+          description: "Réponse GraphQL standard (data / errors)",
+          content: {
+            "application/json": {
+              schema: {type: "object"},
+            },
+          },
+        },
+        "400": {description: "Requête invalide"},
+        "500": {description: "Erreur serveur"},
+      },
+    },
+  },
   "/get": {
     get: {
       tags: ["Search"],
@@ -383,7 +429,12 @@ export const openApiPaths = {
     get: {
       tags: ["Public"],
       summary: "Services actifs",
-      parameters: [localeQuery, sortLocaleQuery],
+      parameters: [
+        localeQuery,
+        sortLocaleQuery,
+        countryQuery,
+        countryCodeQuery,
+      ],
       responses: {
         "200": {
           description: "OK",
@@ -403,6 +454,58 @@ export const openApiPaths = {
               },
             },
           },
+        },
+        "500": {
+          content: {
+            "application/json": {
+              schema: {$ref: "#/components/schemas/ApiError"},
+            },
+          },
+        },
+      },
+    },
+  },
+  "/public/services/{serviceKey}": {
+    get: {
+      tags: ["Public"],
+      summary: "Détail d'un service actif",
+      description:
+        "Retourne un seul document `services` actif par **id Firestore** ou **slug** " +
+        "(y compris slug dérivé du libellé). Préférer cet endpoint à la liste " +
+        "`GET /public/services` pour les pages détail.",
+      parameters: [
+        {
+          name: "serviceKey",
+          in: "path",
+          required: true,
+          schema: {type: "string"},
+          description: "Identifiant document ou slug public",
+        },
+        localeQuery,
+        sortLocaleQuery,
+        countryQuery,
+        countryCodeQuery,
+      ],
+      responses: {
+        "200": {
+          description: "OK",
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  success: {type: "boolean", example: true},
+                  data: {$ref: "#/components/schemas/ReferenceDocument"},
+                },
+              },
+            },
+          },
+        },
+        "400": {
+          description: "Paramètre manquant",
+        },
+        "404": {
+          description: "Service introuvable ou inactif",
         },
         "500": {
           content: {
@@ -441,6 +544,51 @@ export const openApiPaths = {
         },
         "500": {
           description: "Erreur serveur",
+          content: {
+            "application/json": {
+              schema: {$ref: "#/components/schemas/ApiError"},
+            },
+          },
+        },
+      },
+    },
+  },
+  "/public/on-demand-services/{serviceKey}": {
+    get: {
+      tags: ["Public"],
+      summary: "Détail d'un service à la demande actif",
+      description:
+        "Un document `onDemandServices` par id ou slug. Préférer à la liste pour le détail.",
+      parameters: [
+        {
+          name: "serviceKey",
+          in: "path",
+          required: true,
+          schema: {type: "string"},
+        },
+        localeQuery,
+        sortLocaleQuery,
+        countryQuery,
+        countryCodeQuery,
+      ],
+      responses: {
+        "200": {
+          description: "OK",
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  success: {type: "boolean"},
+                  data: {$ref: "#/components/schemas/OnDemandServiceDocument"},
+                },
+              },
+            },
+          },
+        },
+        "400": {description: "Paramètre manquant"},
+        "404": {description: "Introuvable ou inactif"},
+        "500": {
           content: {
             "application/json": {
               schema: {$ref: "#/components/schemas/ApiError"},

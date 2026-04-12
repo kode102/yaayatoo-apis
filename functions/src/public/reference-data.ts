@@ -444,3 +444,199 @@ export async function getPublicCatalog(
     res.status(500).json({success: false, error: msg});
   }
 }
+
+/**
+ * Stats d’avis pour un seul service (offres actives liées → avis actifs).
+ * @param {string} serviceId Id document `services`.
+ * @return {Promise<Object>} Objet avec reviewCount et averageRating.
+ */
+async function loadReviewStatsForServiceId(
+  serviceId: string,
+): Promise<{reviewCount: number; averageRating: number | null}> {
+  const sid = String(serviceId ?? "").trim();
+  if (!sid) return {reviewCount: 0, averageRating: null};
+  const offersSnap = await db.collection("jobOffers")
+    .where("serviceId", "==", sid)
+    .get();
+  const offerIds: string[] = [];
+  for (const d of offersSnap.docs) {
+    if (isPublicActiveDoc(d.data())) offerIds.push(d.id);
+  }
+  if (offerIds.length === 0) {
+    return {reviewCount: 0, averageRating: null};
+  }
+  let count = 0;
+  let sum = 0;
+  const chunkSize = 30;
+  for (let i = 0; i < offerIds.length; i += chunkSize) {
+    const chunk = offerIds.slice(i, i + chunkSize);
+    const revSnap = await db.collection("jobReviews")
+      .where("jobOfferId", "in", chunk)
+      .get();
+    for (const rd of revSnap.docs) {
+      const rdata = rd.data();
+      if (!isPublicActiveDoc(rdata)) continue;
+      const r = reviewRatingNum(rdata.rating);
+      if (r === null) continue;
+      count += 1;
+      sum += r;
+    }
+  }
+  const averageRating =
+    count > 0 ? Math.round((sum / count) * 10) / 10 : null;
+  return {reviewCount: count, averageRating};
+}
+
+/**
+ * Résout un service actif par id Firestore, champ `slug`, ou slug calculé.
+ * @param {string} param Segment d’URL (id ou slug).
+ * @return {Promise<Object|null>} id et data Firestore, ou null.
+ */
+async function findActiveServiceDocByParam(
+  param: string,
+): Promise<{id: string; data: DocumentData} | null> {
+  const p = String(param ?? "").trim();
+  if (!p) return null;
+  const byId = await db.collection("services").doc(p).get();
+  if (byId.exists) {
+    const data = byId.data() as DocumentData;
+    if (isPublicActiveDoc(data)) return {id: byId.id, data};
+  }
+  const slugSnap = await db.collection("services")
+    .where("slug", "==", p)
+    .limit(1)
+    .get();
+  if (!slugSnap.empty) {
+    const d = slugSnap.docs[0];
+    const data = d.data() as DocumentData;
+    if (isPublicActiveDoc(data)) return {id: d.id, data};
+  }
+  const allSnap = await db.collection("services").get();
+  for (const d of allSnap.docs) {
+    const data = d.data() as DocumentData;
+    if (!isPublicActiveDoc(data)) continue;
+    const row = normalizeOut("services", d.id, data);
+    const nested = row.translations as CmsNestedTranslations;
+    const computed = publicServiceSlug(d.id, nested);
+    if (computed === p) return {id: d.id, data};
+  }
+  return null;
+}
+
+/**
+ * Résout un service à la demande actif par id ou slug.
+ * @param {string} param Segment d’URL.
+ * @return {Promise<Object|null>} id et data Firestore, ou null.
+ */
+async function findActiveOnDemandDocByParam(
+  param: string,
+): Promise<{id: string; data: DocumentData} | null> {
+  const p = String(param ?? "").trim();
+  if (!p) return null;
+  const byId = await db.collection("onDemandServices").doc(p).get();
+  if (byId.exists) {
+    const data = byId.data() as DocumentData;
+    if (isPublicActiveDoc(data)) return {id: byId.id, data};
+  }
+  const slugSnap = await db.collection("onDemandServices")
+    .where("slug", "==", p)
+    .limit(1)
+    .get();
+  if (!slugSnap.empty) {
+    const d = slugSnap.docs[0];
+    const data = d.data() as DocumentData;
+    if (isPublicActiveDoc(data)) return {id: d.id, data};
+  }
+  const allSnap = await db.collection("onDemandServices").get();
+  for (const d of allSnap.docs) {
+    const data = d.data() as DocumentData;
+    if (!isPublicActiveDoc(data)) continue;
+    const row = normalizeOut("onDemandServices", d.id, data);
+    const nested = row.translations as CmsNestedTranslations;
+    const computed = publicServiceSlug(d.id, nested);
+    if (computed === p) return {id: d.id, data};
+  }
+  return null;
+}
+
+/**
+ * GET /public/services/:serviceKey — un service actif (id ou slug).
+ * @param {Request} req Requête.
+ * @param {Response} res Réponse JSON.
+ * @return {Promise<void>}
+ */
+export async function getPublicServiceDetail(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  try {
+    const serviceKey = String(req.params.serviceKey ?? "").trim();
+    if (!serviceKey) {
+      res.status(400).json({success: false, error: "serviceKey requis"});
+      return;
+    }
+    const found = await findActiveServiceDocByParam(serviceKey);
+    if (!found) {
+      res.status(404).json({success: false, error: "Service introuvable"});
+      return;
+    }
+    const loc = readSortLocale(req);
+    const cc = readCountryForResolve(req);
+    const row = normalizeOut("services", found.id, found.data);
+    attachResolvedTranslation("services", row, cc, loc);
+    mergeLegacyRootLabelHtmlIntoResolved(row);
+    row.slug = publicServiceSlug(
+      String(row.id),
+      (row.translations ?? {}) as CmsNestedTranslations,
+    );
+    const stats = await loadReviewStatsForServiceId(String(row.id));
+    row.reviewCount = stats.reviewCount;
+    row.averageRating =
+      stats.reviewCount > 0 ? stats.averageRating : null;
+    res.status(200).json({success: true, data: row});
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error(e);
+    res.status(500).json({success: false, error: msg});
+  }
+}
+
+/**
+ * GET /public/on-demand-services/:serviceKey — un document actif (id ou slug).
+ * @param {Request} req Requête.
+ * @param {Response} res Réponse JSON.
+ * @return {Promise<void>}
+ */
+export async function getPublicOnDemandServiceDetail(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  try {
+    const serviceKey = String(req.params.serviceKey ?? "").trim();
+    if (!serviceKey) {
+      res.status(400).json({success: false, error: "serviceKey requis"});
+      return;
+    }
+    const found = await findActiveOnDemandDocByParam(serviceKey);
+    if (!found) {
+      res.status(404).json({
+        success: false,
+        error: "Service à la demande introuvable",
+      });
+      return;
+    }
+    const loc = readSortLocale(req);
+    const cc = readCountryForResolve(req);
+    const row = normalizeOut("onDemandServices", found.id, found.data);
+    attachResolvedTranslation("onDemandServices", row, cc, loc);
+    row.slug = publicServiceSlug(
+      String(row.id),
+      (row.translations ?? {}) as CmsNestedTranslations,
+    );
+    res.status(200).json({success: true, data: row});
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error(e);
+    res.status(500).json({success: false, error: msg});
+  }
+}

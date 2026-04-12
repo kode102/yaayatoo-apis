@@ -13,9 +13,12 @@ import {
   getPublicCatalog,
   getPublicCountries,
   getPublicLanguages,
+  getPublicOnDemandServiceDetail,
   getPublicOnDemandServices,
+  getPublicServiceDetail,
   getPublicServices,
 } from "./public/reference-data.js";
+import {graphQlGet, graphQlPost} from "./public/graphql-graph-route.js";
 import {getPublicUiDictionary} from "./public/ui-dictionary-public.js";
 import {getPublicJobReviews} from "./public/job-reviews-public.js";
 import {getPublicHomeProfiles} from "./public/employees-public.js";
@@ -231,9 +234,19 @@ app.get("/public/languages", (req, res) => {
   void getPublicLanguages(req, res);
 });
 
+/** Détail service actif (id ou slug). Préférer à la liste pour la perf. */
+app.get("/public/services/:serviceKey", (req, res) => {
+  void getPublicServiceDetail(req, res);
+});
+
 /** Services actifs — sans authentification. */
 app.get("/public/services", (req, res) => {
   void getPublicServices(req, res);
+});
+
+/** Détail d’un service à la demande (id ou slug). */
+app.get("/public/on-demand-services/:serviceKey", (req, res) => {
+  void getPublicOnDemandServiceDetail(req, res);
 });
 
 /** Services à la demande actifs — sans authentification. */
@@ -283,6 +296,17 @@ app.get("/public/job-reviews", (req, res) => {
 /** Profils employés (accueil) : max 10, priorité badge, mélange aléatoire. */
 app.get("/public/home-profiles", (req, res) => {
   void getPublicHomeProfiles(req, res);
+});
+
+/**
+ * GraphQL (schéma minimal) — réservé usage futur ; la vitrine utilise REST.
+ * POST JSON : `{ "query": "{ ping }" }`
+ */
+app.get("/graph", (req, res) => {
+  void graphQlGet(req, res);
+});
+app.post("/graph", (req, res) => {
+  void graphQlPost(req, res);
 });
 
 /** CRUD admin (Auth Firebase + option ADMIN_ALLOWED_EMAILS). */
