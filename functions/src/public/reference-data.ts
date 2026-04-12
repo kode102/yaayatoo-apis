@@ -66,6 +66,19 @@ function normalizeOut(
   const base = serializeDoc(id, data);
   if (collection === "services" || collection === "onDemandServices") {
     base.translations = serviceDocToNested(data);
+    // Normalize each feature item's translations.
+    if (Array.isArray(data.features)) {
+      base.features = (data.features as unknown[]).map((item) => {
+        if (!item || typeof item !== "object") return {};
+        return serviceDocToNested(item as DocumentData);
+      });
+    }
+    // Provide default gradient colors for services that predate the
+    // marketing editor (fields absent from Firestore).
+    if (collection === "services") {
+      if (!base.color1) base.color1 = "#667eea";
+      if (!base.color2) base.color2 = "#764ba2";
+    }
     return base;
   }
   if (collection === "languages") {
@@ -128,9 +141,18 @@ function attachResolvedTranslation(
     collection !== "onDemandServices"
   ) return;
   const nested = row.translations as CmsNestedTranslations;
-  const resolved =
-    resolveCmsBlock(nested, countryCode, locale) ?? {};
+  const resolved = resolveCmsBlock(nested, countryCode, locale) ?? {};
   row.resolvedTranslation = resolved;
+
+  // Resolve each feature's labelHtml for the requested locale/country.
+  if (collection === "services" && Array.isArray(row.features)) {
+    row.resolvedFeatures = (row.features as CmsNestedTranslations[]).map(
+      (featureNested) => {
+        const block = resolveCmsBlock(featureNested, countryCode, locale);
+        return (block?.labelHtml as string | undefined)?.trim() ?? "";
+      },
+    ).filter(Boolean);
+  }
 }
 
 /**

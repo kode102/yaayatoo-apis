@@ -793,6 +793,14 @@ export const openApiPaths = {
           schema: {type: "integer" as const, default: 30, maximum: 60},
           description: "Nombre max. de cartes (1–60, défaut 30)",
         },
+        {
+          name: "serviceId",
+          in: "query" as const,
+          schema: {type: "string" as const},
+          description:
+            "Filtre : ne renvoie que les avis liés aux offres du " +
+            "service (jobOffers.serviceId == serviceId).",
+        },
       ],
       responses: {
         "200": {

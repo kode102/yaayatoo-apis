@@ -30,6 +30,12 @@ export type ServiceBenefit = {
   description: string;
 };
 
+/**
+ * Un élément de la liste « Features » d'un service.
+ * Structure : pays → locale → { labelHtml } (TinyMCE HTML, translatable).
+ */
+export type ServiceFeatureItem = RegionalTranslationMap;
+
 export type ServiceDoc = {
   id: string;
   active: boolean;
@@ -48,6 +54,8 @@ export type ServiceDoc = {
   joinAction?: ServiceActionButton;
   postAction?: ServiceActionButton;
   featureTexts?: string[];
+  /** Liste de blocs HTML traduisibles (TinyMCE), un par puce feature. */
+  features?: ServiceFeatureItem[];
   benefits?: ServiceBenefit[];
   translations: RegionalTranslationMap;
   createdAt?: string;

@@ -19,11 +19,13 @@ import {
 } from "@/lib/i18n-types";
 import {ServiceImageUploadField} from "@/components/service-image-upload-field";
 import {ServiceMarketingEditor} from "@/components/service-marketing-editor";
+import {ServiceFeaturesEditor} from "@/components/service-features-editor";
 import {
   emptyServiceMarketingDraft,
   serviceMarketingDraftToApiPatch,
   type ServiceMarketingDraft,
 } from "@/lib/service-marketing";
+import type {ServiceFeatureItem} from "@/lib/i18n-types";
 
 export default function ServicesCreateView() {
   const {getIdToken} = useAuth();
@@ -41,6 +43,7 @@ export default function ServicesCreateView() {
   const [createMarketing, setCreateMarketing] = useState<ServiceMarketingDraft>(
     emptyServiceMarketingDraft,
   );
+  const [createFeatures, setCreateFeatures] = useState<ServiceFeatureItem[]>([]);
   const [activeNew, setActiveNew] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -195,9 +198,19 @@ export default function ServicesCreateView() {
         }
       }
 
+      // Save features array via PUT
+      if (id && createFeatures.length > 0) {
+        await adminFetch<ApiDocResponse<ServiceDoc>>(
+          `/admin/documents/services/${id}`,
+          token,
+          {method: "PUT", body: JSON.stringify({features: createFeatures})},
+        );
+      }
+
       setDraftsByCountry({});
       setImageUrl("");
       setCreateMarketing(emptyServiceMarketingDraft());
+      setCreateFeatures([]);
       setActiveNew(true);
       router.push("/services/list");
     } catch (err: unknown) {
@@ -276,6 +289,11 @@ export default function ServicesCreateView() {
           disabled={busy}
           value={createMarketing}
           onChange={setCreateMarketing}
+        />
+        <ServiceFeaturesEditor
+          items={createFeatures}
+          onChange={setCreateFeatures}
+          disabled={busy}
         />
         <button
           type="submit"

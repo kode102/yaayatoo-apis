@@ -116,7 +116,8 @@ function reviewedAtString(v: unknown): string {
 
 /**
  * GET /public/job-reviews — avis avec note strictement supérieure à minRating.
- * Query : minRating (défaut 2.5), limit (défaut 30, max 60).
+ * Query : minRating (défaut 2.5), limit (défaut 30, max 60),
+ *         serviceId (optionnel — filtre les avis liés aux offres du service).
  * @param {express.Request} req Requête.
  * @param {express.Response} res Réponse.
  * @return {Promise<void>} Réponse envoyée.
@@ -142,6 +143,27 @@ export async function getPublicJobReviews(
       Math.max(1, Number.isFinite(parsedLim) ? parsedLim : 30),
     );
 
+    // Optional serviceId filter: pre-build the set of eligible jobOffer IDs.
+    const qSvc = req.query.serviceId ?? req.query.service_id;
+    const rawSvc = Array.isArray(qSvc) ? qSvc[0] : qSvc;
+    const filterServiceId =
+      typeof rawSvc === "string" ? rawSvc.trim() : "";
+
+    let allowedOfferIds: Set<string> | null = null;
+    if (filterServiceId) {
+      const offersSnap = await db
+        .collection("jobOffers")
+        .where("serviceId", "==", filterServiceId)
+        .select("serviceId")
+        .get();
+      allowedOfferIds = new Set(offersSnap.docs.map((d) => d.id));
+      // If no offers match, return early with empty list.
+      if (allowedOfferIds.size === 0) {
+        res.status(200).json({success: true, data: []});
+        return;
+      }
+    }
+
     const snap = await db
       .collection("jobReviews")
       .where("rating", ">", minRating)
@@ -161,6 +183,9 @@ export async function getPublicJobReviews(
       const reviewText = String(r.reviewText ?? "").trim();
       const reviewedAt = reviewedAtString(r.reviewedAt);
       if (!jobOfferId || !reviewText || !reviewedAt) continue;
+
+      // Skip if serviceId filter active and offer not in allowed set.
+      if (allowedOfferIds && !allowedOfferIds.has(jobOfferId)) continue;
 
       const offerSnap = await db.collection("jobOffers").doc(jobOfferId).get();
       if (!offerSnap.exists) continue;

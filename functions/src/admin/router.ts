@@ -1332,6 +1332,44 @@ function buildPutPatch(
     return {patch};
   }
 
+  if (collection === "services") {
+    // Handle features array (list of per-locale HTML blocks).
+    if (body.features !== undefined) {
+      if (!Array.isArray(body.features)) {
+        return {patch: {}, error: "features doit être un tableau"};
+      }
+      // Validate and normalize: each item must be an object.
+      const normalized = (body.features as unknown[]).map((item) => {
+        if (!item || typeof item !== "object" || Array.isArray(item)) {
+          return {};
+        }
+        // Limit each locale html to 32 000 chars.
+        const out: Record<string, unknown> = {};
+        for (const [country, byLocale] of Object.entries(
+          item as Record<string, unknown>,
+        )) {
+          if (!byLocale || typeof byLocale !== "object") continue;
+          const locMap: Record<string, unknown> = {};
+          for (const [locale, block] of Object.entries(
+            byLocale as Record<string, unknown>,
+          )) {
+            if (!block || typeof block !== "object") continue;
+            const b = block as Record<string, unknown>;
+            const html =
+              typeof b.labelHtml === "string" ?
+                b.labelHtml.slice(0, 32_000) :
+                "";
+            locMap[locale] = {labelHtml: html};
+          }
+          out[country] = locMap;
+        }
+        return out;
+      });
+      patch.features = normalized;
+    }
+    // Fall through to the generic translation / other fields handling below.
+  }
+
   if (collection === "onDemandServices") {
     if (typeof body.active === "boolean") patch.active = body.active;
     if (typeof body.iconUrl === "string") patch.iconUrl = body.iconUrl.trim();
@@ -2348,6 +2386,52 @@ export function createAdminRouter(): express.Router {
       res.status(500).json({success: false, error: msg});
     }
   });
+
+  /**
+   * Duplique un document Firestore : copie tous les champs (sauf id /
+   * createdAt / updatedAt) vers un nouveau document auto-généré.
+   */
+  router.post(
+    "/documents/:collection/:id/duplicate",
+    async (req, res) => {
+      const collection = req.params.collection;
+      const id = req.params.id;
+      if (!ALLOWED.has(collection) || !id) {
+        res.status(400).json({success: false, error: "Requête invalide"});
+        return;
+      }
+      try {
+        const snap = await db.collection(collection).doc(id).get();
+        if (!snap.exists) {
+          res
+            .status(404)
+            .json({success: false, error: "Document introuvable"});
+          return;
+        }
+        const src = snap.data()!;
+        // Strip identity / timestamp fields; server will set new ones.
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const {createdAt: _ca, updatedAt: _ua, ...rest} = src;
+        const payload = {
+          ...rest,
+          // eslint-disable-next-line new-cap -- FieldValue.serverTimestamp()
+          createdAt: FieldValue.serverTimestamp(),
+          // eslint-disable-next-line new-cap -- FieldValue.serverTimestamp()
+          updatedAt: FieldValue.serverTimestamp(),
+        };
+        const newRef = await db.collection(collection).add(payload);
+        const newSnap = await newRef.get();
+        res.status(201).json({
+          success: true,
+          data: {id: newRef.id, ...newSnap.data()},
+        });
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        console.error(e);
+        res.status(500).json({success: false, error: msg});
+      }
+    },
+  );
 
   /**
    * Clé de dictionnaire interface admin (a-z, chiffres, ._-).
