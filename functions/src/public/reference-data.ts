@@ -10,6 +10,7 @@ import {
   flattenCmsForSort,
   normCmsCountryCode,
   resolveCmsBlock,
+  toNestedCmsTranslations,
   type CmsNestedTranslations,
 } from "../admin/cms-translations.js";
 import {
@@ -70,7 +71,7 @@ function normalizeOut(
     if (Array.isArray(data.features)) {
       base.features = (data.features as unknown[]).map((item) => {
         if (!item || typeof item !== "object") return {};
-        return serviceDocToNested(item as DocumentData);
+        return toNestedCmsTranslations(item);
       });
     }
     // Provide default gradient colors for services that predate the
