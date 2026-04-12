@@ -20,6 +20,7 @@ const collectionParam = {
       "employer",
       "jobOffers",
       "jobReviews",
+      "siteMedia",
     ],
   },
   description: "Collection Firestore",
@@ -653,6 +654,79 @@ export const openApiPaths = {
         },
         "400": {description: "Paramètre manquant"},
         "404": {description: "Introuvable ou inactif"},
+        "500": {
+          content: {
+            "application/json": {
+              schema: {$ref: "#/components/schemas/ApiError"},
+            },
+          },
+        },
+      },
+    },
+  },
+  "/public/site-media/tag/{tag}": {
+    get: {
+      tags: ["Public"],
+      summary: "Médias vitrine par tag",
+      description:
+        "Documents `siteMedia` actifs dont le tableau `tags` contient le tag " +
+        "demandé. Tri par `sortOrder` puis id. Réponse allégée (`id`, `url`, " +
+        "`altText`). Query `namespaceKey` pour filtrer par espace logique " +
+        "(ex. `service`).",
+      parameters: [
+        {
+          name: "tag",
+          in: "path" as const,
+          required: true,
+          schema: {type: "string" as const, example: "service"},
+          description: "Tag (a-z, 0-9, _ et -)",
+        },
+        {
+          name: "limit",
+          in: "query" as const,
+          schema: {type: "integer" as const, minimum: 1, maximum: 50, example: 5},
+          description: "Nombre max d’entrées (défaut 5)",
+        },
+        {
+          name: "namespaceKey",
+          in: "query" as const,
+          schema: {type: "string" as const, example: "service"},
+          description: "Si défini, ne retient que les médias avec ce namespaceKey",
+        },
+      ],
+      responses: {
+        "200": {
+          description: "OK",
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  success: {type: "boolean", example: true},
+                  data: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      properties: {
+                        id: {type: "string"},
+                        url: {type: "string"},
+                        altText: {type: "string"},
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+        "400": {
+          description: "Tag manquant ou invalide",
+          content: {
+            "application/json": {
+              schema: {$ref: "#/components/schemas/ApiError"},
+            },
+          },
+        },
         "500": {
           content: {
             "application/json": {

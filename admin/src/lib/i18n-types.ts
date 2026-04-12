@@ -222,6 +222,20 @@ export type CmsNamespaceDoc = {
   updatedAt?: string;
 };
 
+/** Média vitrine (images par tag / namespace). */
+export type SiteMediaDoc = {
+  id: string;
+  url: string;
+  namespaceKey?: string;
+  tags: string[];
+  sortOrder?: number;
+  active: boolean;
+  altText?: string;
+  slug?: string;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
 export type CmsSettingsDoc = {
   id: string;
   active: boolean;

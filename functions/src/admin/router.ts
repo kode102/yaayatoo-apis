@@ -109,6 +109,8 @@ function generateAdminSlug(
     }
     case "jobReviews":
       return `review-${suffix}`;
+    case "siteMedia":
+      return `media-${suffix}`;
     default:
       return `doc-${suffix}`;
   }
@@ -127,6 +129,7 @@ const ALLOWED = new Set([
   "employer",
   "jobOffers",
   "jobReviews",
+  "siteMedia",
 ]);
 
 const CMS_TRANSLATABLE_FIELDS = [
@@ -226,6 +229,10 @@ function normalizeOut(
   if (collection === "jobReviews") {
     return base;
   }
+  if (collection === "siteMedia") {
+    base.tags = normalizeSiteMediaTagsArray(data.tags);
+    return base;
+  }
   if (collection === "cmsSections") {
     base.translations = toNestedCmsTranslations(data.translations);
     return base;
@@ -287,6 +294,11 @@ function sortListFallback(
   }
   if (collection === "newsFeed") {
     return String(row.id);
+  }
+  if (collection === "siteMedia") {
+    const so = Number((row as {sortOrder?: unknown}).sortOrder);
+    const n = Number.isFinite(so) ? so : 0;
+    return `${String(n).padStart(10, "0")}_${row.id}`;
   }
   return String(row.id);
 }
@@ -943,6 +955,71 @@ function stripHtmlToText(html: string): string {
   return html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
 }
 
+function normalizeSiteMediaTagToken(raw: string): string {
+  return raw
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]/g, "")
+    .slice(0, 48);
+}
+
+function parseSiteMediaTagsInput(raw: unknown): string[] {
+  const acc: string[] = [];
+  const add = (s: string) => {
+    const t = normalizeSiteMediaTagToken(s);
+    if (t && !acc.includes(t)) acc.push(t);
+  };
+  if (typeof raw === "string") {
+    for (const part of raw.split(/[,;\s]+/)) add(part);
+  } else if (Array.isArray(raw)) {
+    for (const item of raw) {
+      if (typeof item === "string") add(item);
+    }
+  }
+  return acc.slice(0, 30);
+}
+
+function normalizeSiteMediaTagsArray(raw: unknown): string[] {
+  return parseSiteMediaTagsInput(raw);
+}
+
+function parseSiteMediaPost(body: Record<string, unknown>): {
+  url: string;
+  namespaceKey: string;
+  tags: string[];
+  sortOrder: number;
+  active: boolean;
+  altText: string;
+} | null {
+  const url = typeof body.url === "string" ? body.url.trim() : "";
+  if (!url || !/^https?:\/\/.+/i.test(url)) return null;
+  if (url.length > 4096) return null;
+  const nkRaw =
+    typeof body.namespaceKey === "string" ?
+      body.namespaceKey.trim().toLowerCase().replace(/[^a-z0-9_-]/g, "") :
+      "";
+  const namespaceKey = nkRaw.slice(0, 64);
+  const tags = parseSiteMediaTagsInput(body.tags);
+  if (tags.length === 0) return null;
+  const so = Number(body.sortOrder);
+  const sortOrder =
+    Number.isFinite(so) ?
+      Math.floor(Math.min(1_000_000, Math.max(-1_000_000, so))) :
+      0;
+  const altText =
+    typeof body.altText === "string" ?
+      body.altText.trim().slice(0, 512) :
+      "";
+  return {
+    url,
+    namespaceKey,
+    tags,
+    sortOrder,
+    altText,
+    active: typeof body.active === "boolean" ? body.active : true,
+  };
+}
+
 function parseNewsFeedPost(body: Record<string, unknown>): {
   locale: string;
   titleHtml: string;
@@ -1063,6 +1140,61 @@ function buildPutPatch(
   const ts = FieldValue.serverTimestamp();
   const patch: Record<string, unknown> = {updatedAt: ts};
   const localeRaw = body.locale;
+
+  if (collection === "siteMedia") {
+    if (
+      localeRaw !== undefined &&
+      localeRaw !== null &&
+      String(localeRaw).trim() !== ""
+    ) {
+      return {
+        patch: {},
+        error: "Ne pas envoyer « locale » pour siteMedia",
+      };
+    }
+    if (typeof body.url === "string") {
+      const u = body.url.trim();
+      if (!/^https?:\/\/.+/i.test(u)) {
+        return {patch: {}, error: "url invalide (http ou https requis)"};
+      }
+      patch.url = u.slice(0, 4096);
+    }
+    if (typeof body.namespaceKey === "string") {
+      const nk = body.namespaceKey
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9_-]/g, "")
+        .slice(0, 64);
+      patch.namespaceKey = nk;
+    }
+    if (body.tags !== undefined) {
+      const tags = parseSiteMediaTagsInput(body.tags);
+      if (tags.length === 0) {
+        return {patch: {}, error: "tags : au moins un tag"};
+      }
+      patch.tags = tags;
+    }
+    if (body.sortOrder !== undefined) {
+      const so = Number(body.sortOrder);
+      if (!Number.isFinite(so)) {
+        return {patch: {}, error: "sortOrder invalide"};
+      }
+      patch.sortOrder = Math.floor(
+        Math.min(1_000_000, Math.max(-1_000_000, so)),
+      );
+    }
+    if (typeof body.altText === "string") {
+      patch.altText = body.altText.trim().slice(0, 512);
+    }
+    if (typeof body.active === "boolean") {
+      patch.active = body.active;
+    }
+    const smKeys = Object.keys(patch).filter((k) => k !== "updatedAt");
+    if (smKeys.length === 0) {
+      return {patch: {}, error: "Aucun champ à mettre à jour"};
+    }
+    return {patch};
+  }
 
   if (collection === "employee" || collection === "employer") {
     if (
@@ -1798,6 +1930,18 @@ export function createAdminRouter(): express.Router {
       const data = snap.docs.map((d) =>
         normalizeOut(collection, d.id, d.data()),
       );
+      if (collection === "siteMedia") {
+        data.sort((a, b) => {
+          const sa = Number((a as {sortOrder?: unknown}).sortOrder);
+          const sb = Number((b as {sortOrder?: unknown}).sortOrder);
+          const na = Number.isFinite(sa) ? sa : 0;
+          const nb = Number.isFinite(sb) ? sb : 0;
+          if (na !== nb) return na - nb;
+          return String(a.id).localeCompare(String(b.id));
+        });
+        res.status(200).json({success: true, data});
+        return;
+      }
       data.sort((a, b) => {
         let trA: TranslationsMap;
         let trB: TranslationsMap;
@@ -1990,6 +2134,24 @@ export function createAdminRouter(): express.Router {
         iconUrl: v.iconUrl,
         linkedServiceIds: v.linkedServiceIds,
         translations,
+      };
+    } else if (collection === "siteMedia") {
+      const v = parseSiteMediaPost(body);
+      if (!v) {
+        res.status(400).json({
+          success: false,
+          error:
+            "Champs invalides (url https, au moins un tag — tags ou texte)",
+        });
+        return;
+      }
+      payload = {
+        url: v.url,
+        namespaceKey: v.namespaceKey,
+        tags: v.tags,
+        sortOrder: v.sortOrder,
+        altText: v.altText,
+        active: v.active,
       };
     } else if (
       collection === "employee" ||

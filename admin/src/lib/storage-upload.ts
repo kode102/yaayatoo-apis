@@ -142,4 +142,18 @@ export async function uploadOnDemandServiceIconToStorage(
   return uploadValidatedImageToFolder(file, folder);
 }
 
+/**
+ * Images catalogue médias vitrine : `admin/site-media/{docId|uploads}/…`
+ */
+export async function uploadSiteMediaImageToStorage(
+  file: File,
+  opts: {docId?: string},
+): Promise<string> {
+  const folder =
+    opts.docId?.trim() ?
+      `admin/site-media/${opts.docId.trim()}`
+    : "admin/site-media/uploads";
+  return uploadValidatedImageToFolder(file, folder);
+}
+
 export const SERVICE_IMAGE_MAX_BYTES = MAX_BYTES;

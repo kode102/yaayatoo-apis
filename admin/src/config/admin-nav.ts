@@ -65,6 +65,15 @@ export const ADMIN_NAV_MODULES: AdminNavModule[] = [
     ],
   },
   {
+    id: "media",
+    labelKey: "nav.module.media",
+    pathPrefix: "/media",
+    items: [
+      {href: "/media/list", labelKey: "nav.action.list"},
+      {href: "/media/create", labelKey: "nav.action.create"},
+    ],
+  },
+  {
     id: "job",
     labelKey: "nav.module.job",
     pathPrefix: "/jobs",

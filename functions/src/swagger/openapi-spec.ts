@@ -44,7 +44,7 @@ export const openApiSpec = {
       name: "Admin — Documents",
       description:
         "CRUD Firestore : services, countries, languages, cmsSections, " +
-        "cmsNamespaces, employee, employer, jobOffers, jobReviews " +
+        "cmsNamespaces, siteMedia, employee, employer, jobOffers, jobReviews " +
         "(Bearer Firebase)",
     },
     {

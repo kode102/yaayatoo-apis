@@ -22,6 +22,7 @@ import {
   getPublicServiceDetail,
   getPublicServices,
 } from "./public/reference-data.js";
+import {getPublicSiteMediaByTag} from "./public/site-media-public.js";
 import {graphQlGet, graphQlPost} from "./public/graphql-graph-route.js";
 import {getPublicUiDictionary} from "./public/ui-dictionary-public.js";
 import {getPublicJobReviews} from "./public/job-reviews-public.js";
@@ -267,6 +268,11 @@ app.get("/public/on-demand-services/:serviceKey", (req, res) => {
 /** Services à la demande actifs — sans authentification. */
 app.get("/public/on-demand-services", (req, res) => {
   void getPublicOnDemandServices(req, res);
+});
+
+/** Médias vitrine par tag (ex. bannière page service). */
+app.get("/public/site-media/tag/:tag", (req, res) => {
+  void getPublicSiteMediaByTag(req, res);
 });
 
 /** Catalogue : pays + langues + services actifs en un GET. */
