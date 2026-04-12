@@ -418,6 +418,120 @@ export async function getPublicOnDemandServices(
 }
 
 /**
+ * Tri des lignes `onDemandServices` (même logique que la liste complète).
+ * @param {Record<string, unknown>[]} data Lignes normalisées.
+ * @param {string} sortLocale Locale pour pickSortLabel.
+ * @return {void}
+ */
+function sortOnDemandServiceRows(
+  data: Record<string, unknown>[],
+  sortLocale: string,
+): void {
+  const loc = normLocale(sortLocale) || DEFAULT_LOCALE;
+  data.sort((a, b) => {
+    const trA = (a.translations ?? {}) as TranslationsMap;
+    const trB = (b.translations ?? {}) as TranslationsMap;
+    const fa = String(a.id);
+    const fb = String(b.id);
+    return pickSortLabel(trA, loc, fa).localeCompare(
+      pickSortLabel(trB, loc, fb),
+      "fr",
+    );
+  });
+}
+
+/**
+ * Collecte les valeurs pouvant figurer dans `linkedServiceIds` côté admin
+ * (id Firestore, slug stocké, slug URL calculé, segment d’URL d’origine).
+ * @param {string} placementServiceKey Clé passée dans l’URL de cette route.
+ * @param {object} found Service placement résolu (champs id et data).
+ * @return {Array<string>} Liste unique non vide.
+ */
+function placementServiceMatchRefs(
+  placementServiceKey: string,
+  found: {id: string; data: DocumentData},
+): string[] {
+  const row = normalizeOut("services", found.id, found.data);
+  const nested = row.translations as CmsNestedTranslations;
+  const computedSlug = publicServiceSlug(found.id, nested);
+  const matchRefs = new Set<string>();
+  matchRefs.add(found.id);
+  const urlKey = placementServiceKey.trim();
+  if (urlKey) matchRefs.add(urlKey);
+  if (computedSlug) matchRefs.add(computedSlug);
+  const rootSlug =
+    typeof found.data.slug === "string" ? found.data.slug.trim() : "";
+  if (rootSlug) matchRefs.add(rootSlug);
+  return [...matchRefs].filter((s) => Boolean(s.trim()));
+}
+
+/**
+ * GET /public/on-demand-services/by-service/:placementServiceKey
+ *
+ * Services à la demande **actifs** dont `linkedServiceIds` référence le
+ * service de placement (id, `slug` document ou slug URL dérivé). Évite de
+ * charger toute la collection côté client et corrige le cas où l’admin lie
+ * par slug (`nounou-…`) plutôt que par id Firestore.
+ *
+ * @param {Request} req Requête.
+ * @param {Response} res Réponse JSON success + data (tableau).
+ * @return {Promise<void>}
+ */
+export async function getPublicOnDemandServicesForPlacementService(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  try {
+    const placementServiceKey = String(
+      req.params.placementServiceKey ?? "",
+    ).trim();
+    if (!placementServiceKey) {
+      res.status(400).json({
+        success: false,
+        error: "placementServiceKey requis",
+      });
+      return;
+    }
+    const found = await findActiveServiceDocByParam(placementServiceKey);
+    if (!found) {
+      res.status(200).json({success: true, data: []});
+      return;
+    }
+    const loc = readSortLocale(req);
+    const cc = readCountryForResolve(req);
+    const refs = placementServiceMatchRefs(placementServiceKey, found);
+    const seen = new Set<string>();
+    const out: Record<string, unknown>[] = [];
+    for (const ref of refs) {
+      const snap = await db
+        .collection("onDemandServices")
+        .where("linkedServiceIds", "array-contains", ref)
+        .get();
+      for (const d of snap.docs) {
+        if (seen.has(d.id)) continue;
+        const raw = d.data();
+        if (!isPublicActiveDoc(raw)) continue;
+        seen.add(d.id);
+        const odRow = normalizeOut("onDemandServices", d.id, raw);
+        attachResolvedTranslation("onDemandServices", odRow, cc, loc);
+        odRow.slug = publicServiceSlug(
+          String(odRow.id),
+          (odRow.translations ?? {}) as CmsNestedTranslations,
+        );
+        delete odRow.linkedServiceIds;
+        out.push(odRow);
+      }
+    }
+    sortOnDemandServiceRows(out, loc);
+    res.status(200).json({success: true, data: out});
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error(e);
+    res.status(500).json({success: false, error: msg});
+  }
+}
+
+/**
  * GET /public/catalog — pays, langues et services actifs en un appel.
  * @param {Request} req Requête.
  * @param {Response} res Réponse JSON.

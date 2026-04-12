@@ -522,7 +522,11 @@ export const openApiPaths = {
       tags: ["Public"],
       summary: "Services à la demande actifs",
       description:
-        "Liste les documents `onDemandServices` actifs avec traduction résolue pour le pays et la locale demandés. Inclut `iconUrl`, `linkedServiceIds` et `resolvedTranslation` (name + labelHtml).",
+        "Liste **tous** les documents `onDemandServices` actifs avec traduction " +
+        "résolue pour le pays et la locale demandés. Inclut `iconUrl`, " +
+        "`linkedServiceIds` et `resolvedTranslation` (name + labelHtml). " +
+        "Pour les **seuls** services liés à un placement donné, préférer " +
+        "`GET /public/on-demand-services/by-service/{placementServiceKey}`.",
       parameters: [localeQuery, sortLocaleQuery, countryQuery, countryCodeQuery],
       responses: {
         "200": {
@@ -544,6 +548,67 @@ export const openApiPaths = {
         },
         "500": {
           description: "Erreur serveur",
+          content: {
+            "application/json": {
+              schema: {$ref: "#/components/schemas/ApiError"},
+            },
+          },
+        },
+      },
+    },
+  },
+  "/public/on-demand-services/by-service/{placementServiceKey}": {
+    get: {
+      tags: ["Public"],
+      summary: "Services à la demande liés à un service de placement",
+      description:
+        "Liste **filtrée côté serveur** : documents `onDemandServices` actifs " +
+        "dont `linkedServiceIds` contient l’id Firestore du service, son `slug` " +
+        "stocké, le slug URL calculé, ou la clé passée dans l’URL (ex. slug " +
+        "`nounou-…`). Même résolution `locale` / `country` que la liste complète. " +
+        "Le champ `linkedServiceIds` est omis dans la réponse (données vitrine).",
+      parameters: [
+        {
+          name: "placementServiceKey",
+          in: "path" as const,
+          required: true,
+          schema: {type: "string" as const},
+          description:
+            "Id Firestore ou slug du service de placement (`services`), " +
+            "comme dans `/public/services/{serviceKey}`",
+        },
+        localeQuery,
+        sortLocaleQuery,
+        countryQuery,
+        countryCodeQuery,
+      ],
+      responses: {
+        "200": {
+          description: "OK (tableau vide si service inconnu ou aucun lien)",
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  success: {type: "boolean", example: true},
+                  data: {
+                    type: "array",
+                    items: {$ref: "#/components/schemas/OnDemandServiceDocument"},
+                  },
+                },
+              },
+            },
+          },
+        },
+        "400": {
+          description: "Paramètre de chemin manquant",
+          content: {
+            "application/json": {
+              schema: {$ref: "#/components/schemas/ApiError"},
+            },
+          },
+        },
+        "500": {
           content: {
             "application/json": {
               schema: {$ref: "#/components/schemas/ApiError"},

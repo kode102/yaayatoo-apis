@@ -18,6 +18,7 @@ import {
   getPublicLanguages,
   getPublicOnDemandServiceDetail,
   getPublicOnDemandServices,
+  getPublicOnDemandServicesForPlacementService,
   getPublicServiceDetail,
   getPublicServices,
 } from "./public/reference-data.js";
@@ -246,6 +247,17 @@ app.get("/public/services/:serviceKey", (req, res) => {
 app.get("/public/services", (req, res) => {
   void getPublicServices(req, res);
 });
+
+/**
+ * Services à la demande liés à un service de placement (id ou slug URL).
+ * Doit précéder la route générique `:serviceKey`.
+ */
+app.get(
+  "/public/on-demand-services/by-service/:placementServiceKey",
+  (req, res) => {
+    void getPublicOnDemandServicesForPlacementService(req, res);
+  },
+);
 
 /** Détail d’un service à la demande (id ou slug). */
 app.get("/public/on-demand-services/:serviceKey", (req, res) => {
