@@ -8,7 +8,10 @@ import {setGlobalOptions} from "firebase-functions";
 import {onRequest} from "firebase-functions/v2/https";
 import {createAdminRouter} from "./admin/router.js";
 import {db} from "./lib/admin.js";
-import {getPublicCms} from "./public/cms-data.js";
+import {
+  getPublicCms,
+  getPublicCmsByNamespaceKey,
+} from "./public/cms-data.js";
 import {
   getPublicCatalog,
   getPublicCountries,
@@ -257,6 +260,15 @@ app.get("/public/on-demand-services", (req, res) => {
 /** Catalogue : pays + langues + services actifs en un GET. */
 app.get("/public/catalog", (req, res) => {
   void getPublicCatalog(req, res);
+});
+
+/**
+ * CMS vitrine : un espace par clé (`service`, `home`…). Même contenu que
+ * `GET /public/cms?namespaceKeys=…` pour une seule clé, réponse structurée
+ * (`namespace` + `sections`).
+ */
+app.get("/public/cms/namespace/:namespaceKey", (req, res) => {
+  void getPublicCmsByNamespaceKey(req, res);
 });
 
 /**

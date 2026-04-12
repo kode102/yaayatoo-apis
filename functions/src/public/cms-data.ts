@@ -148,6 +148,132 @@ function readCmsCountry(req: Request): string {
 
 const FIRESTORE_IN_MAX = 30;
 
+/** Clé d’espace CMS dans l’URL (même règle que création admin). */
+const NAMESPACE_KEY_PATH_RE = /^[a-z][a-z0-9_-]{0,63}$/;
+
+export type PublicCmsBulkData = {
+  namespaces: Record<string, unknown>[];
+  sections: Record<string, unknown>[];
+  byNamespace: Record<string, Record<string, unknown>[]>;
+};
+
+/**
+ * Charge espaces + sections CMS publics pour les ids / clés demandés.
+ *
+ * @param {Set<string>} keySet Clés `namespaceKey` normalisées (minuscules).
+ * @param {Set<string>} idSet Ids documents `cmsNamespaces`.
+ * @param {string} sortLocale Locale de tri / résolution.
+ * @param {string} cmsCountry Code pays CMS (ISO2 ou défaut).
+ * @return {Promise<PublicCmsBulkData>} Payload `data` (sans enveloppe success).
+ */
+export async function buildPublicCmsData(
+  keySet: Set<string>,
+  idSet: Set<string>,
+  sortLocale: string,
+  cmsCountry: string,
+): Promise<PublicCmsBulkData> {
+  if (keySet.size === 0 && idSet.size === 0) {
+    return {namespaces: [], sections: [], byNamespace: {}};
+  }
+
+  const nsSnap = await db.collection("cmsNamespaces").get();
+  const byKey = new Map<string, {id: string; data: DocumentData}>();
+  const byId = new Map<string, DocumentData>();
+  for (const d of nsSnap.docs) {
+    byId.set(d.id, d.data());
+    const data = d.data();
+    let nk = "";
+    if (typeof data.namespaceKey === "string") {
+      nk = data.namespaceKey.trim().toLowerCase();
+    }
+    if (nk) byKey.set(nk, {id: d.id, data});
+  }
+
+  const targetIds = new Set<string>();
+  for (const id of idSet) {
+    const data = byId.get(id);
+    if (data && isPublicActiveDoc(data)) {
+      targetIds.add(id);
+    }
+  }
+  for (const k of keySet) {
+    const found = byKey.get(k);
+    if (found && isPublicActiveDoc(found.data)) {
+      targetIds.add(found.id);
+    }
+  }
+
+  if (targetIds.size === 0) {
+    return {namespaces: [], sections: [], byNamespace: {}};
+  }
+
+  const namespaces: Record<string, unknown>[] = [];
+  for (const nid of targetIds) {
+    const data = byId.get(nid);
+    if (!data) continue;
+    const row = normalizeCmsNamespace(nid, data);
+    if (!isPublicActiveDoc(row)) continue;
+    namespaces.push(row);
+  }
+
+  const idList = [...targetIds];
+  const sectionRows: Record<string, unknown>[] = [];
+  for (const chunk of chunkIds(idList, FIRESTORE_IN_MAX)) {
+    const secSnap = await db
+      .collection("cmsSections")
+      .where("namespaceId", "in", chunk)
+      .get();
+    for (const d of secSnap.docs) {
+      const row = normalizeCmsSection(d.id, d.data());
+      if (!isPublicActiveDoc(row)) continue;
+      const nested = toNestedCmsTranslations(row.translations);
+      row.resolvedTranslation = resolveCmsBlock(
+        nested,
+        cmsCountry,
+        sortLocale,
+      ) ?? null;
+      const nsId = String(row.namespaceId ?? "");
+      const nsRec = byId.get(nsId);
+      if (nsRec && typeof nsRec.namespaceKey === "string") {
+        row.namespaceKey = nsRec.namespaceKey.trim();
+      }
+      sectionRows.push(row);
+    }
+  }
+
+  sectionRows.sort((a, b) => {
+    const trA = flattenCmsForSort(
+      toNestedCmsTranslations(a.translations),
+    );
+    const trB = flattenCmsForSort(
+      toNestedCmsTranslations(b.translations),
+    );
+    const fa = String(a.subsectionKey ?? a.id);
+    const fb = String(b.subsectionKey ?? b.id);
+    return pickSortLabel(trA, sortLocale, fa).localeCompare(
+      pickSortLabel(trB, sortLocale, fb),
+      "fr",
+    );
+  });
+
+  const byNamespace: Record<string, Record<string, unknown>[]> = {};
+  for (const nid of targetIds) {
+    byNamespace[nid] = [];
+  }
+  for (const row of sectionRows) {
+    const nid = String(row.namespaceId ?? "");
+    if (nid && Object.prototype.hasOwnProperty.call(byNamespace, nid)) {
+      byNamespace[nid].push(row);
+    }
+  }
+
+  return {
+    namespaces,
+    sections: sectionRows,
+    byNamespace,
+  };
+}
+
 /**
  * Découpe un tableau en paquets pour les requêtes `in`.
  * @param {string[]} ids Identifiants.
@@ -194,104 +320,65 @@ export async function getPublicCms(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    const nsSnap = await db.collection("cmsNamespaces").get();
-    const byKey = new Map<string, {id: string; data: DocumentData}>();
-    const byId = new Map<string, DocumentData>();
-    for (const d of nsSnap.docs) {
-      byId.set(d.id, d.data());
-      const data = d.data();
-      let nk = "";
-      if (typeof data.namespaceKey === "string") {
-        nk = data.namespaceKey.trim().toLowerCase();
-      }
-      if (nk) byKey.set(nk, {id: d.id, data});
-    }
+    const sortLocale = readSortLocale(req);
+    const cmsCountry = readCmsCountry(req);
+    const data = await buildPublicCmsData(
+      keySet,
+      idSet,
+      sortLocale,
+      cmsCountry,
+    );
 
-    const targetIds = new Set<string>();
-    for (const id of idSet) {
-      const data = byId.get(id);
-      if (data && isPublicActiveDoc(data)) {
-        targetIds.add(id);
-      }
-    }
-    for (const k of keySet) {
-      const found = byKey.get(k);
-      if (found && isPublicActiveDoc(found.data)) {
-        targetIds.add(found.id);
-      }
-    }
+    res.status(200).json({
+      success: true,
+      data,
+    });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error(e);
+    res.status(500).json({success: false, error: msg});
+  }
+}
 
-    if (targetIds.size === 0) {
-      res.status(200).json({
-        success: true,
-        data: {namespaces: [], sections: [], byNamespace: {}},
+/**
+ * GET /public/cms/namespace/:namespaceKey — un espace par clé technique
+ * (document `namespace` + `sections` + `resolvedTranslation` par ligne).
+ *
+ * @param {Request} req Requête.
+ * @param {Response} res Réponse JSON.
+ * @return {Promise<void>}
+ */
+export async function getPublicCmsByNamespaceKey(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  try {
+    const raw = String(req.params.namespaceKey ?? "").trim().toLowerCase();
+    if (!raw || !NAMESPACE_KEY_PATH_RE.test(raw)) {
+      res.status(400).json({
+        success: false,
+        error:
+          "namespaceKey invalide (ex. service, home — lettres minuscules, " +
+          "chiffres, _ et -)",
       });
       return;
     }
 
     const sortLocale = readSortLocale(req);
     const cmsCountry = readCmsCountry(req);
-    const namespaces: Record<string, unknown>[] = [];
-    for (const nid of targetIds) {
-      const data = byId.get(nid);
-      if (!data) continue;
-      const row = normalizeCmsNamespace(nid, data);
-      if (!isPublicActiveDoc(row)) continue;
-      namespaces.push(row);
-    }
-
-    const idList = [...targetIds];
-    const sectionRows: Record<string, unknown>[] = [];
-    for (const chunk of chunkIds(idList, FIRESTORE_IN_MAX)) {
-      const secSnap = await db
-        .collection("cmsSections")
-        .where("namespaceId", "in", chunk)
-        .get();
-      for (const d of secSnap.docs) {
-        const row = normalizeCmsSection(d.id, d.data());
-        if (!isPublicActiveDoc(row)) continue;
-        const nested = toNestedCmsTranslations(row.translations);
-        row.resolvedTranslation = resolveCmsBlock(
-          nested,
-          cmsCountry,
-          sortLocale,
-        ) ?? null;
-        sectionRows.push(row);
-      }
-    }
-
-    sectionRows.sort((a, b) => {
-      const trA = flattenCmsForSort(
-        toNestedCmsTranslations(a.translations),
-      );
-      const trB = flattenCmsForSort(
-        toNestedCmsTranslations(b.translations),
-      );
-      const fa = String(a.subsectionKey ?? a.id);
-      const fb = String(b.subsectionKey ?? b.id);
-      return pickSortLabel(trA, sortLocale, fa).localeCompare(
-        pickSortLabel(trB, sortLocale, fb),
-        "fr",
-      );
-    });
-
-    const byNamespace: Record<string, Record<string, unknown>[]> = {};
-    for (const nid of targetIds) {
-      byNamespace[nid] = [];
-    }
-    for (const row of sectionRows) {
-      const nid = String(row.namespaceId ?? "");
-      if (nid && Object.prototype.hasOwnProperty.call(byNamespace, nid)) {
-        byNamespace[nid].push(row);
-      }
-    }
+    const data = await buildPublicCmsData(
+      new Set([raw]),
+      new Set(),
+      sortLocale,
+      cmsCountry,
+    );
 
     res.status(200).json({
       success: true,
       data: {
-        namespaces,
-        sections: sectionRows,
-        byNamespace,
+        namespaceKey: raw,
+        namespace: data.namespaces[0] ?? null,
+        sections: data.sections,
       },
     });
   } catch (e: unknown) {

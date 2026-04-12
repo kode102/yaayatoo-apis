@@ -651,6 +651,79 @@ export const openApiPaths = {
       },
     },
   },
+  "/public/cms/namespace/{namespaceKey}": {
+    get: {
+      tags: ["Public"],
+      summary: "Contenu CMS pour une clé d’espace (namespace)",
+      description:
+        "Équivalent à `GET /public/cms?namespaceKeys={namespaceKey}` pour une " +
+        "seule clé, avec une réponse dédiée : `namespace` (document ou `null` " +
+        "si absent / inactif), `sections` (triées, avec `resolvedTranslation` " +
+        "et `namespaceKey` sur chaque ligne). Query : `locale`, `sortLocale`, " +
+        "`country`, `countryCode` comme sur `/public/cms`.",
+      parameters: [
+        {
+          name: "namespaceKey",
+          in: "path" as const,
+          required: true,
+          schema: {type: "string" as const, example: "service"},
+          description:
+            "Clé technique de l’espace CMS (ex. home, contact, service)",
+        },
+        localeQuery,
+        sortLocaleQuery,
+        countryQuery,
+        countryCodeQuery,
+      ],
+      responses: {
+        "200": {
+          description: "OK",
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  success: {type: "boolean"},
+                  data: {
+                    type: "object",
+                    properties: {
+                      namespaceKey: {type: "string", example: "service"},
+                      namespace: {
+                        oneOf: [{type: "object"}, {type: "null"}],
+                        description:
+                          "Document espace normalisé ou null si clé inconnue / inactive",
+                      },
+                      sections: {
+                        type: "array",
+                        items: {type: "object"},
+                        description:
+                          "Sections actives de cet espace (`namespaceKey` renseigné)",
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+        "400": {
+          description: "Clé d’URL invalide",
+          content: {
+            "application/json": {
+              schema: {$ref: "#/components/schemas/ApiError"},
+            },
+          },
+        },
+        "500": {
+          content: {
+            "application/json": {
+              schema: {$ref: "#/components/schemas/ApiError"},
+            },
+          },
+        },
+      },
+    },
+  },
   "/public/cms": {
     get: {
       tags: ["Public"],
@@ -660,7 +733,9 @@ export const openApiPaths = {
         "Passer `namespaceKeys` (ex. home,contact) et/ou `namespaceIds` " +
         "(ids Firestore). Union des deux. Tri des sections : `locale` / " +
         "`sortLocale`. Résolution des champs par pays : `country` / " +
-        "`countryCode` (ISO2).",
+        "`countryCode` (ISO2). Pour **une seule clé**, préférer " +
+        "`GET /public/cms/namespace/{namespaceKey}` (réponse `namespace` + " +
+        "`sections`). Chaque section inclut `namespaceKey` pour rattachement.",
       parameters: [
         {
           name: "namespaceKeys",
@@ -725,7 +800,7 @@ export const openApiPaths = {
         "Corps JSON : `{ \"namespaceKeys\": [\"home\"], \"namespaceIds\": [] }` " +
         "ou chaînes séparées par virgules acceptées comme tableaux de strings. " +
         "Query : `locale`, `sortLocale`, `country`, `countryCode` (même sémantique " +
-        "que le GET).",
+        "que le GET). Une seule clé : voir aussi `GET /public/cms/namespace/{namespaceKey}`.",
       parameters: [
         localeQuery,
         sortLocaleQuery,
