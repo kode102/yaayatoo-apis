@@ -66,7 +66,7 @@ export function ServiceFeaturesEditor({items, onChange, disabled}: Props) {
         >
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-gray-600">
-              {t("services.features.itemLabel", {n: idx + 1})}
+              {t("services.features.itemLabel", {n: String(idx + 1)})}
             </span>
             <button
               type="button"
