@@ -190,7 +190,8 @@ export type CmsSectionTypeId =
   | "banner"
   | "stat"
   | "features"
-  | "faq";
+  | "faq"
+  | "service_benefits";
 
 export type CmsSectionDoc = {
   id: string;
@@ -550,7 +551,8 @@ export function inferCmsSectionType(doc: CmsSectionDoc): CmsSectionTypeId {
     raw === "banner" ||
     raw === "stat" ||
     raw === "features" ||
-    raw === "faq"
+    raw === "faq" ||
+    raw === "service_benefits"
   ) {
     return raw;
   }
@@ -565,5 +567,12 @@ export function inferCmsSectionType(doc: CmsSectionDoc): CmsSectionTypeId {
   if (sub === "stat" || sub.startsWith("stat-")) return "stat";
   if (sub === "features" || sub.startsWith("features-")) return "features";
   if (sub === "faq" || sub.startsWith("faq-")) return "faq";
+  if (
+    sub === "service-benefits" ||
+    sub.startsWith("service-benefits-") ||
+    sub === "service_benefits"
+  ) {
+    return "service_benefits";
+  }
   return "site_settings";
 }

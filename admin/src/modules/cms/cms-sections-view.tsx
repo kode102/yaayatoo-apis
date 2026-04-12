@@ -79,6 +79,24 @@ type FaqItemDraft = {question: string; answer: string};
 type FaqColumnDraft = {title: string; items: FaqItemDraft[]};
 type FaqLocaleDraft = {name: string; columns: FaqColumnDraft[]};
 
+const SERVICE_BENEFIT_ICON_KEYS = [
+  "efficient",
+  "flexible",
+  "accessible",
+] as const;
+type ServiceBenefitIconKey = (typeof SERVICE_BENEFIT_ICON_KEYS)[number];
+
+type ServiceBenefitItemDraft = {
+  title: string;
+  description: string;
+  iconKey: ServiceBenefitIconKey;
+};
+
+type ServiceBenefitsLocaleDraft = {
+  name: string;
+  items: ServiceBenefitItemDraft[];
+};
+
 /** Ordre du menu : blocs page d’accueil regroupés, puis blog, puis réglages. */
 const SECTION_TYPES: {id: CmsSectionTypeId; labelKey: string}[] = [
   {id: "why_choose_us", labelKey: "cms.sectionType.whyChooseUs"},
@@ -86,6 +104,7 @@ const SECTION_TYPES: {id: CmsSectionTypeId; labelKey: string}[] = [
   {id: "stat", labelKey: "cms.sectionType.stat"},
   {id: "features", labelKey: "cms.sectionType.features"},
   {id: "faq", labelKey: "cms.sectionType.faq"},
+  {id: "service_benefits", labelKey: "cms.sectionType.serviceBenefits"},
   {id: "blog_section", labelKey: "cms.sectionType.blogSection"},
   {id: "profile_listing", labelKey: "cms.sectionType.profileListing"},
   {id: "site_settings", labelKey: "cms.sectionType.siteSettings"},
@@ -414,6 +433,70 @@ function filledFaq(d: FaqLocaleDraft): boolean {
   );
 }
 
+function normalizeServiceBenefitIconKey(v: unknown): ServiceBenefitIconKey {
+  const s = String(v ?? "").trim().toLowerCase();
+  if (s === "flexible" || s === "accessible") return s;
+  return "efficient";
+}
+
+function emptyServiceBenefitItem(): ServiceBenefitItemDraft {
+  return {title: "", description: "", iconKey: "efficient"};
+}
+
+function emptyServiceBenefits(): ServiceBenefitsLocaleDraft {
+  return {
+    name: "",
+    items: [
+      {...emptyServiceBenefitItem(), iconKey: "efficient"},
+      {...emptyServiceBenefitItem(), iconKey: "flexible"},
+      {...emptyServiceBenefitItem(), iconKey: "accessible"},
+    ],
+  };
+}
+
+function parseServiceBenefitItemRow(o: unknown): ServiceBenefitItemDraft | null {
+  if (!o || typeof o !== "object" || Array.isArray(o)) return null;
+  const r = o as Record<string, unknown>;
+  return {
+    title: typeof r.title === "string" ? r.title : "",
+    description: typeof r.description === "string" ? r.description : "",
+    iconKey: normalizeServiceBenefitIconKey(r.iconKey),
+  };
+}
+
+function serviceBenefitsFromBlock(
+  b: Record<string, unknown> | undefined,
+): ServiceBenefitsLocaleDraft {
+  const d = emptyServiceBenefits();
+  if (!b) return d;
+  const name = typeof b.name === "string" ? b.name : "";
+  const raw =
+    typeof b.serviceBenefitCards === "string" ? b.serviceBenefitCards : "";
+  if (!raw.trim()) return {...d, name};
+  try {
+    const arr = JSON.parse(raw) as unknown;
+    if (!Array.isArray(arr)) return {...d, name};
+    const items = arr
+      .map(parseServiceBenefitItemRow)
+      .filter((x): x is ServiceBenefitItemDraft => x !== null);
+    return {
+      name,
+      items: items.length > 0 ? items : emptyServiceBenefits().items,
+    };
+  } catch {
+    return {...d, name};
+  }
+}
+
+function serviceBenefitsToStored(items: ServiceBenefitItemDraft[]): string {
+  return JSON.stringify(items);
+}
+
+function filledServiceBenefits(d: ServiceBenefitsLocaleDraft): boolean {
+  if (d.name.trim()) return true;
+  return d.items.some((it) => it.title.trim() || it.description.trim());
+}
+
 function filledFeatures(d: FeaturesLocaleDraft): boolean {
   if (d.name.trim()) return true;
   return d.items.some(
@@ -571,6 +654,121 @@ function StatKpiFieldset({
       <button
         type="button"
         onClick={addRow}
+        className="mt-1 rounded-lg border border-dashed border-primary/40 bg-white px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/5"
+      >
+        {addLabel}
+      </button>
+    </fieldset>
+  );
+}
+
+type ServiceBenefitCardsFieldsetLabels = {
+  cardTitle: string;
+  cardDescription: string;
+  cardIcon: string;
+  iconEfficient: string;
+  iconFlexible: string;
+  iconAccessible: string;
+};
+
+type ServiceBenefitCardsFieldsetProps = {
+  legend: string;
+  hint?: string;
+  items: ServiceBenefitItemDraft[];
+  onItemsChange: (next: ServiceBenefitItemDraft[]) => void;
+  addLabel: string;
+  removeLabel: string;
+  labels: ServiceBenefitCardsFieldsetLabels;
+};
+
+function ServiceBenefitCardsFieldset({
+  legend,
+  hint,
+  items,
+  onItemsChange,
+  addLabel,
+  removeLabel,
+  labels,
+}: ServiceBenefitCardsFieldsetProps) {
+  function updateItem(
+    index: number,
+    patch: Partial<ServiceBenefitItemDraft>,
+  ) {
+    const next = items.map((it, i) => (i === index ? {...it, ...patch} : it));
+    onItemsChange(next);
+  }
+  function addItem() {
+    onItemsChange([...items, emptyServiceBenefitItem()]);
+  }
+  function removeItem(index: number) {
+    if (items.length <= 1) {
+      onItemsChange([emptyServiceBenefitItem()]);
+      return;
+    }
+    onItemsChange(items.filter((_, i) => i !== index));
+  }
+
+  return (
+    <fieldset className="space-y-2">
+      <legend className="block text-sm font-medium text-gray-700">{legend}</legend>
+      {hint ? <p className="text-xs text-gray-500">{hint}</p> : null}
+      <div className="space-y-3">
+        {items.map((it, idx) => (
+          <div
+            key={idx}
+            className="space-y-2 rounded-lg border border-gray-100 bg-gray-50/80 p-3"
+          >
+            <label className="block text-sm text-gray-700">
+              {labels.cardTitle}
+              <input
+                type="text"
+                value={it.title}
+                onChange={(e) => updateItem(idx, {title: e.target.value})}
+                className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-primary/70 focus:ring-2 focus:ring-primary/15 focus:outline-none"
+              />
+            </label>
+            <label className="block text-sm text-gray-700">
+              {labels.cardDescription}
+              <textarea
+                rows={3}
+                value={it.description}
+                onChange={(e) => updateItem(idx, {description: e.target.value})}
+                className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-primary/70 focus:ring-2 focus:ring-primary/15 focus:outline-none"
+              />
+            </label>
+            <label className="block text-sm text-gray-700">
+              {labels.cardIcon}
+              <select
+                value={it.iconKey}
+                onChange={(e) =>
+                  updateItem(idx, {
+                    iconKey: normalizeServiceBenefitIconKey(e.target.value),
+                  })
+                }
+                className="mt-1 w-full max-w-md rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm"
+              >
+                <option value="efficient">{labels.iconEfficient}</option>
+                <option value="flexible">{labels.iconFlexible}</option>
+                <option value="accessible">{labels.iconAccessible}</option>
+              </select>
+            </label>
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={() => removeItem(idx)}
+                className="rounded-lg border border-gray-200 bg-white px-2.5 py-2 text-sm leading-none text-gray-600 hover:bg-red-50 hover:text-red-700"
+                aria-label={removeLabel}
+                title={removeLabel}
+              >
+                ×
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+      <button
+        type="button"
+        onClick={addItem}
         className="mt-1 rounded-lg border border-dashed border-primary/40 bg-white px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/5"
       >
         {addLabel}
@@ -902,6 +1100,8 @@ export default function CmsSectionsView() {
   const [faqDraftsByCountry, setFaqDraftsByCountry] = useState<
     Record<string, Record<string, FaqLocaleDraft>>
   >({});
+  const [serviceBenefitsDraftsByCountry, setServiceBenefitsDraftsByCountry] =
+    useState<Record<string, Record<string, ServiceBenefitsLocaleDraft>>>({});
   const [active, setActive] = useState(true);
   const [registrationActive, setRegistrationActive] = useState(false);
   const [videoImageUrl, setVideoImageUrl] = useState("");
@@ -1016,12 +1216,25 @@ export default function CmsSectionsView() {
       setCSub("faq");
     }
     if (
+      cType === "service_benefits" &&
+      (cSub === "why-choose-us" ||
+        cSub === "banner" ||
+        cSub === "stat" ||
+        cSub === "features" ||
+        cSub === "faq" ||
+        cSub === "blog-section" ||
+        cSub === "profile-listing")
+    ) {
+      setCSub("service-benefits");
+    }
+    if (
       cType === "profile_listing" &&
       (cSub === "why-choose-us" ||
         cSub === "banner" ||
         cSub === "stat" ||
         cSub === "features" ||
         cSub === "faq" ||
+        cSub === "service-benefits" ||
         cSub === "blog-section")
     ) {
       setCSub("profile-listing");
@@ -1037,6 +1250,7 @@ export default function CmsSectionsView() {
       setStatsDraftsByCountry({});
       setFeaturesDraftsByCountry({});
       setFaqDraftsByCountry({});
+      setServiceBenefitsDraftsByCountry({});
       setAssignNamespaceId("");
       return;
     }
@@ -1048,6 +1262,8 @@ export default function CmsSectionsView() {
     const nextFeatures: Record<string, Record<string, FeaturesLocaleDraft>> =
       {};
     const nextFaq: Record<string, Record<string, FaqLocaleDraft>> = {};
+    const nextSb: Record<string, Record<string, ServiceBenefitsLocaleDraft>> =
+      {};
     for (const country of sortedCountryCodes) {
       for (const code of sortedCodes) {
         const block = selected.translations?.[country]?.[code] as
@@ -1060,6 +1276,7 @@ export default function CmsSectionsView() {
         if (!nextStats[country]) nextStats[country] = {};
         if (!nextFeatures[country]) nextFeatures[country] = {};
         if (!nextFaq[country]) nextFaq[country] = {};
+        if (!nextSb[country]) nextSb[country] = {};
         nextSite[country][code] = siteFromBlock(block);
         nextWhy[country][code] = whyFromBlock(block);
         nextBlog[country][code] = blogFromBlock(block);
@@ -1067,6 +1284,7 @@ export default function CmsSectionsView() {
         nextStats[country][code] = statsFromBlock(block);
         nextFeatures[country][code] = featuresFromBlock(block);
         nextFaq[country][code] = faqFromBlock(block);
+        nextSb[country][code] = serviceBenefitsFromBlock(block);
       }
     }
     setSiteDraftsByCountry(nextSite);
@@ -1076,6 +1294,7 @@ export default function CmsSectionsView() {
     setStatsDraftsByCountry(nextStats);
     setFeaturesDraftsByCountry(nextFeatures);
     setFaqDraftsByCountry(nextFaq);
+    setServiceBenefitsDraftsByCountry(nextSb);
     setActive(selected.active ?? true);
     setRegistrationActive(Boolean(selected.registrationActive));
     setVideoImageUrl(selected.videoImageUrl ?? "");
@@ -1190,6 +1409,21 @@ export default function CmsSectionsView() {
     [activeCountryCode, activeLocaleCode],
   );
 
+  const patchServiceBenefits = useCallback(
+    (fn: (d: ServiceBenefitsLocaleDraft) => ServiceBenefitsLocaleDraft) => {
+      const c = activeCountryCode;
+      const loc = activeLocaleCode;
+      setServiceBenefitsDraftsByCountry((p) => {
+        const cur = p[c]?.[loc] ?? emptyServiceBenefits();
+        return {
+          ...p,
+          [c]: {...(p[c] ?? {}), [loc]: fn(cur)},
+        };
+      });
+    },
+    [activeCountryCode, activeLocaleCode],
+  );
+
   const grouped = useMemo(() => {
     const orphan: CmsSectionDoc[] = [];
     const byNs = new Map<string, CmsSectionDoc[]>();
@@ -1258,6 +1492,15 @@ export default function CmsSectionsView() {
           }
         } else if (kind === "faq") {
           if (filledFaq(faqDraftsByCountry[country]?.[code] ?? emptyFaq())) {
+            filledPairs.push({country, locale: code});
+          }
+        } else if (kind === "service_benefits") {
+          if (
+            filledServiceBenefits(
+              serviceBenefitsDraftsByCountry[country]?.[code] ??
+                emptyServiceBenefits(),
+            )
+          ) {
             filledPairs.push({country, locale: code});
           }
         } else if (filledSite(siteDraftsByCountry[country]?.[code] ?? emptySite())) {
@@ -1368,6 +1611,19 @@ export default function CmsSectionsView() {
           Object.assign(body, {
             name: d.name.trim(),
             faqSections: faqToStored(d.columns),
+          });
+        } else if (kind === "service_benefits") {
+          const d =
+            serviceBenefitsDraftsByCountry[country]?.[code] ??
+            emptyServiceBenefits();
+          if (!d.name.trim()) {
+            setLoadError(t("cms.serviceBenefits.errorNeedTitle"));
+            setSaving(false);
+            return;
+          }
+          Object.assign(body, {
+            name: d.name.trim(),
+            serviceBenefitCards: serviceBenefitsToStored(d.items),
           });
         } else {
           const d = siteDraftsByCountry[country]?.[code] ?? emptySite();
@@ -1500,6 +1756,10 @@ export default function CmsSectionsView() {
     emptyFeatures();
   const currentFaq =
     faqDraftsByCountry[activeCountryCode]?.[activeLocaleCode] ?? emptyFaq();
+  const currentServiceBenefits =
+    serviceBenefitsDraftsByCountry[activeCountryCode]?.[
+      activeLocaleCode
+    ] ?? emptyServiceBenefits();
   const hasLocales = sortedCodes.length > 0;
 
   function tabFilledLocale(code: string): boolean {
@@ -1525,6 +1785,11 @@ export default function CmsSectionsView() {
     }
     if (k === "faq") {
       return filledFaq(faqDraftsByCountry[c]?.[code] ?? emptyFaq());
+    }
+    if (k === "service_benefits") {
+      return filledServiceBenefits(
+        serviceBenefitsDraftsByCountry[c]?.[code] ?? emptyServiceBenefits(),
+      );
     }
     return filledSite(siteDraftsByCountry[c]?.[code] ?? emptySite());
   }
@@ -1552,6 +1817,11 @@ export default function CmsSectionsView() {
       }
       if (k === "faq") {
         return filledFaq(faqDraftsByCountry[cc]?.[loc] ?? emptyFaq());
+      }
+      if (k === "service_benefits") {
+        return filledServiceBenefits(
+          serviceBenefitsDraftsByCountry[cc]?.[loc] ?? emptyServiceBenefits(),
+        );
       }
       return filledSite(siteDraftsByCountry[cc]?.[loc] ?? emptySite());
     });
@@ -2104,6 +2374,40 @@ export default function CmsSectionsView() {
                       removeQuestion: t("cms.faq.removeQuestion"),
                       addColumn: t("cms.faq.addColumn"),
                       removeColumn: t("cms.faq.removeColumn"),
+                    }}
+                  />
+                </div>
+              : sectionKind === "service_benefits" ?
+                <div className="space-y-4">
+                  <label className="block text-sm text-gray-700">
+                    {t("cms.serviceBenefits.fieldTitle")} *
+                    <input
+                      value={currentServiceBenefits.name}
+                      onChange={(e) =>
+                        patchServiceBenefits((cur) => ({
+                          ...cur,
+                          name: e.target.value,
+                        }))
+                      }
+                      className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                    />
+                  </label>
+                  <ServiceBenefitCardsFieldset
+                    legend={t("cms.serviceBenefits.fieldCards")}
+                    hint={t("cms.serviceBenefits.cardsHint")}
+                    items={currentServiceBenefits.items}
+                    onItemsChange={(next) =>
+                      patchServiceBenefits((cur) => ({...cur, items: next}))
+                    }
+                    addLabel={t("cms.serviceBenefits.addCard")}
+                    removeLabel={t("cms.serviceBenefits.removeCard")}
+                    labels={{
+                      cardTitle: t("cms.serviceBenefits.cardTitle"),
+                      cardDescription: t("cms.serviceBenefits.cardDescription"),
+                      cardIcon: t("cms.serviceBenefits.cardIcon"),
+                      iconEfficient: t("cms.serviceBenefits.iconEfficient"),
+                      iconFlexible: t("cms.serviceBenefits.iconFlexible"),
+                      iconAccessible: t("cms.serviceBenefits.iconAccessible"),
                     }}
                   />
                 </div>

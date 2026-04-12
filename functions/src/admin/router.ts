@@ -154,6 +154,7 @@ const CMS_TRANSLATABLE_FIELDS = [
   "statRows",
   "featureItems",
   "faqSections",
+  "serviceBenefitCards",
 ] as const;
 
 /**

@@ -188,6 +188,11 @@ const CMS_FIELDS = [
    * [{ title, items: [{ question, answer (HTML) }] }].
    */
   "faqSections",
+  /**
+   * Avantages page détail service : JSON
+   * [{ title, description, iconKey: efficient|flexible|accessible }].
+   */
+  "serviceBenefitCards",
 ] as const;
 
 /**
@@ -285,21 +290,25 @@ export function resolveCmsBlock(
   locale: string,
 ): TranslationBlock | undefined {
   const loc = normLocale(locale);
+  const shortLoc = loc.includes("-") ? loc.split("-")[0] : "";
+  const candidates = shortLoc && shortLoc !== loc ? [loc, shortLoc] : [loc];
   const cc = normCmsCountryCode(countryCode);
-  if (cc !== CMS_DEFAULT_COUNTRY) {
-    const per = nested[cc]?.[loc];
-    if (per && typeof per === "object") return per;
-  }
-  const def = nested[CMS_DEFAULT_COUNTRY]?.[loc];
-  if (def && typeof def === "object") return def;
-  const anyCountry = nested[cc];
-  if (anyCountry) {
-    const hit = anyCountry[loc];
-    if (hit && typeof hit === "object") return hit;
-  }
-  for (const map of Object.values(nested)) {
-    const b = map[loc];
-    if (b && typeof b === "object") return b;
+  for (const candLoc of candidates) {
+    if (cc !== CMS_DEFAULT_COUNTRY) {
+      const per = nested[cc]?.[candLoc];
+      if (per && typeof per === "object") return per;
+    }
+    const def = nested[CMS_DEFAULT_COUNTRY]?.[candLoc];
+    if (def && typeof def === "object") return def;
+    const anyCountry = nested[cc];
+    if (anyCountry) {
+      const hit = anyCountry[candLoc];
+      if (hit && typeof hit === "object") return hit;
+    }
+    for (const map of Object.values(nested)) {
+      const b = map[candLoc];
+      if (b && typeof b === "object") return b;
+    }
   }
   return undefined;
 }
