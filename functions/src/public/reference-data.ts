@@ -64,7 +64,7 @@ function normalizeOut(
   data: DocumentData,
 ): Record<string, unknown> {
   const base = serializeDoc(id, data);
-  if (collection === "services") {
+  if (collection === "services" || collection === "onDemandServices") {
     base.translations = serviceDocToNested(data);
     return base;
   }
@@ -85,14 +85,21 @@ function isActiveRow(row: Record<string, unknown>): boolean {
   return isPublicActiveDoc(row);
 }
 
+/** Collections gérées par listActiveByCollection. */
+type ActiveCollection =
+  | "countries"
+  | "languages"
+  | "services"
+  | "onDemandServices";
+
 /**
  * Code ou id pour le tri (repli pickSortLabel).
- * @param {"countries"|"languages"|"services"} collection Collection.
+ * @param {ActiveCollection} collection Collection.
  * @param {Record<string, unknown>} row Ligne.
  * @return {string} Code pays/langue ou id service.
  */
 function sortKey(
-  collection: "countries" | "languages" | "services",
+  collection: ActiveCollection,
   row: Record<string, unknown>,
 ): string {
   if (collection === "countries" || collection === "languages") {
@@ -103,19 +110,23 @@ function sortKey(
 
 /**
  * Attache `resolvedTranslation` sur une ligne services/langues.
- * @param {"countries"|"languages"|"services"} collection Collection.
+ * @param {ActiveCollection} collection Collection.
  * @param {Record<string, unknown>} row Ligne normalisée.
  * @param {string} countryCode Pays pour la résolution.
  * @param {string} locale Locale pour la résolution.
  * @return {void}
  */
 function attachResolvedTranslation(
-  collection: "countries" | "languages" | "services",
+  collection: ActiveCollection,
   row: Record<string, unknown>,
   countryCode: string,
   locale: string,
 ): void {
-  if (collection !== "languages" && collection !== "services") return;
+  if (
+    collection !== "languages" &&
+    collection !== "services" &&
+    collection !== "onDemandServices"
+  ) return;
   const nested = row.translations as CmsNestedTranslations;
   const resolved =
     resolveCmsBlock(nested, countryCode, locale) ?? {};
@@ -200,13 +211,13 @@ async function loadReviewStatsByServiceId(): Promise<
 
 /**
  * Liste une collection : actifs uniquement, tri par libellé.
- * @param {"countries"|"languages"|"services"} collection Collection.
+ * @param {ActiveCollection} collection Collection.
  * @param {string} sortLocale Locale pour l’ordre d’affichage.
  * @param {string} countryForResolve Pays pour resolvedTranslation.
  * @return {Promise<Record<string, unknown>[]>} Documents actifs triés.
  */
 async function listActiveByCollection(
-  collection: "countries" | "languages" | "services",
+  collection: ActiveCollection,
   sortLocale: string,
   countryForResolve: string,
 ): Promise<Record<string, unknown>[]> {
@@ -348,6 +359,30 @@ export async function getPublicServices(
   try {
     const data = await listActiveByCollection(
       "services",
+      readSortLocale(req),
+      readCountryForResolve(req),
+    );
+    res.status(200).json({success: true, data});
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error(e);
+    res.status(500).json({success: false, error: msg});
+  }
+}
+
+/**
+ * GET /public/on-demand-services — services à la demande actifs.
+ * @param {Request} req Requête (?locale= &country= ou ?countryCode=).
+ * @param {Response} res Réponse JSON.
+ * @return {Promise<void>}
+ */
+export async function getPublicOnDemandServices(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  try {
+    const data = await listActiveByCollection(
+      "onDemandServices",
       readSortLocale(req),
       readCountryForResolve(req),
     );

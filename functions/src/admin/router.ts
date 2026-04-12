@@ -42,6 +42,7 @@ const ALLOWED = new Set([
   "cmsNamespaces",
   "cmsSettings",
   "newsFeed",
+  "onDemandServices",
   "employee",
   "employer",
   "jobOffers",
@@ -148,7 +149,7 @@ function normalizeOut(
     base.translations = toNestedCmsTranslations(data.translations);
     return base;
   }
-  if (collection === "services") {
+  if (collection === "services" || collection === "onDemandServices") {
     base.translations = serviceDocToNested(data);
     return base;
   }
@@ -881,6 +882,43 @@ function parseNewsFeedPost(body: Record<string, unknown>): {
   };
 }
 
+/**
+ * Corps POST/PUT service à la demande.
+ * @param {Record<string, unknown>} body JSON.
+ * @return {object|null} Payload ou null si locale manquante.
+ */
+function parseOnDemandServicePost(body: Record<string, unknown>): {
+  locale: string;
+  country: string;
+  name: string;
+  labelHtml: string;
+  iconUrl: string;
+  active: boolean;
+  linkedServiceIds: string[];
+} | null {
+  const locale = normLocale(String(body.locale ?? ""));
+  const name = typeof body.name === "string" ? body.name.trim() : "";
+  if (!locale && !name) return null;
+  const country = normCmsCountryCode(
+    String(body.countryCode ?? body.country ?? ""),
+  );
+  const labelHtml =
+    typeof body.labelHtml === "string" ? body.labelHtml.slice(0, 32_000) : "";
+  const iconUrl =
+    typeof body.iconUrl === "string" ? body.iconUrl.trim() : "";
+  const active =
+    typeof body.active === "boolean" ? body.active : true;
+  const ids = Array.isArray(body.linkedServiceIds) ?
+    (body.linkedServiceIds as unknown[])
+      .map((v) => String(v ?? "").trim())
+      .filter(Boolean)
+      .slice(0, 100) :
+    [];
+  return {
+    locale, country, name, labelHtml, iconUrl, active, linkedServiceIds: ids,
+  };
+}
+
 function readCmsSettingsPerCountry(
   doc: Record<string, unknown>,
 ): Record<string, Record<string, unknown>> {
@@ -1294,6 +1332,50 @@ function buildPutPatch(
     return {patch};
   }
 
+  if (collection === "onDemandServices") {
+    if (typeof body.active === "boolean") patch.active = body.active;
+    if (typeof body.iconUrl === "string") patch.iconUrl = body.iconUrl.trim();
+    if (Array.isArray(body.linkedServiceIds)) {
+      patch.linkedServiceIds = (body.linkedServiceIds as unknown[])
+        .map((v) => String(v ?? "").trim())
+        .filter(Boolean)
+        .slice(0, 100);
+    }
+    if (
+      localeRaw !== undefined &&
+      localeRaw !== null &&
+      String(localeRaw).trim() !== ""
+    ) {
+      const locale = normLocale(String(localeRaw));
+      if (!locale) return {patch: {}, error: "locale invalide"};
+      const country = normCmsCountryCode(
+        String(body.countryCode ?? body.country ?? ""),
+      );
+      const name = typeof body.name === "string" ? body.name.trim() : "";
+      const labelHtml =
+        typeof body.labelHtml === "string" ?
+          body.labelHtml.slice(0, 32_000) :
+          "";
+      const block: {name?: string; labelHtml?: string} = {};
+      if (name) block.name = name;
+      if (labelHtml) block.labelHtml = labelHtml;
+      if (Object.keys(block).length > 0) {
+        const nested = serviceDocToNested(existing);
+        patch.translations = mergeTranslationBlockNested(
+          nested,
+          country,
+          locale,
+          block,
+        );
+      }
+    }
+    const odKeys = Object.keys(patch).filter((k) => k !== "updatedAt");
+    if (odKeys.length === 0) {
+      return {patch: {}, error: "Aucun champ à mettre à jour"};
+    }
+    return {patch};
+  }
+
   if (collection === "jobReviews") {
     if (
       localeRaw !== undefined &&
@@ -1587,6 +1669,7 @@ export function createAdminRouter(): express.Router {
         if (
           collection === "cmsSections" ||
           collection === "services" ||
+          collection === "onDemandServices" ||
           collection === "languages" ||
           collection === "newsFeed"
         ) {
@@ -1750,6 +1833,28 @@ export function createAdminRouter(): express.Router {
             labelHtml: v.titleHtml.slice(0, 16_000),
           },
         ),
+      };
+    } else if (collection === "onDemandServices") {
+      const v = parseOnDemandServicePost(body);
+      if (!v || (!v.locale && !v.name)) {
+        res.status(400).json({
+          success: false,
+          error: "Champs invalides (locale + name requis pour la création)",
+        });
+        return;
+      }
+      const translations =
+        v.locale && v.name ?
+          mergeTranslationBlockNested({}, v.country, v.locale, {
+            name: v.name,
+            labelHtml: v.labelHtml,
+          }) :
+          {};
+      payload = {
+        active: v.active,
+        iconUrl: v.iconUrl,
+        linkedServiceIds: v.linkedServiceIds,
+        translations,
       };
     } else if (
       collection === "employee" ||

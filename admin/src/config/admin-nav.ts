@@ -21,6 +21,8 @@ export const ADMIN_NAV_MODULES: AdminNavModule[] = [
     items: [
       {href: "/services/list", labelKey: "nav.action.list"},
       {href: "/services/create", labelKey: "nav.action.create"},
+      {href: "/services/on-demand/list", labelKey: "nav.services.onDemandList"},
+      {href: "/services/on-demand/create", labelKey: "nav.services.onDemandCreate"},
     ],
   },
   {

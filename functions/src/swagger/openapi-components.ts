@@ -312,6 +312,42 @@ export const openApiComponents = {
         },
       },
     },
+    OnDemandServiceDocument: {
+      type: "object",
+      description:
+        "Service à la demande actif (collection `onDemandServices`). " +
+        "Traduction résolue pour le pays et la locale demandés via `resolvedTranslation`.",
+      properties: {
+        id: {type: "string"},
+        active: {type: "boolean"},
+        iconUrl: {
+          type: "string",
+          description: "URL Firebase Storage de l'icône du service",
+        },
+        linkedServiceIds: {
+          type: "array",
+          items: {type: "string"},
+          description: "IDs Firestore des documents `services` associés",
+        },
+        translations: {
+          type: "object",
+          description: "Traductions imbriquées : pays → locale → { name, labelHtml }",
+        },
+        resolvedTranslation: {
+          type: "object",
+          description: "Bloc résolu pour le pays + locale de la requête",
+          properties: {
+            name: {type: "string", description: "Titre traduit"},
+            labelHtml: {
+              type: "string",
+              description: "Description HTML (TinyMCE)",
+            },
+          },
+        },
+        createdAt: {type: "string", format: "date-time"},
+        updatedAt: {type: "string", format: "date-time"},
+      },
+    },
     FirebaseAuthUser: {
       type: "object",
       description: "Utilisateur Firebase Auth (sérialisé API admin)",

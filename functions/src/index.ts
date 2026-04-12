@@ -13,6 +13,7 @@ import {
   getPublicCatalog,
   getPublicCountries,
   getPublicLanguages,
+  getPublicOnDemandServices,
   getPublicServices,
 } from "./public/reference-data.js";
 import {getPublicUiDictionary} from "./public/ui-dictionary-public.js";
@@ -233,6 +234,11 @@ app.get("/public/languages", (req, res) => {
 /** Services actifs — sans authentification. */
 app.get("/public/services", (req, res) => {
   void getPublicServices(req, res);
+});
+
+/** Services à la demande actifs — sans authentification. */
+app.get("/public/on-demand-services", (req, res) => {
+  void getPublicOnDemandServices(req, res);
 });
 
 /** Catalogue : pays + langues + services actifs en un GET. */

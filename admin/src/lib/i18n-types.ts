@@ -257,6 +257,24 @@ export type NewsFeedDoc = {
   updatedAt?: string;
 };
 
+/**
+ * Service « à la demande » (collection Firestore : `onDemandServices`).
+ * - `name`     → titre par pays/locale
+ * - `labelHtml`→ description HTML (TinyMCE) par pays/locale
+ */
+export type OnDemandServiceDoc = {
+  id: string;
+  active: boolean;
+  /** URL icône Firebase Storage. */
+  iconUrl?: string;
+  /** IDs des documents `services` liés. */
+  linkedServiceIds?: string[];
+  /** Traductions : pays → locale → { name, labelHtml }. */
+  translations: RegionalTranslationMap;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
 export function localeFilledCount(translations: TranslationMap | undefined): number {
   if (!translations) return 0;
   return Object.keys(translations).filter((k) => translations[k]?.name?.trim()).length;

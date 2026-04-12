@@ -15,6 +15,7 @@ const collectionParam = {
       "cmsNamespaces",
       "cmsSettings",
       "newsFeed",
+      "onDemandServices",
       "employee",
       "employer",
       "jobOffers",
@@ -404,6 +405,42 @@ export const openApiPaths = {
           },
         },
         "500": {
+          content: {
+            "application/json": {
+              schema: {$ref: "#/components/schemas/ApiError"},
+            },
+          },
+        },
+      },
+    },
+  },
+  "/public/on-demand-services": {
+    get: {
+      tags: ["Public"],
+      summary: "Services à la demande actifs",
+      description:
+        "Liste les documents `onDemandServices` actifs avec traduction résolue pour le pays et la locale demandés. Inclut `iconUrl`, `linkedServiceIds` et `resolvedTranslation` (name + labelHtml).",
+      parameters: [localeQuery, sortLocaleQuery, countryQuery, countryCodeQuery],
+      responses: {
+        "200": {
+          description: "OK",
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  success: {type: "boolean", example: true},
+                  data: {
+                    type: "array",
+                    items: {$ref: "#/components/schemas/OnDemandServiceDocument"},
+                  },
+                },
+              },
+            },
+          },
+        },
+        "500": {
+          description: "Erreur serveur",
           content: {
             "application/json": {
               schema: {$ref: "#/components/schemas/ApiError"},

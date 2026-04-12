@@ -128,4 +128,18 @@ export async function uploadEmployerProfileImageToStorage(
   return uploadValidatedImageToFolder(file, folder);
 }
 
+/**
+ * Icône d'un service à la demande : `admin/on-demand-services/{docId|uploads}/`
+ */
+export async function uploadOnDemandServiceIconToStorage(
+  file: File,
+  opts: {docId?: string},
+): Promise<string> {
+  const folder =
+    opts.docId?.trim() ?
+      `admin/on-demand-services/${opts.docId.trim()}`
+    : "admin/on-demand-services/uploads";
+  return uploadValidatedImageToFolder(file, folder);
+}
+
 export const SERVICE_IMAGE_MAX_BYTES = MAX_BYTES;
