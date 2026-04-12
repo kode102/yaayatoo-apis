@@ -357,7 +357,7 @@ export default function FirebaseUsersListView() {
             </div>
           ),
         }),
-      ] as ColumnDef<FirebaseUserRow, unknown>[],
+      ] as ColumnDef<FirebaseUserRow, any>[],
     [busy, dateLocale, openEdit, t],
   );
 

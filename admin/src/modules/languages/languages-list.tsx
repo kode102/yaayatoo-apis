@@ -381,7 +381,7 @@ export default function LanguagesListView() {
           </div>
         ),
       }),
-    ] as ColumnDef<LanguageDoc, unknown>[],
+    ] as ColumnDef<LanguageDoc, any>[],
     [
       busy,
       dateLocale,

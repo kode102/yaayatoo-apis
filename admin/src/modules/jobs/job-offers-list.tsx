@@ -430,7 +430,7 @@ export default function JobOffersListView() {
             </div>
           ),
         }),
-      ] as ColumnDef<JobOfferDoc, unknown>[],
+      ] as ColumnDef<JobOfferDoc, any>[],
     [
       busy,
       employeeLabelById,

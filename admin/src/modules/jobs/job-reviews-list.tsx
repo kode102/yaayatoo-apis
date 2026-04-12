@@ -365,7 +365,7 @@ export default function JobReviewsListView() {
             </div>
           ),
         }),
-      ] as ColumnDef<JobReviewDoc, unknown>[],
+      ] as ColumnDef<JobReviewDoc, any>[],
     [busy, offerLabelById, openEdit, removeRow, t, toggleReviewActive],
   );
 

@@ -117,7 +117,9 @@ export default function SiteMediaListView() {
       if (code === "IMAGE_TOO_LARGE") {
         setFileError(
           t("errors.imageTooLarge", {
-            maxMb: Math.round(SERVICE_IMAGE_MAX_BYTES / (1024 * 1024)),
+            maxMb: String(
+              Math.round(SERVICE_IMAGE_MAX_BYTES / (1024 * 1024)),
+            ),
           }),
         );
       } else if (code === "IMAGE_TYPE") {
@@ -151,7 +153,7 @@ export default function SiteMediaListView() {
   );
 
   const columns = useMemo(
-    (): ColumnDef<SiteMediaDoc, unknown>[] => [
+    (): ColumnDef<SiteMediaDoc, any>[] => [
       col.display({
         id: "thumb",
         header: t("siteMedia.list.colPreview"),
@@ -267,10 +269,11 @@ export default function SiteMediaListView() {
           {loadError}
         </p>
       : null}
-      <AdminDataTable
+      <AdminDataTable<SiteMediaDoc>
         columns={columns}
         data={items}
         emptyLabel={t("siteMedia.list.empty")}
+        getRowId={(row) => row.id}
       />
 
       <EditSheet

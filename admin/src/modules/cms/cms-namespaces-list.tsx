@@ -311,7 +311,7 @@ export default function CmsNamespacesListView() {
           </div>
         ),
       }),
-    ] as ColumnDef<CmsNamespaceDoc, unknown>[],
+    ] as ColumnDef<CmsNamespaceDoc, any>[],
     [
       busy,
       dateLocale,

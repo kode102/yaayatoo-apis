@@ -37,7 +37,9 @@ export default function SiteMediaCreateView() {
       if (code === "IMAGE_TOO_LARGE") {
         setLoadError(
           t("errors.imageTooLarge", {
-            maxMb: Math.round(SERVICE_IMAGE_MAX_BYTES / (1024 * 1024)),
+            maxMb: String(
+              Math.round(SERVICE_IMAGE_MAX_BYTES / (1024 * 1024)),
+            ),
           }),
         );
       } else if (code === "IMAGE_TYPE") {

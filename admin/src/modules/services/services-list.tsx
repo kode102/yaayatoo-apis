@@ -406,7 +406,7 @@ export default function ServicesListView() {
           </div>
         ),
       }),
-    ] as ColumnDef<ServiceDoc, unknown>[],
+    ] as ColumnDef<ServiceDoc, any>[],
     [
       busy,
       dateLocale,

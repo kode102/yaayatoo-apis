@@ -242,7 +242,7 @@ export default function OnDemandServicesListView() {
     }
   }
 
-  const columns = useMemo<ColumnDef<OnDemandServiceDoc, unknown>[]>(
+  const columns = useMemo<ColumnDef<OnDemandServiceDoc, any>[]>(
     () => [
       col.accessor(
         (row) =>

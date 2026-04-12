@@ -285,7 +285,7 @@ export default function DictionaryView() {
           </div>
         ),
       }),
-    ] as ColumnDef<Row, unknown>[],
+    ] as ColumnDef<Row, any>[],
     [busy, columnLangs, deleteOverride, editorLocale, openEdit, t],
   );
 

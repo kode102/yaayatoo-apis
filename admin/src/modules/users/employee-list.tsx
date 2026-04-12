@@ -591,7 +591,7 @@ export default function EmployeeListView() {
             </div>
           ),
         }),
-      ] as ColumnDef<EmployeeDoc, unknown>[],
+      ] as ColumnDef<EmployeeDoc, any>[],
     [
       busy,
       countryLabelByCode,

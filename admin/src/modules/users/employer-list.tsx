@@ -434,7 +434,7 @@ export default function EmployerListView() {
             </div>
           ),
         }),
-      ] as ColumnDef<EmployerDoc, unknown>[],
+      ] as ColumnDef<EmployerDoc, any>[],
     [busy, countryLabelByCode, openEdit, removeRow, t, toggleEmployerActive],
   );
 

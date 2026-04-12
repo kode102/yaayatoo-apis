@@ -321,7 +321,7 @@ export default function CountriesListView() {
           </div>
         ),
       }),
-    ] as ColumnDef<CountryDoc, unknown>[],
+    ] as ColumnDef<CountryDoc, any>[],
     [
       busy,
       dateLocale,

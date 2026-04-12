@@ -20,7 +20,7 @@ export function SortableHeader<T>({
   column,
   children,
 }: {
-  column: Column<T, unknown>;
+  column: Column<T, any>;
   children: React.ReactNode;
 }) {
   if (!column.getCanSort()) {
@@ -46,7 +46,7 @@ export type AdminTableColumnMeta = {
   columnPickerLabel?: string;
 };
 
-function getColumnDefId<T>(col: ColumnDef<T, unknown>): string {
+function getColumnDefId<T>(col: ColumnDef<T, any>): string {
   if (col.id) return col.id;
   if ("accessorKey" in col && col.accessorKey != null) {
     return String(col.accessorKey);
@@ -56,8 +56,8 @@ function getColumnDefId<T>(col: ColumnDef<T, unknown>): string {
 
 /** Colonne `actions` : toujours visible, jamais dans le sélecteur. */
 function applyDefaultHidingRules<T>(
-  columns: ColumnDef<T, unknown>[],
-): ColumnDef<T, unknown>[] {
+  columns: ColumnDef<T, any>[],
+): ColumnDef<T, any>[] {
   return columns.map((col) => {
     const id = getColumnDefId(col);
     if (id === "actions") {
@@ -67,7 +67,7 @@ function applyDefaultHidingRules<T>(
   });
 }
 
-function pickerLabel<T>(column: Column<T, unknown>): string {
+function pickerLabel<T>(column: Column<T, any>): string {
   const meta = column.columnDef.meta as AdminTableColumnMeta | undefined;
   if (meta?.columnPickerLabel?.trim()) return meta.columnPickerLabel.trim();
   const id = column.id;
@@ -82,7 +82,7 @@ const LS_PREFIX = "admin-datatable-cols-";
 
 export type AdminDataTableProps<T> = {
   data: T[];
-  columns: ColumnDef<T, unknown>[];
+  columns: ColumnDef<T, any>[];
   getRowId: (row: T, index: number) => string;
   emptyLabel: string;
   filteredEmptyLabel?: string;
