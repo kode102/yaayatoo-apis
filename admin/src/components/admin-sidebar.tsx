@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import {usePathname} from "next/navigation";
-import {ADMIN_NAV_MODULES} from "@/config/admin-nav";
+import {ADMIN_NAV_MODULES, type AdminNavItem} from "@/config/admin-nav";
 import {useUiLocale} from "@/contexts/ui-locale-context";
 
 type Props = {
@@ -24,7 +24,7 @@ function ModuleIcon({id}: {id: string}) {
           />
         </svg>
       );
-    case "countries":
+    case "i18n":
       return (
         <svg className={cls} fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path
@@ -32,17 +32,6 @@ function ModuleIcon({id}: {id: string}) {
             strokeLinejoin="round"
             strokeWidth={1.75}
             d="M12 21a9.004 9.004 0 0 0 8.716-6.747M12 21a9.004 9.004 0 0 1-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 0 1 7.843 4.582M12 3a8.997 8.997 0 0 0-7.843 4.582m15.686 0A11.953 11.953 0 0 1 12 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0 1 21 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0 1 12 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 0 1 3 12c0-1.605.42-3.113 1.157-4.418"
-          />
-        </svg>
-      );
-    case "languages":
-      return (
-        <svg className={cls} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={1.75}
-            d="m10.5 21 5.25-11.25L21 21m-9-3h7.5M3 5.621a48.474 48.474 0 0 1 6-.371m0 0c1.12 0 2.233.038 3.334.114M9 5.25v3.304m0 0a48.035 48.035 0 0 0-3.286.004V9.75m3.286 0c.358.217.683.49.956.804M9 9.75v3.304m0 0A48.235 48.235 0 0 0 12 15.75m-3-2.696v-3.304m0 0c-.364-.217-.699-.49-.956-.804M12 15.75a48.147 48.147 0 0 0 3.478-.397m-7.065 0A48.11 48.11 0 0 1 12 13.5c-1.036 0-2.047.106-3.022.304m7.065 0A48.536 48.536 0 0 0 12 9.75m-3 3.304 48.536 48.536 0 0 0-3.478-.397M12 15.75v-3.75m0 0c1.036 0 2.047-.106 3.022-.304M12 8.25a48.11 48.11 0 0 0-3.478.397m3.478-.397v3.75"
           />
         </svg>
       );
@@ -92,8 +81,23 @@ export default function AdminSidebar({mobileOpen, onCloseMobile}: Props) {
   const pathname = usePathname();
   const {t} = useUiLocale();
 
-  const linkCls = (href: string) => {
-    const active = pathname === href || pathname === `${href}/`;
+  const normalizePath = (p: string) => (p.endsWith("/") && p.length > 1 ? p.slice(0, -1) : p);
+
+  const linkActive = (item: AdminNavItem) => {
+    if (!pathname) return false;
+    const cur = normalizePath(pathname);
+    const href = normalizePath(item.href);
+    if (cur === href) return true;
+    return (
+      item.activeHrefPrefixes?.some((prefix) => {
+        const pre = normalizePath(prefix);
+        return cur === pre || cur.startsWith(`${pre}/`);
+      }) ?? false
+    );
+  };
+
+  const linkCls = (item: AdminNavItem) => {
+    const active = linkActive(item);
     return `flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors ${
       active ?
         "bg-primary/10 font-medium text-secondary shadow-sm shadow-primary/12"
@@ -109,7 +113,7 @@ export default function AdminSidebar({mobileOpen, onCloseMobile}: Props) {
     >
       <div className="flex h-[73px] items-center border-b border-gray-100 px-5">
         <Link
-          href="/services/list"
+          href="/services/overview"
           className="flex min-w-0 items-center"
           onClick={onCloseMobile}
         >
@@ -148,7 +152,7 @@ export default function AdminSidebar({mobileOpen, onCloseMobile}: Props) {
                     <li key={item.href}>
                       <Link
                         href={item.href}
-                        className={linkCls(item.href)}
+                        className={linkCls(item)}
                         onClick={onCloseMobile}
                       >
                         {t(item.labelKey)}

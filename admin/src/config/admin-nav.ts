@@ -1,6 +1,8 @@
 export type AdminNavItem = {
   href: string;
   labelKey: string;
+  /** Chemins additionnels pour marquer le lien actif (ex. `/services/create` pour l’entrée Liste). */
+  activeHrefPrefixes?: string[];
 };
 
 export type AdminNavModule = {
@@ -16,83 +18,86 @@ export type AdminNavModule = {
 export const ADMIN_NAV_MODULES: AdminNavModule[] = [
   {
     id: "services",
-    labelKey: "nav.module.services",
+    labelKey: "nav.module.ourServices",
     pathPrefix: "/services",
     items: [
-      {href: "/services/list", labelKey: "nav.action.list"},
-      {href: "/services/create", labelKey: "nav.action.create"},
-      {href: "/services/on-demand/list", labelKey: "nav.services.onDemandList"},
-      {href: "/services/on-demand/create", labelKey: "nav.services.onDemandCreate"},
+      {href: "/services/overview", labelKey: "nav.services.overview"},
+      {
+        href: "/services/list",
+        labelKey: "nav.services.catalog",
+        activeHrefPrefixes: ["/services/create"],
+      },
+      {
+        href: "/services/on-demand/list",
+        labelKey: "nav.services.onDemand",
+        activeHrefPrefixes: ["/services/on-demand/create"],
+      },
     ],
   },
   {
-    id: "countries",
-    labelKey: "nav.module.countries",
-    pathPrefix: "/countries",
-    items: [
-      {href: "/countries/list", labelKey: "nav.action.list"},
-      {href: "/countries/create", labelKey: "nav.action.create"},
-    ],
-  },
-  {
-    id: "languages",
-    labelKey: "nav.module.languages",
+    id: "i18n",
+    labelKey: "nav.module.i18nSettings",
     pathPrefix: "/languages",
-    activePathPrefixes: ["/locale"],
+    activePathPrefixes: ["/countries", "/locale"],
     items: [
-      {href: "/languages/list", labelKey: "nav.action.list"},
-      {href: "/languages/create", labelKey: "nav.action.create"},
-      {href: "/locale/dictionary", labelKey: "nav.locale.dictionary"},
+      {href: "/countries/list", labelKey: "nav.i18n.countries"},
+      {href: "/languages/list", labelKey: "nav.i18n.languages"},
+      {href: "/locale/dictionary", labelKey: "nav.i18n.dictionary"},
     ],
   },
   {
     id: "cms",
-    labelKey: "nav.module.cms",
+    labelKey: "nav.module.contentManagementSystem",
     pathPrefix: "/cms",
+    activePathPrefixes: ["/media"],
     items: [
       {href: "/cms/namespaces/list", labelKey: "nav.cms.namespaces"},
       {href: "/cms/sections", labelKey: "nav.cms.sections"},
       {href: "/cms/settings", labelKey: "nav.cms.settings"},
-    ],
-  },
-  {
-    id: "blogNews",
-    labelKey: "nav.module.blogNews",
-    pathPrefix: "/cms/blog-news",
-    items: [
       {href: "/cms/blog-news/articles", labelKey: "nav.blogNews.articles"},
       {href: "/cms/blog-news/news-feed", labelKey: "nav.blogNews.newsFeed"},
-    ],
-  },
-  {
-    id: "media",
-    labelKey: "nav.module.media",
-    pathPrefix: "/media",
-    items: [
-      {href: "/media/list", labelKey: "nav.action.list"},
-      {href: "/media/create", labelKey: "nav.action.create"},
+      {href: "/media/list", labelKey: "nav.cmsContent.mediaList"},
+      {href: "/media/create", labelKey: "nav.cmsContent.mediaCreate"},
     ],
   },
   {
     id: "job",
-    labelKey: "nav.module.job",
+    labelKey: "nav.module.jobOffersManager",
     pathPrefix: "/jobs",
     items: [
-      {href: "/jobs/list", labelKey: "nav.action.list"},
-      {href: "/jobs/create", labelKey: "nav.action.create"},
-      {href: "/jobs/reviews/list", labelKey: "nav.jobs.reviewsList"},
-      {href: "/jobs/reviews/create", labelKey: "nav.jobs.reviewsCreate"},
+      {
+        href: "/jobs/list",
+        labelKey: "nav.jobOffers.offers",
+        activeHrefPrefixes: ["/jobs/create"],
+      },
+      {href: "/jobs/contracts", labelKey: "nav.jobOffers.contracts"},
+      {
+        href: "/jobs/reviews/list",
+        labelKey: "nav.jobOffers.reviews",
+        activeHrefPrefixes: ["/jobs/reviews/create"],
+      },
     ],
   },
   {
     id: "users",
-    labelKey: "nav.module.users",
+    labelKey: "nav.module.accountManager",
     pathPrefix: "/users",
     items: [
-      {href: "/users/list", labelKey: "nav.users.firebaseList"},
-      {href: "/users/create", labelKey: "nav.users.firebaseCreate"},
-      {href: "/users/employee/list", labelKey: "nav.users.employees"},
-      {href: "/users/employer/list", labelKey: "nav.users.employers"},
+      {
+        href: "/users/list",
+        labelKey: "nav.accountManager.accounts",
+        activeHrefPrefixes: ["/users/create"],
+      },
+      {
+        href: "/users/employer/list",
+        labelKey: "nav.accountManager.employers",
+        activeHrefPrefixes: ["/users/employer/create"],
+      },
+      {
+        href: "/users/employee/list",
+        labelKey: "nav.accountManager.employees",
+        activeHrefPrefixes: ["/users/employee/create"],
+      },
     ],
   },
 ];

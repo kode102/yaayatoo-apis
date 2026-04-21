@@ -16,7 +16,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (loading) return;
-    if (user) router.replace("/services/list");
+    if (user) router.replace("/services/overview");
   }, [user, loading, router]);
 
   async function onSubmit(e: React.FormEvent) {
@@ -25,7 +25,7 @@ export default function LoginPage() {
     setPending(true);
     try {
       await signIn(email, password);
-      router.replace("/services/list");
+      router.replace("/services/overview");
     } catch (err: unknown) {
       setError(
         err instanceof Error ? err.message : t("login.signInFailed"),

@@ -4,6 +4,7 @@
   "scripts": {
     "admin:install": "npm --prefix admin ci",
     "admin:build": "npm --prefix admin run build && node scripts/sync-admin-hosting.mjs",
-    "admin:dev": "npm --prefix admin run dev"
+    "admin:dev": "npm --prefix admin run dev",
+    "admin:devx": "npm --prefix admin run devx"
   }
 }

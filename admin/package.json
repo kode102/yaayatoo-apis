@@ -6,7 +6,8 @@
     "node": ">=20.9.0"
   },
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev --webpack",
+    "devx": "next dev --turbopack",
     "build": "next build && cp public/favicon.ico out/favicon.ico",
     "start": "next start",
     "lint": "eslint ."

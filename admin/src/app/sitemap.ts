@@ -7,6 +7,7 @@ const STATIC_PATHS: string[] = [
   "/",
   "/login",
   "/services",
+  "/services/overview",
   "/services/list",
   "/services/create",
   "/countries",
