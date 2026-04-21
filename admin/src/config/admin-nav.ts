@@ -35,32 +35,6 @@ export const ADMIN_NAV_MODULES: AdminNavModule[] = [
     ],
   },
   {
-    id: "i18n",
-    labelKey: "nav.module.i18nSettings",
-    pathPrefix: "/languages",
-    activePathPrefixes: ["/countries", "/locale"],
-    items: [
-      {href: "/countries/list", labelKey: "nav.i18n.countries"},
-      {href: "/languages/list", labelKey: "nav.i18n.languages"},
-      {href: "/locale/dictionary", labelKey: "nav.i18n.dictionary"},
-    ],
-  },
-  {
-    id: "cms",
-    labelKey: "nav.module.contentManagementSystem",
-    pathPrefix: "/cms",
-    activePathPrefixes: ["/media"],
-    items: [
-      {href: "/cms/namespaces/list", labelKey: "nav.cms.namespaces"},
-      {href: "/cms/sections", labelKey: "nav.cms.sections"},
-      {href: "/cms/settings", labelKey: "nav.cms.settings"},
-      {href: "/cms/blog-news/articles", labelKey: "nav.blogNews.articles"},
-      {href: "/cms/blog-news/news-feed", labelKey: "nav.blogNews.newsFeed"},
-      {href: "/media/list", labelKey: "nav.cmsContent.mediaList"},
-      {href: "/media/create", labelKey: "nav.cmsContent.mediaCreate"},
-    ],
-  },
-  {
     id: "job",
     labelKey: "nav.module.jobOffersManager",
     pathPrefix: "/jobs",
@@ -100,4 +74,30 @@ export const ADMIN_NAV_MODULES: AdminNavModule[] = [
       },
     ],
   },
+  {
+    id: "i18n",
+    labelKey: "nav.module.i18nSettings",
+    pathPrefix: "/languages",
+    activePathPrefixes: ["/countries", "/locale"],
+    items: [
+      {href: "/countries/list", labelKey: "nav.i18n.countries"},
+      {href: "/languages/list", labelKey: "nav.i18n.languages"},
+      {href: "/locale/dictionary", labelKey: "nav.i18n.dictionary"},
+    ],
+  },
+  {
+    id: "cms",
+    labelKey: "nav.module.contentManagementSystem",
+    pathPrefix: "/cms",
+    activePathPrefixes: ["/media"],
+    items: [
+      {href: "/cms/namespaces/list", labelKey: "nav.cms.namespaces"},
+      {href: "/cms/sections", labelKey: "nav.cms.sections"},
+      {href: "/media/list", labelKey: "nav.cmsContent.mediaList"},
+      {href: "/cms/blog-news/articles", labelKey: "nav.blogNews.articles"},
+      {href: "/cms/blog-news/news-feed", labelKey: "nav.blogNews.newsFeed"},
+      {href: "/cms/settings", labelKey: "nav.cms.settings"},
+    ],
+  },
+  
 ];
