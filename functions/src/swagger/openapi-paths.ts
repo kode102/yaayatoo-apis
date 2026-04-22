@@ -21,6 +21,7 @@ const collectionParam = {
       "jobOffers",
       "jobReviews",
       "siteMedia",
+      "contactMessages",
     ],
   },
   description: "Collection Firestore",
@@ -1232,6 +1233,71 @@ export const openApiPaths = {
                   },
                 },
               },
+            },
+          },
+        },
+        "500": {
+          content: {
+            "application/json": {
+              schema: {$ref: "#/components/schemas/ApiError"},
+            },
+          },
+        },
+      },
+    },
+  },
+  "/public/contact-messages": {
+    post: {
+      tags: ["Public"],
+      summary: "Envoyer un message (formulaire contact vitrine)",
+      description:
+        "Crée un document Firestore `contactMessages` (sans auth). " +
+        "Champs : `name`, `email`, `subject` (general | booking | support), " +
+        "`message`, `locale` optionnel (ex. fr, en).",
+      requestBody: {
+        required: true,
+        content: {
+          "application/json": {
+            schema: {
+              type: "object",
+              required: ["name", "email", "subject", "message"],
+              properties: {
+                name: {type: "string"},
+                email: {type: "string", format: "email"},
+                subject: {
+                  type: "string",
+                  enum: ["general", "booking", "support"],
+                },
+                message: {type: "string"},
+                locale: {type: "string", example: "fr"},
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        "201": {
+          description: "Créé",
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  success: {type: "boolean", example: true},
+                  data: {
+                    type: "object",
+                    properties: {id: {type: "string"}},
+                  },
+                },
+              },
+            },
+          },
+        },
+        "400": {
+          description: "Champs invalides",
+          content: {
+            "application/json": {
+              schema: {$ref: "#/components/schemas/ApiError"},
             },
           },
         },

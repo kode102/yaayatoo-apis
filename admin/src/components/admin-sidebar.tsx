@@ -68,6 +68,17 @@ function ModuleIcon({id}: {id: string}) {
           />
         </svg>
       );
+    case "helpDesk":
+      return (
+        <svg className={cls} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={1.75}
+            d="M21.75 9v.75a2.25 2.25 0 0 1-2.25 2.25h-5.379l-2.629 2.628a.75.75 0 0 1-1.28-.53V12h-2.25A2.25 2.25 0 0 1 5.25 9.75V5.25A2.25 2.25 0 0 1 7.5 3h12a2.25 2.25 0 0 1 2.25 2.25V9ZM12.53 19.28l-1.061-1.06 2.122-2.122H18a2.25 2.25 0 0 0 2.25-2.25v-1.5h1.5v1.5a3.75 3.75 0 0 1-3.75 3.75h-4.189l-.281.282Z"
+          />
+        </svg>
+      );
     default:
       return (
         <svg className={cls} fill="none" stroke="currentColor" viewBox="0 0 24 24">

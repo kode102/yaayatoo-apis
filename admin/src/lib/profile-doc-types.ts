@@ -93,3 +93,19 @@ export type JobReviewDoc = {
   createdAt?: string;
   updatedAt?: string;
 };
+
+/** Message formulaire contact (collection `contactMessages`). */
+export type ContactMessageDoc = {
+  id: string;
+  active?: boolean;
+  handled?: boolean;
+  name?: string;
+  email?: string;
+  /** Valeurs vitrine : general | booking | support */
+  subject?: string;
+  message?: string;
+  locale?: string;
+  source?: string;
+  createdAt?: string;
+  updatedAt?: string;
+};

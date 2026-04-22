@@ -29,6 +29,7 @@ import {getPublicJobReviews} from "./public/job-reviews-public.js";
 import {getPublicHomeProfiles} from "./public/employees-public.js";
 import {getPublicCmsSettings} from "./public/cms-settings.js";
 import {getPublicNewsFeed} from "./public/news-feed.js";
+import {postPublicContactMessage} from "./public/contact-message-public.js";
 import {
   CMS_DEFAULT_COUNTRY,
   normCmsCountryCode,
@@ -316,6 +317,11 @@ app.get("/public/cms-settings", (req, res) => {
 /** Bandeau Blog & News (footer). */
 app.get("/public/news-feed", (req, res) => {
   void getPublicNewsFeed(req, res);
+});
+
+/** Formulaire contact vitrine → Firestore `contactMessages`. */
+app.post("/public/contact-messages", (req, res) => {
+  void postPublicContactMessage(req, res);
 });
 
 /** Avis publics jobReviews (filtre minRating) + employeur / employé. */

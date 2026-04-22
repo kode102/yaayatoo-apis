@@ -99,5 +99,15 @@ export const ADMIN_NAV_MODULES: AdminNavModule[] = [
       {href: "/cms/settings", labelKey: "nav.cms.settings"},
     ],
   },
-  
+  {
+    id: "helpDesk",
+    labelKey: "nav.module.helpDesk",
+    pathPrefix: "/help-desk",
+    items: [
+      {
+        href: "/help-desk/messages",
+        labelKey: "nav.helpDesk.contactMessages",
+      },
+    ],
+  },
 ];

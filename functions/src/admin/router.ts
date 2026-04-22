@@ -32,6 +32,7 @@ import {
   type TranslationsMap,
 } from "./i18n.js";
 import {attachFirebaseUserRoutes} from "./firebase-users-routes.js";
+import {attachHelpDeskRoutes} from "./help-desk-routes.js";
 import {isPublicActiveDoc} from "../lib/public-active-doc.js";
 import {publicServiceSlug} from "../public/service-slug.js";
 import {
@@ -130,6 +131,7 @@ const ALLOWED = new Set([
   "jobOffers",
   "jobReviews",
   "siteMedia",
+  "contactMessages",
 ]);
 
 const CMS_TRANSLATABLE_FIELDS = [
@@ -231,6 +233,9 @@ function normalizeOut(
   if (collection === "jobReviews") {
     return base;
   }
+  if (collection === "contactMessages") {
+    return base;
+  }
   if (collection === "siteMedia") {
     base.tags = normalizeSiteMediaTagsArray(data.tags);
     return base;
@@ -296,6 +301,9 @@ function sortListFallback(
   }
   if (collection === "newsFeed") {
     return String(row.id);
+  }
+  if (collection === "contactMessages") {
+    return String((row as {createdAt?: string}).createdAt ?? row.id);
   }
   if (collection === "siteMedia") {
     const so = Number((row as {sortOrder?: unknown}).sortOrder);
@@ -1709,6 +1717,30 @@ function buildPutPatch(
     return {patch};
   }
 
+  if (collection === "contactMessages") {
+    if (
+      localeRaw !== undefined &&
+      localeRaw !== null &&
+      String(localeRaw).trim() !== ""
+    ) {
+      return {
+        patch: {},
+        error: "Ne pas envoyer « locale » pour les messages de contact",
+      };
+    }
+    if (typeof body.handled === "boolean") {
+      patch.handled = body.handled;
+    }
+    if (typeof body.active === "boolean") {
+      patch.active = body.active;
+    }
+    const cmKeys = Object.keys(patch).filter((k) => k !== "updatedAt");
+    if (cmKeys.length === 0) {
+      return {patch: {}, error: "Aucun champ à mettre à jour"};
+    }
+    return {patch};
+  }
+
   if (typeof body.active === "boolean") {
     patch.active = body.active;
   }
@@ -1962,6 +1994,7 @@ export function createAdminRouter(): express.Router {
   });
   router.use(requireAuth);
   attachFirebaseUserRoutes(router);
+  attachHelpDeskRoutes(router);
 
   router.get("/documents/:collection", async (req, res) => {
     const collection = req.params.collection;
@@ -1977,6 +2010,15 @@ export function createAdminRouter(): express.Router {
       const data = snap.docs.map((d) =>
         normalizeOut(collection, d.id, d.data()),
       );
+      if (collection === "contactMessages") {
+        data.sort((a, b) => {
+          const ca = String((a as {createdAt?: unknown}).createdAt ?? "");
+          const cb = String((b as {createdAt?: unknown}).createdAt ?? "");
+          return cb.localeCompare(ca);
+        });
+        res.status(200).json({success: true, data});
+        return;
+      }
       if (collection === "siteMedia") {
         data.sort((a, b) => {
           const sa = Number((a as {sortOrder?: unknown}).sortOrder);
