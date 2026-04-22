@@ -45,7 +45,21 @@ export function serviceMarketingDraftFromDoc(row: ServiceDoc): ServiceMarketingD
       row.featureTexts && row.featureTexts.length > 0 ?
         [...row.featureTexts]
       : [""],
-    benefits: row.benefits?.length ? row.benefits.map((b) => ({...b})) : [],
+    benefits:
+      row.benefits?.length ?
+        row.benefits.map((b) => ({
+          ...b,
+          translations:
+            b.translations ?
+              Object.fromEntries(
+                Object.entries(b.translations).map(([locale, copy]) => [
+                  locale,
+                  {...(copy ?? {})},
+                ]),
+              )
+            : undefined,
+        }))
+      : [],
   };
 }
 
@@ -56,13 +70,39 @@ export function serviceMarketingDraftToApiPatch(
   d: ServiceMarketingDraft,
 ): Record<string, unknown> {
   const lines = d.featureTexts.map((s) => s.trim()).filter(Boolean);
+  const normalizeBenefitTranslations = (
+    translations: ServiceBenefit["translations"],
+  ) => {
+    if (!translations) return undefined;
+    const entries = Object.entries(translations)
+      .map(([locale, copy]) => {
+        const key = locale.trim().toLowerCase();
+        const title = String(copy?.title ?? "").trim();
+        const description = String(copy?.description ?? "").trim();
+        if (!key || (!title && !description)) return null;
+        return [key, {title, description}] as const;
+      })
+      .filter(Boolean) as Array<
+      readonly [string, {title: string; description: string}]
+    >;
+    if (!entries.length) return undefined;
+    return Object.fromEntries(entries);
+  };
   const benefits: ServiceBenefit[] = d.benefits
-    .map((b) => ({
-      title: b.title.trim(),
-      description: b.description.trim(),
-      ...(b.imageUrl?.trim() ? {imageUrl: b.imageUrl.trim()} : {}),
-    }))
-    .filter((b) => b.title || b.description);
+    .map((b) => {
+      const translations = normalizeBenefitTranslations(b.translations);
+      return {
+        title: b.title.trim(),
+        description: b.description.trim(),
+        ...(b.imageUrl?.trim() ? {imageUrl: b.imageUrl.trim()} : {}),
+        ...(translations ? {translations} : {}),
+      };
+    })
+    .filter((b) =>
+      b.title ||
+      b.description ||
+      Boolean(Object.keys(b.translations ?? {}).length),
+    );
 
   const join =
     d.joinText.trim() || d.joinLink.trim() ?

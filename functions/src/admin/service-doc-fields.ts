@@ -45,6 +45,7 @@ export type ServiceBenefit = {
   imageUrl?: string;
   title: string;
   description: string;
+  translations?: Record<string, {title?: string; description?: string}>;
 };
 
 const MAX_LINK = 2048;
@@ -101,14 +102,65 @@ function parseBenefits(v: unknown): ServiceBenefit[] | null | undefined {
       typeof o.description === "string" ?
         o.description.trim().slice(0, MAX_BENEFIT_DESC) :
         "";
-    if (!title && !description) continue;
+    let translations:
+      | Record<string, {title?: string; description?: string}>
+      | undefined;
+    if (o.translations !== undefined) {
+      if (
+        typeof o.translations !== "object" ||
+        o.translations === null ||
+        Array.isArray(o.translations)
+      ) {
+        return undefined;
+      }
+      const parsedTranslations: Record<
+        string,
+        {title?: string; description?: string}
+      > = {};
+      for (const [localeRaw, copyRaw] of Object.entries(o.translations)) {
+        const locale = localeRaw.trim().toLowerCase().slice(0, 16);
+        if (!locale) continue;
+        if (
+          typeof copyRaw !== "object" ||
+          copyRaw === null ||
+          Array.isArray(copyRaw)
+        ) {
+          return undefined;
+        }
+        const copyObj = copyRaw as Record<string, unknown>;
+        let localTitle = "";
+        if (typeof copyObj.title === "string") {
+          localTitle = copyObj.title.trim().slice(0, MAX_BENEFIT_TITLE);
+        }
+        let localDescription = "";
+        if (typeof copyObj.description === "string") {
+          localDescription = copyObj.description
+            .trim()
+            .slice(0, MAX_BENEFIT_DESC);
+        }
+        if (!localTitle && !localDescription) continue;
+        parsedTranslations[locale] = {
+          title: localTitle,
+          description: localDescription,
+        };
+      }
+      if (Object.keys(parsedTranslations).length > 0) {
+        translations = parsedTranslations;
+      }
+    }
+    if (!title && !description && !translations) continue;
     const imageUrlRaw = o.imageUrl;
     let imageUrl: string | undefined;
     if (typeof imageUrlRaw === "string") {
       const u = imageUrlRaw.trim().slice(0, MAX_LINK);
       if (u) imageUrl = u;
     }
-    out.push({title, description, ...(imageUrl ? {imageUrl} : {})});
+    out.push({
+      title,
+      description,
+      ...(imageUrl ? {imageUrl} : {}),
+      ...(translations ? {translations} : {}),
+    });
     if (out.length >= MAX_BENEFITS) break;
   }
   return out;

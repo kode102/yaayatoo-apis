@@ -2,6 +2,7 @@
 
 import {useEffect, useMemo, useState} from "react";
 import {useUiLocale} from "@/contexts/ui-locale-context";
+import {useEditorLocale} from "@/contexts/editor-locale-context";
 import type {ServiceBenefit} from "@/lib/i18n-types";
 import type {ServiceMarketingDraft} from "@/lib/service-marketing";
 import {ServiceGradientColorField} from "@/components/service-gradient-color-field";
@@ -22,11 +23,36 @@ export function ServiceMarketingEditor({
   onChange,
 }: Props) {
   const {t} = useUiLocale();
+  const {editorLocale, activeLanguages} = useEditorLocale();
   const [step, setStep] = useState(0);
+  const [benefitLocale, setBenefitLocale] = useState(
+    editorLocale.trim().toLowerCase(),
+  );
 
   useEffect(() => {
     setStep(0);
   }, [serviceId]);
+  useEffect(() => {
+    const fallback = editorLocale.trim().toLowerCase();
+    if (!fallback) return;
+    setBenefitLocale((prev) => prev || fallback);
+  }, [editorLocale]);
+
+  const benefitLocales = useMemo(
+    () =>
+      [...activeLanguages]
+        .map((lang) => lang.code.trim().toLowerCase())
+        .filter(Boolean)
+        .sort((a, b) => a.localeCompare(b)),
+    [activeLanguages],
+  );
+
+  useEffect(() => {
+    if (benefitLocales.length === 0) return;
+    if (!benefitLocales.includes(benefitLocale)) {
+      setBenefitLocale(benefitLocales[0]!);
+    }
+  }, [benefitLocales, benefitLocale]);
 
   const stepLabel = useMemo(
     () => [
@@ -73,6 +99,37 @@ export function ServiceMarketingEditor({
       j === i ? {...b, ...patch} : b,
     );
     onChange({...value, benefits: next});
+  }
+
+  function benefitText(
+    benefit: ServiceBenefit,
+    key: "title" | "description",
+  ): string {
+    const translated = benefit.translations?.[benefitLocale]?.[key];
+    if (typeof translated === "string") return translated;
+    const hasAnyTranslations = Boolean(
+      benefit.translations && Object.keys(benefit.translations).length > 0,
+    );
+    // Legacy fallback: only use root values when no localized copy exists yet.
+    return hasAnyTranslations ? "" : String(benefit[key] ?? "");
+  }
+
+  function setBenefitText(
+    i: number,
+    key: "title" | "description",
+    text: string,
+  ) {
+    const prev = value.benefits[i];
+    if (!prev) return;
+    const nextTranslations = {
+      ...(prev.translations ?? {}),
+      [benefitLocale]: {
+        ...(prev.translations?.[benefitLocale] ?? {}),
+        [key]: text,
+      },
+    };
+    // Localized copy is edited independently per language tab.
+    setBenefit(i, {translations: nextTranslations});
   }
 
   function removeBenefit(i: number) {
@@ -238,6 +295,39 @@ export function ServiceMarketingEditor({
             <legend className="px-1 text-sm font-medium text-gray-800">
               {t("services.marketing.benefits")}
             </legend>
+            {benefitLocales.length > 0 ?
+              <div className="space-y-2">
+                <p className="text-xs text-gray-500">
+                  {t("common.translationTabsHint")}
+                </p>
+                <div
+                  role="tablist"
+                  aria-label={t("common.translationTabsAria")}
+                  className="flex flex-wrap gap-1 border-b border-gray-200 pb-1"
+                >
+                  {benefitLocales.map((localeCode) => {
+                    const selected = localeCode === benefitLocale;
+                    return (
+                      <button
+                        key={localeCode}
+                        type="button"
+                        role="tab"
+                        aria-selected={selected}
+                        disabled={disabled}
+                        onClick={() => setBenefitLocale(localeCode)}
+                        className={`rounded-t-md px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                          selected ?
+                            "bg-primary text-white"
+                          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                        } disabled:opacity-50`}
+                      >
+                        {localeCode.toUpperCase()}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            : null}
             {value.benefits.map((b, i) => (
               <div
                 key={i}
@@ -256,17 +346,15 @@ export function ServiceMarketingEditor({
                 <input
                   type="text"
                   disabled={disabled}
-                  value={b.title}
-                  onChange={(e) => setBenefit(i, {title: e.target.value})}
+                  value={benefitText(b, "title")}
+                  onChange={(e) => setBenefitText(i, "title", e.target.value)}
                   placeholder={t("services.marketing.benefitTitlePh")}
                   className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
                 />
                 <textarea
                   disabled={disabled}
-                  value={b.description}
-                  onChange={(e) =>
-                    setBenefit(i, {description: e.target.value})
-                  }
+                  value={benefitText(b, "description")}
+                  onChange={(e) => setBenefitText(i, "description", e.target.value)}
                   placeholder={t("services.marketing.benefitDescPh")}
                   rows={2}
                   className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"

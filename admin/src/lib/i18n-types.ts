@@ -23,11 +23,17 @@ export type ServiceActionButton = {
   linkOrRoute: string;
 };
 
+export type ServiceBenefitLocaleCopy = {
+  title?: string;
+  description?: string;
+};
+
 /** Carte « avantage » (section page service). */
 export type ServiceBenefit = {
   imageUrl?: string;
   title: string;
   description: string;
+  translations?: Record<string, ServiceBenefitLocaleCopy>;
 };
 
 /**
