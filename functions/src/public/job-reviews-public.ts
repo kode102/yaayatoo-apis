@@ -20,6 +20,8 @@ export type PublicJobReviewCard = {
     id: string;
     name: string;
     subtitle: string;
+    /** Pays employeur (code ISO2, ex. FR). */
+    country: string;
     imageUrl: string;
     verified: boolean;
     badge: string;
@@ -197,6 +199,7 @@ export async function getPublicJobReviews(
 
       let reviewerName = "—";
       let reviewerSubtitle = "";
+      let reviewerCountry = "";
       let reviewerImage = "";
       let reviewerVerified = false;
       let reviewerBadge = "NONE";
@@ -213,6 +216,10 @@ export async function getPublicJobReviews(
         reviewerName = comp || cn || employerId;
         reviewerSubtitle =
           occ || (reviewerName !== comp ? comp : "");
+        reviewerCountry = String(e.countryCode ?? "")
+          .trim()
+          .toUpperCase()
+          .slice(0, 2);
         reviewerImage = String(e.profileImageUrl ?? "").trim();
         reviewerBadge =
           String(e.badge ?? "NONE").trim().toUpperCase() || "NONE";
@@ -258,6 +265,7 @@ export async function getPublicJobReviews(
           id: employerId,
           name: reviewerName,
           subtitle: reviewerSubtitle,
+          country: reviewerCountry,
           imageUrl: reviewerImage,
           verified: reviewerVerified,
           badge: reviewerBadge,

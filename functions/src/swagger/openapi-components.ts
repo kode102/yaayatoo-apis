@@ -211,6 +211,10 @@ export const openApiComponents = {
         id: {type: "string", description: "Id document Firestore employer"},
         name: {type: "string"},
         subtitle: {type: "string"},
+        country: {
+          type: "string",
+          description: "Code pays ISO2 de l’employeur (ex. FR, CM)",
+        },
         imageUrl: {type: "string"},
         verified: {
           type: "boolean",
