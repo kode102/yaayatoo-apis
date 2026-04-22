@@ -45,7 +45,8 @@ export const openApiSpec = {
       description:
         "CRUD Firestore : services, countries, languages, cmsSections, " +
         "cmsNamespaces, siteMedia, employee, employer, jobOffers, " +
-        "jobReviews, contactMessages (Bearer Firebase)",
+        "jobReviews, contactMessages, contactSubjects " +
+        "(Bearer Firebase)",
     },
     {
       name: "Admin — UI dictionary",

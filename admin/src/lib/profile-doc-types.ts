@@ -94,6 +94,19 @@ export type JobReviewDoc = {
   updatedAt?: string;
 };
 
+/** Sujet formulaire contact (collection `contactSubjects`). */
+export type ContactSubjectDoc = {
+  id: string;
+  /** Clé technique (formulaire + messages), minuscules a-z0-9_- */
+  valueKey?: string;
+  labelFr?: string;
+  labelEn?: string;
+  sortOrder?: number;
+  active?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
 /** Message formulaire contact (collection `contactMessages`). */
 export type ContactMessageDoc = {
   id: string;

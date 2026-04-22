@@ -22,12 +22,19 @@ type Props = {
   value: string;
   onChange: (html: string) => void;
   disabled?: boolean;
+  /** Hauteur initiale de l’éditeur (px). Défaut 300. */
+  height?: number;
 };
 
 /**
  * Éditeur riche TinyMCE pour le libellé HTML (chargement CDN, licence GPL).
  */
-export function ServiceLabelHtmlEditor({value, onChange, disabled}: Props) {
+export function ServiceLabelHtmlEditor({
+  value,
+  onChange,
+  disabled,
+  height = 300,
+}: Props) {
   const base = `https://cdn.jsdelivr.net/npm/tinymce@${TINYMCE_VER}`;
   const uid = useId().replace(/:/g, "");
   return (
@@ -42,7 +49,7 @@ export function ServiceLabelHtmlEditor({value, onChange, disabled}: Props) {
         init={{
           base_url: base,
           suffix: ".min",
-          height: 300,
+          height,
           menubar: false,
           branding: false,
           promotion: false,

@@ -39,9 +39,17 @@ function readSmtpConfig(): SmtpConfig | null {
     String(process.env.SMTP_SECURE ?? "").toLowerCase() === "true" ||
     port === 465;
   const user = String(process.env.SMTP_USER ?? "").trim();
-  const pass = String(process.env.SMTP_PASS ?? "").trim();
-  const from = String(process.env.SMTP_FROM ?? user).trim();
-  if (!user || !pass || !from) return null;
+  const pass = String(
+    process.env.SMTP_PASS ?? process.env.SMTP_PASSWORD ?? "",
+  ).trim();
+  const fromAddr = String(process.env.SMTP_FROM ?? user).trim();
+  const fromName = String(process.env.SMTP_FROM_NAME ?? "").trim();
+  let from = fromAddr;
+  if (fromName && fromAddr) {
+    const safe = fromName.replace(/\\/g, "\\\\").replace(/"/g, "\\\"");
+    from = `"${safe}" <${fromAddr}>`;
+  }
+  if (!user || !pass || !fromAddr) return null;
   return {host, port, secure, user, pass, from};
 }
 
@@ -106,8 +114,8 @@ export function attachHelpDeskRoutes(router: Router): void {
     async (req: Request, res: Response) => {
       const id =
         typeof req.params.id === "string" ?
-          req.params.id.trim()
-        : String(req.params.id ?? "").trim();
+          req.params.id.trim() :
+          String(req.params.id ?? "").trim();
       if (!id) {
         res.status(400).json({success: false, error: "Identifiant requis"});
         return;
@@ -116,8 +124,8 @@ export function attachHelpDeskRoutes(router: Router): void {
       const body = req.body as Record<string, unknown>;
       const subject =
         typeof body.subject === "string" ?
-          body.subject.trim().slice(0, MAX_SUBJECT_LEN)
-        : "";
+          body.subject.trim().slice(0, MAX_SUBJECT_LEN) :
+          "";
       const htmlBody =
         typeof body.htmlBody === "string" ? body.htmlBody : "";
       const markHandled =
@@ -163,7 +171,9 @@ export function attachHelpDeskRoutes(router: Router): void {
         res.status(503).json({
           success: false,
           error:
-            "SMTP non configuré (SMTP_HOST, SMTP_USER, SMTP_PASS, SMTP_FROM)",
+            "SMTP non configuré (SMTP_HOST, SMTP_USER, SMTP_PASS ou " +
+            "SMTP_PASSWORD, SMTP_FROM) — variables côté Cloud Function, " +
+            "pas dans l’admin Next.js",
         });
         return;
       }
@@ -172,8 +182,8 @@ export function attachHelpDeskRoutes(router: Router): void {
       const adminReq = req as AugmentedRequest;
       const replyTo =
         typeof adminReq.adminEmail === "string" ?
-          adminReq.adminEmail.trim()
-        : "";
+          adminReq.adminEmail.trim() :
+          "";
 
       const text = htmlToPlainText(htmlBody) || "(message vide)";
 

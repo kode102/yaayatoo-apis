@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import {createColumnHelper, type ColumnDef} from "@tanstack/react-table";
 import {useCallback, useEffect, useMemo, useState} from "react";
 import {AdminDataTable, SortableHeader} from "@/components/admin-data-table";
@@ -9,7 +10,9 @@ import {useAuth} from "@/contexts/auth-context";
 import {useEditorLocale} from "@/contexts/editor-locale-context";
 import {useUiLocale} from "@/contexts/ui-locale-context";
 import {adminFetch, type ApiDocResponse, type ApiListResponse} from "@/lib/api";
-import type {ContactMessageDoc} from "@/lib/profile-doc-types";
+import {uiLocaleFromEditorCode} from "@/lib/ui-locale-constants";
+import type {ContactMessageDoc, ContactSubjectDoc} from "@/lib/profile-doc-types";
+import {ContactReplySheet} from "./contact-reply-sheet";
 
 const col = createColumnHelper<ContactMessageDoc>();
 
@@ -28,6 +31,9 @@ export default function ContactMessagesListView() {
   const [busy, setBusy] = useState(false);
   const [detailRow, setDetailRow] = useState<ContactMessageDoc | null>(null);
   const [draftHandled, setDraftHandled] = useState(false);
+  const [replyRow, setReplyRow] = useState<ContactMessageDoc | null>(null);
+  const [replyInitialSubject, setReplyInitialSubject] = useState("");
+  const [subjects, setSubjects] = useState<ContactSubjectDoc[]>([]);
 
   const subjectLabel = useCallback(
     (key: string | undefined) => {
@@ -62,10 +68,64 @@ export default function ContactMessagesListView() {
     void load();
   }, [load]);
 
+  const loadSubjects = useCallback(async () => {
+    const token = await getIdToken();
+    if (!token) return;
+    try {
+      const res = await adminFetch<ApiListResponse<ContactSubjectDoc>>(
+        `/admin/documents/contactSubjects?sortLocale=${encodeURIComponent(editorLocale)}`,
+        token,
+      );
+      setSubjects((res.data ?? []) as ContactSubjectDoc[]);
+    } catch {
+      setSubjects([]);
+    }
+  }, [editorLocale, getIdToken]);
+
+  useEffect(() => {
+    void loadSubjects();
+  }, [loadSubjects]);
+
+  const resolveSubjectLabel = useCallback(
+    (vk: string | undefined) => {
+      const k = String(vk ?? "").trim().toLowerCase();
+      if (!k) return "—";
+      const d = subjects.find(
+        (s) => String(s.valueKey ?? "").trim().toLowerCase() === k,
+      );
+      if (d) {
+        const ui = uiLocaleFromEditorCode(editorLocale);
+        const fr = (d.labelFr ?? "").trim();
+        const en = (d.labelEn ?? "").trim();
+        if (ui === "en") return en || fr || k;
+        return fr || en || k;
+      }
+      return subjectLabel(vk);
+    },
+    [editorLocale, subjects, subjectLabel],
+  );
+
   const openDetail = useCallback((row: ContactMessageDoc) => {
     setLoadError(null);
     setDetailRow(row);
     setDraftHandled(row.handled === true);
+  }, []);
+
+  const openReply = useCallback(
+    (row: ContactMessageDoc) => {
+      setLoadError(null);
+      setReplyRow(row);
+      setReplyInitialSubject(
+        t("helpDesk.reply.subjectRe", {
+          subject: resolveSubjectLabel(row.subject),
+        }),
+      );
+    },
+    [resolveSubjectLabel, t],
+  );
+
+  const closeReply = useCallback(() => {
+    setReplyRow(null);
   }, []);
 
   const closeDetail = useCallback(() => {
@@ -206,7 +266,7 @@ export default function ContactMessagesListView() {
           ),
           cell: ({row}) => (
             <span className="text-sm text-gray-700">
-              {subjectLabel(row.original.subject)}
+              {resolveSubjectLabel(row.original.subject)}
             </span>
           ),
         }),
@@ -279,6 +339,28 @@ export default function ContactMessagesListView() {
           cell: ({row}) => (
             <div className="inline-flex items-center justify-end gap-1">
               <RippleIconButton
+                label={t("helpDesk.messages.reply")}
+                disabled={busy}
+                onClick={() => openReply(row.original)}
+                className="text-sky-700 hover:bg-sky-50"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  strokeWidth={1.5}
+                  stroke="currentColor"
+                  className="h-[18px] w-[18px]"
+                  aria-hidden
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75"
+                  />
+                </svg>
+              </RippleIconButton>
+              <RippleIconButton
                 label={t("common.edit")}
                 disabled={busy}
                 onClick={() => openDetail(row.original)}
@@ -334,8 +416,9 @@ export default function ContactMessagesListView() {
     [
       busy,
       openDetail,
+      openReply,
       removeRow,
-      subjectLabel,
+      resolveSubjectLabel,
       t,
       toggleRowActive,
       toggleRowHandled,
@@ -352,7 +435,13 @@ export default function ContactMessagesListView() {
           {t("helpDesk.messages.title")}
         </h1>
         <p className="mt-1 text-sm text-gray-500">
-          {t("helpDesk.messages.subtitle")}
+          {t("helpDesk.messages.subtitle")}{" "}
+          <Link
+            href="/help-desk/subjects"
+            className="text-primary hover:underline"
+          >
+            {t("helpDesk.messages.manageSubjectsLink")}
+          </Link>
         </p>
       </div>
       {loadError ?
@@ -413,7 +502,7 @@ export default function ContactMessagesListView() {
                 {t("helpDesk.messages.colSubject")}
               </p>
               <p className="text-sm text-gray-900">
-                {subjectLabel(detailRow.subject)}
+                {resolveSubjectLabel(detailRow.subject)}
               </p>
             </div>
             <div>
@@ -446,6 +535,14 @@ export default function ContactMessagesListView() {
           </div>
         : null}
       </EditSheet>
+
+      <ContactReplySheet
+        open={!!replyRow}
+        row={replyRow}
+        initialSubject={replyInitialSubject}
+        onClose={closeReply}
+        onSent={() => void load()}
+      />
     </div>
   );
 }

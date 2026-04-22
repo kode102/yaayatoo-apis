@@ -7,7 +7,23 @@ import {FieldValue} from "firebase-admin/firestore";
 import {db} from "../lib/admin.js";
 import {DEFAULT_LOCALE, normLocale} from "../admin/i18n.js";
 
-const ALLOWED_SUBJECTS = new Set(["general", "booking", "support"]);
+const LEGACY_SUBJECT_KEYS = new Set(["general", "booking", "support"]);
+
+/**
+ * Sujets `valueKey` actifs depuis Firestore.
+ * @return {Promise<Set<string>>} Ensemble (vide si aucune ligne active).
+ */
+async function loadActiveSubjectValueKeys(): Promise<Set<string>> {
+  const snap = await db.collection("contactSubjects").get();
+  const s = new Set<string>();
+  for (const d of snap.docs) {
+    const x = d.data() as {active?: boolean; valueKey?: string};
+    if (x.active === false) continue;
+    const vk = String(x.valueKey ?? "").trim().toLowerCase();
+    if (vk) s.add(vk);
+  }
+  return s;
+}
 
 const MAX_NAME = 200;
 const MAX_EMAIL = 254;
@@ -56,7 +72,8 @@ export async function postPublicContactMessage(
 
     const name = trimStr(body.name, MAX_NAME);
     const email = trimStr(body.email, MAX_EMAIL).toLowerCase();
-    const subject = trimStr(body.subject, 64);
+    const subjectRaw = trimStr(body.subject, 64);
+    const subjectKey = subjectRaw.toLowerCase();
     const message = trimStr(body.message, MAX_MESSAGE);
     const locRaw = trimStr(body.locale, 32);
     const locale = normLocale(locRaw) || DEFAULT_LOCALE;
@@ -69,7 +86,10 @@ export async function postPublicContactMessage(
       res.status(400).json({success: false, error: "email invalide"});
       return;
     }
-    if (!ALLOWED_SUBJECTS.has(subject)) {
+    const configured = await loadActiveSubjectValueKeys();
+    const allowed =
+      configured.size > 0 ? configured : LEGACY_SUBJECT_KEYS;
+    if (!allowed.has(subjectKey)) {
       res.status(400).json({success: false, error: "subject invalide"});
       return;
     }
@@ -84,7 +104,7 @@ export async function postPublicContactMessage(
     await ref.set({
       name,
       email,
-      subject,
+      subject: subjectKey,
       message,
       locale,
       source: "website",

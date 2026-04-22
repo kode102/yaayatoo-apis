@@ -22,6 +22,7 @@ const collectionParam = {
       "jobReviews",
       "siteMedia",
       "contactMessages",
+      "contactSubjects",
     ],
   },
   description: "Collection Firestore",
@@ -1252,8 +1253,10 @@ export const openApiPaths = {
       summary: "Envoyer un message (formulaire contact vitrine)",
       description:
         "Crée un document Firestore `contactMessages` (sans auth). " +
-        "Champs : `name`, `email`, `subject` (general | booking | support), " +
-        "`message`, `locale` optionnel (ex. fr, en).",
+        "Champs : `name`, `email`, `subject` (valueKey d’un sujet actif " +
+        "voir `GET /public/contact-subjects`, ou clés legacy general / " +
+        "booking / support si aucun sujet configuré), `message`, " +
+        "`locale` optionnel.",
       requestBody: {
         required: true,
         content: {
@@ -1264,10 +1267,7 @@ export const openApiPaths = {
               properties: {
                 name: {type: "string"},
                 email: {type: "string", format: "email"},
-                subject: {
-                  type: "string",
-                  enum: ["general", "booking", "support"],
-                },
+                subject: {type: "string"},
                 message: {type: "string"},
                 locale: {type: "string", example: "fr"},
               },
@@ -1298,6 +1298,48 @@ export const openApiPaths = {
           content: {
             "application/json": {
               schema: {$ref: "#/components/schemas/ApiError"},
+            },
+          },
+        },
+        "500": {
+          content: {
+            "application/json": {
+              schema: {$ref: "#/components/schemas/ApiError"},
+            },
+          },
+        },
+      },
+    },
+  },
+  "/public/contact-subjects": {
+    get: {
+      tags: ["Public"],
+      summary: "Sujets du formulaire contact (actifs)",
+      description:
+        "Liste triée par `sortOrder` : `valueKey` + `label` selon " +
+        "`?locale=` (défaut fr).",
+      parameters: [sortLocaleQuery],
+      responses: {
+        "200": {
+          description: "OK",
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  success: {type: "boolean", example: true},
+                  data: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      properties: {
+                        valueKey: {type: "string"},
+                        label: {type: "string"},
+                      },
+                    },
+                  },
+                },
+              },
             },
           },
         },
@@ -1724,6 +1766,88 @@ export const openApiPaths = {
         },
         "401": adminListResponses["401"],
         "403": adminListResponses["403"],
+        "500": {
+          content: {
+            "application/json": {
+              schema: {$ref: "#/components/schemas/ApiError"},
+            },
+          },
+        },
+      },
+    },
+  },
+  "/admin/help-desk/contact-messages/{id}/send-reply": {
+    post: {
+      tags: ["Admin — Documents"],
+      summary: "Envoyer une réponse e-mail (SMTP)",
+      description:
+        "Envoie un e-mail HTML au destinataire du message (champ `email` " +
+        "du document). Variables d’environnement : SMTP_HOST, SMTP_PORT, " +
+        "SMTP_SECURE (true/false), SMTP_USER, SMTP_PASS ou SMTP_PASSWORD, " +
+        "SMTP_FROM, SMTP_FROM_NAME optionnel.",
+      security: [{bearerAuth: []}],
+      parameters: [
+        {
+          name: "id",
+          in: "path" as const,
+          required: true,
+          schema: {type: "string" as const},
+          description: "Identifiant Firestore contactMessages",
+        },
+      ],
+      requestBody: {
+        required: true,
+        content: {
+          "application/json": {
+            schema: {
+              type: "object",
+              required: ["subject", "htmlBody"],
+              properties: {
+                subject: {type: "string"},
+                htmlBody: {type: "string"},
+                markHandled: {type: "boolean"},
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        "200": {
+          description: "Envoyé",
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {success: {type: "boolean", example: true}},
+              },
+            },
+          },
+        },
+        "400": {
+          content: {
+            "application/json": {
+              schema: {$ref: "#/components/schemas/ApiError"},
+            },
+          },
+        },
+        "401": adminListResponses["401"],
+        "403": adminListResponses["403"],
+        "404": {
+          description: "Message introuvable",
+          content: {
+            "application/json": {
+              schema: {$ref: "#/components/schemas/ApiError"},
+            },
+          },
+        },
+        "503": {
+          description: "SMTP non configuré",
+          content: {
+            "application/json": {
+              schema: {$ref: "#/components/schemas/ApiError"},
+            },
+          },
+        },
         "500": {
           content: {
             "application/json": {

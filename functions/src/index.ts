@@ -30,6 +30,7 @@ import {getPublicHomeProfiles} from "./public/employees-public.js";
 import {getPublicCmsSettings} from "./public/cms-settings.js";
 import {getPublicNewsFeed} from "./public/news-feed.js";
 import {postPublicContactMessage} from "./public/contact-message-public.js";
+import {getPublicContactSubjects} from "./public/contact-subjects-public.js";
 import {
   CMS_DEFAULT_COUNTRY,
   normCmsCountryCode,
@@ -322,6 +323,11 @@ app.get("/public/news-feed", (req, res) => {
 /** Formulaire contact vitrine → Firestore `contactMessages`. */
 app.post("/public/contact-messages", (req, res) => {
   void postPublicContactMessage(req, res);
+});
+
+/** Sujets actifs du formulaire contact (libellés par locale). */
+app.get("/public/contact-subjects", (req, res) => {
+  void getPublicContactSubjects(req, res);
 });
 
 /** Avis publics jobReviews (filtre minRating) + employeur / employé. */

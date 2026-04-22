@@ -112,6 +112,12 @@ function generateAdminSlug(
       return `review-${suffix}`;
     case "siteMedia":
       return `media-${suffix}`;
+    case "contactSubjects": {
+      const vk = slugifyEmployeeNameSegment(
+        String(payload.valueKey ?? "").trim(),
+      );
+      return vk ? `contact-subj-${vk}-${suffix}` : `contact-subj-${suffix}`;
+    }
     default:
       return `doc-${suffix}`;
   }
@@ -132,6 +138,7 @@ const ALLOWED = new Set([
   "jobReviews",
   "siteMedia",
   "contactMessages",
+  "contactSubjects",
 ]);
 
 const CMS_TRANSLATABLE_FIELDS = [
@@ -236,6 +243,9 @@ function normalizeOut(
   if (collection === "contactMessages") {
     return base;
   }
+  if (collection === "contactSubjects") {
+    return base;
+  }
   if (collection === "siteMedia") {
     base.tags = normalizeSiteMediaTagsArray(data.tags);
     return base;
@@ -304,6 +314,12 @@ function sortListFallback(
   }
   if (collection === "contactMessages") {
     return String((row as {createdAt?: string}).createdAt ?? row.id);
+  }
+  if (collection === "contactSubjects") {
+    const so = Number((row as {sortOrder?: unknown}).sortOrder);
+    const n = Number.isFinite(so) ? so : 0;
+    const vk = String((row as {valueKey?: string}).valueKey ?? row.id);
+    return `${String(n).padStart(10, "0")}_${vk}`;
   }
   if (collection === "siteMedia") {
     const so = Number((row as {sortOrder?: unknown}).sortOrder);
@@ -1049,6 +1065,40 @@ function parseSiteMediaPost(body: Record<string, unknown>): {
   };
 }
 
+/**
+ * Création document `contactSubjects`.
+ * @param {Record<string, unknown>} body Corps JSON.
+ * @return {object|null} Champs normalisés ou null.
+ */
+function parseContactSubjectPost(body: Record<string, unknown>): {
+  valueKey: string;
+  labelFr: string;
+  labelEn: string;
+  sortOrder: number;
+  active: boolean;
+} | null {
+  const rawVk =
+    typeof body.valueKey === "string" ? body.valueKey.trim().toLowerCase() : "";
+  if (!/^[a-z][a-z0-9_-]{0,63}$/.test(rawVk)) return null;
+  const labelFr =
+    typeof body.labelFr === "string" ? body.labelFr.trim().slice(0, 200) : "";
+  const labelEn =
+    typeof body.labelEn === "string" ? body.labelEn.trim().slice(0, 200) : "";
+  if (!labelFr && !labelEn) return null;
+  const so = Number(body.sortOrder);
+  const sortOrder =
+    Number.isFinite(so) ?
+      Math.floor(Math.min(1_000_000, Math.max(-1_000_000, so))) :
+      0;
+  return {
+    valueKey: rawVk,
+    labelFr,
+    labelEn,
+    sortOrder,
+    active: typeof body.active === "boolean" ? body.active : true,
+  };
+}
+
 function parseNewsFeedPost(body: Record<string, unknown>): {
   locale: string;
   titleHtml: string;
@@ -1717,6 +1767,45 @@ function buildPutPatch(
     return {patch};
   }
 
+  if (collection === "contactSubjects") {
+    if (
+      localeRaw !== undefined &&
+      localeRaw !== null &&
+      String(localeRaw).trim() !== ""
+    ) {
+      return {
+        patch: {},
+        error: "Ne pas envoyer « locale » pour les sujets contact",
+      };
+    }
+    if (Object.prototype.hasOwnProperty.call(body, "valueKey")) {
+      return {patch: {}, error: "valueKey est immuable"};
+    }
+    if (typeof body.labelFr === "string") {
+      patch.labelFr = body.labelFr.trim().slice(0, 200);
+    }
+    if (typeof body.labelEn === "string") {
+      patch.labelEn = body.labelEn.trim().slice(0, 200);
+    }
+    if (body.sortOrder !== undefined) {
+      const so = Number(body.sortOrder);
+      if (!Number.isFinite(so)) {
+        return {patch: {}, error: "sortOrder invalide"};
+      }
+      patch.sortOrder = Math.floor(
+        Math.min(1_000_000, Math.max(-1_000_000, so)),
+      );
+    }
+    if (typeof body.active === "boolean") {
+      patch.active = body.active;
+    }
+    const csKeys = Object.keys(patch).filter((k) => k !== "updatedAt");
+    if (csKeys.length === 0) {
+      return {patch: {}, error: "Aucun champ à mettre à jour"};
+    }
+    return {patch};
+  }
+
   if (collection === "contactMessages") {
     if (
       localeRaw !== undefined &&
@@ -2019,6 +2108,20 @@ export function createAdminRouter(): express.Router {
         res.status(200).json({success: true, data});
         return;
       }
+      if (collection === "contactSubjects") {
+        data.sort((a, b) => {
+          const sa = Number((a as {sortOrder?: unknown}).sortOrder);
+          const sb = Number((b as {sortOrder?: unknown}).sortOrder);
+          const na = Number.isFinite(sa) ? sa : 0;
+          const nb = Number.isFinite(sb) ? sb : 0;
+          if (na !== nb) return na - nb;
+          const vka = String((a as {valueKey?: string}).valueKey ?? a.id);
+          const vkb = String((b as {valueKey?: string}).valueKey ?? b.id);
+          return vka.localeCompare(vkb, "fr");
+        });
+        res.status(200).json({success: true, data});
+        return;
+      }
       if (collection === "siteMedia") {
         data.sort((a, b) => {
           const sa = Number((a as {sortOrder?: unknown}).sortOrder);
@@ -2242,6 +2345,24 @@ export function createAdminRouter(): express.Router {
         altText: v.altText,
         active: v.active,
       };
+    } else if (collection === "contactSubjects") {
+      const v = parseContactSubjectPost(body);
+      if (!v) {
+        res.status(400).json({
+          success: false,
+          error:
+            "Champs invalides (valueKey a-z0-9_- , au moins labelFr ou " +
+            "labelEn)",
+        });
+        return;
+      }
+      payload = {
+        valueKey: v.valueKey,
+        labelFr: v.labelFr,
+        labelEn: v.labelEn,
+        sortOrder: v.sortOrder,
+        active: v.active,
+      };
     } else if (
       collection === "employee" ||
       collection === "employer" ||
@@ -2261,6 +2382,52 @@ export function createAdminRouter(): express.Router {
     // eslint-disable-next-line new-cap -- FieldValue.serverTimestamp
     const now = FieldValue.serverTimestamp();
     try {
+      if (collection === "contactSubjects") {
+        const vk = String(
+          (payload as {valueKey?: unknown}).valueKey ?? "",
+        ).trim();
+        if (!vk) {
+          res.status(400).json({
+            success: false,
+            error: "valueKey manquant",
+          });
+          return;
+        }
+        const dup = await db
+          .collection("contactSubjects")
+          .where("valueKey", "==", vk)
+          .limit(1)
+          .get();
+        if (!dup.empty) {
+          res.status(409).json({
+            success: false,
+            error: "valueKey déjà utilisé",
+          });
+          return;
+        }
+        const ref = db.collection("contactSubjects").doc();
+        const slug = generateAdminSlug("contactSubjects", ref.id, payload);
+        const activeVal =
+          typeof payload.active === "boolean" ? payload.active : true;
+        await ref.set({
+          ...payload,
+          active: activeVal,
+          slug,
+          createdAt: now,
+          updatedAt: now,
+        });
+        const created = await ref.get();
+        res.status(201).json({
+          success: true,
+          data: normalizeOut(
+            "contactSubjects",
+            created.id,
+            created.data()!,
+          ),
+        });
+        return;
+      }
+
       if (collection === "employee") {
         const v = parseEmployeePost(body);
         if (!v) {

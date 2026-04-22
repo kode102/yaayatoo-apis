@@ -108,6 +108,11 @@ export const ADMIN_NAV_MODULES: AdminNavModule[] = [
         href: "/help-desk/messages",
         labelKey: "nav.helpDesk.contactMessages",
       },
+      {
+        href: "/help-desk/subjects",
+        labelKey: "nav.helpDesk.contactSubjects",
+        activeHrefPrefixes: ["/help-desk/subjects/create"],
+      },
     ],
   },
 ];
