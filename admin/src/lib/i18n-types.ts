@@ -200,7 +200,8 @@ export type CmsSectionTypeId =
   | "features"
   | "faq"
   | "service_benefits"
-  | "app_manager";
+  | "app_manager"
+  | "about_page";
 
 export type CmsSectionDoc = {
   id: string;
@@ -260,8 +261,6 @@ export type CmsSettingsDoc = {
   addresses?: string[];
   phoneNumbers?: string[];
   emailAddresses?: string[];
-  /** Textes page « À propos » par locale (`en`, `fr`). */
-  aboutPageByLocale?: Record<string, Record<string, string>>;
   perCountry?: Record<string, CmsSettingsRegion>;
   createdAt?: string;
   updatedAt?: string;
@@ -578,7 +577,8 @@ export function inferCmsSectionType(doc: CmsSectionDoc): CmsSectionTypeId {
     raw === "features" ||
     raw === "faq" ||
     raw === "service_benefits" ||
-    raw === "app_manager"
+    raw === "app_manager" ||
+    raw === "about_page"
   ) {
     return raw;
   }
@@ -602,6 +602,9 @@ export function inferCmsSectionType(doc: CmsSectionDoc): CmsSectionTypeId {
   }
   if (sub === "app-manager" || sub.startsWith("app-manager")) {
     return "app_manager";
+  }
+  if (sub === "about-page" || sub.startsWith("about-page")) {
+    return "about_page";
   }
   return "site_settings";
 }

@@ -8,6 +8,7 @@
  */
 
 import type {DocumentData} from "firebase-admin/firestore";
+import {ABOUT_PAGE_CMS_BLOCK_KEYS} from "../lib/about-page-template.js";
 import {
   normLocale,
   type TranslationBlock,
@@ -195,7 +196,8 @@ const CMS_FIELDS = [
   "serviceBenefitCards",
   /** JSON widget « App manager » (page téléchargement). */
   "appManagerStepsJson",
-] as const;
+  ...ABOUT_PAGE_CMS_BLOCK_KEYS,
+] as readonly string[];
 
 /**
  * Fusionne un bloc champs pour (pays, locale).

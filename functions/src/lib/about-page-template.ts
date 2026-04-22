@@ -1,6 +1,7 @@
 /**
- * Gabarit « À propos » (`cmsSettings.aboutPageByLocale`).
- * Clés alignées sur le site (snake_case).
+ * Gabarit « À propos » : champs sur le bloc `translations` des sections
+ * `cmsSections` avec `sectionType: about_page` (snake_case, aligné site).
+ * Repli public legacy : `cmsSettings.aboutPageByLocale`.
  */
 
 /** Locales vitrine gérées dans l’admin pour ce gabarit. */
@@ -50,6 +51,10 @@ export const ABOUT_PAGE_TEMPLATE_FIELDS: {
   {key: "cta_contact", maxLen: 120},
   {key: "cta_services", maxLen: 120},
 ];
+
+/** Clés sérialisées sur le bloc `translations` des sections `about_page`. */
+export const ABOUT_PAGE_CMS_BLOCK_KEYS: readonly string[] =
+  ABOUT_PAGE_TEMPLATE_FIELDS.map((f) => f.key);
 
 const FIELD_KEYS = new Set(ABOUT_PAGE_TEMPLATE_FIELDS.map((f) => f.key));
 const FIELD_META = new Map(

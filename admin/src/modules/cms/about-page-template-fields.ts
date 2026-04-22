@@ -41,6 +41,9 @@ export const ABOUT_PAGE_TEMPLATE_FIELD_KEYS = [
 export type AboutPageTemplateFieldKey =
   (typeof ABOUT_PAGE_TEMPLATE_FIELD_KEYS)[number];
 
+/** Brouillon d’une locale pour le widget « À propos ». */
+export type AboutLocaleDraft = Record<AboutPageTemplateFieldKey, string>;
+
 const TEXTAREA_ROWS: Partial<Record<AboutPageTemplateFieldKey, number>> = {
   meta_description: 2,
   hero_lead: 3,
@@ -66,20 +69,8 @@ export function textareaRowsForAboutField(
   return TEXTAREA_ROWS[key] ?? 2;
 }
 
-export function emptyAboutLocaleDraft(): Record<AboutPageTemplateFieldKey, string> {
+export function emptyAboutLocaleDraft(): AboutLocaleDraft {
   return Object.fromEntries(
     ABOUT_PAGE_TEMPLATE_FIELD_KEYS.map((k) => [k, ""]),
-  ) as Record<AboutPageTemplateFieldKey, string>;
-}
-
-export type AboutLocaleCode = "en" | "fr";
-
-export function defaultAboutDraftsByLocale(): Record<
-  AboutLocaleCode,
-  Record<AboutPageTemplateFieldKey, string>
-> {
-  return {
-    en: emptyAboutLocaleDraft(),
-    fr: emptyAboutLocaleDraft(),
-  };
+  ) as AboutLocaleDraft;
 }

@@ -4,8 +4,13 @@ import {isPublicActiveDoc} from "../lib/public-active-doc.js";
 import {
   CMS_DEFAULT_COUNTRY,
   normCmsCountryCode,
+  resolveCmsBlock,
+  toNestedCmsTranslations,
 } from "../admin/cms-translations.js";
-import {pickAboutPageForPublicLocale} from "../lib/about-page-template.js";
+import {
+  parseAboutPageLocaleBlock,
+  pickAboutPageForPublicLocale,
+} from "../lib/about-page-template.js";
 
 /**
  * Nettoie une liste de chaînes (trim, dédoublonnage, limites).
@@ -24,6 +29,46 @@ function normalizeList(raw: unknown, maxItems = 30, maxLength = 512): string[] {
     out.push(trimmed.slice(0, maxLength));
   }
   return [...new Set(out)].slice(0, maxItems);
+}
+
+/**
+ * Textes page « À propos » : section CMS `about_page`, sinon legacy
+ * `aboutPageByLocale` sur `cmsSettings`.
+ * @param {string} requestedCountry Pays résolu (ISO2 / __).
+ * @param {string} localeTag `fr` ou `en`.
+ * @param {unknown} legacyAbout Racine `aboutPageByLocale` (optionnel).
+ * @return {Promise<Record<string, string>>} Champs publics.
+ */
+async function resolvePublicAboutPage(
+  requestedCountry: string,
+  localeTag: string,
+  legacyAbout: unknown,
+): Promise<Record<string, string>> {
+  const loc = localeTag === "fr" ? "fr" : "en";
+  try {
+    const secSnap = await db
+      .collection("cmsSections")
+      .where("sectionType", "==", "about_page")
+      .limit(12)
+      .get();
+    for (const d of secSnap.docs) {
+      const data = d.data();
+      if (!isPublicActiveDoc(data)) continue;
+      const nested = toNestedCmsTranslations(data.translations);
+      const block =
+        resolveCmsBlock(nested, requestedCountry, loc) ??
+        resolveCmsBlock(nested, CMS_DEFAULT_COUNTRY, loc);
+      if (block && typeof block === "object") {
+        const parsed = parseAboutPageLocaleBlock(
+          block as Record<string, unknown>,
+        );
+        if (Object.keys(parsed).length > 0) return parsed;
+      }
+    }
+  } catch (e: unknown) {
+    console.error(e);
+  }
+  return pickAboutPageForPublicLocale(legacyAbout, loc);
 }
 
 /**
@@ -88,9 +133,10 @@ export async function getPublicCmsSettings(
       .trim()
       .toLowerCase()
       .slice(0, 2);
-    const aboutPage = pickAboutPageForPublicLocale(
-      doc.aboutPageByLocale,
+    const aboutPage = await resolvePublicAboutPage(
+      requestedCountry,
       contentLocale === "fr" ? "fr" : "en",
+      doc.aboutPageByLocale,
     );
 
     res.status(200).json({

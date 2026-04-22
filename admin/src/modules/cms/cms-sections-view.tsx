@@ -29,6 +29,12 @@ import {
   serializeAppManagerConfig,
   type AppManagerLocaleDraft,
 } from "./cms-app-manager-model";
+import {
+  ABOUT_PAGE_TEMPLATE_FIELD_KEYS,
+  emptyAboutLocaleDraft,
+  textareaRowsForAboutField,
+  type AboutLocaleDraft,
+} from "./about-page-template-fields";
 
 type SiteLocaleDraft = {
   name: string;
@@ -109,6 +115,7 @@ const SECTION_TYPES: {id: CmsSectionTypeId; labelKey: string}[] = [
   {id: "app_manager", labelKey: "cms.sectionType.appManager"},
   {id: "blog_section", labelKey: "cms.sectionType.blogSection"},
   {id: "profile_listing", labelKey: "cms.sectionType.profileListing"},
+  {id: "about_page", labelKey: "cms.sectionType.aboutPage"},
   {id: "site_settings", labelKey: "cms.sectionType.siteSettings"},
 ];
 
@@ -228,6 +235,26 @@ function bannerFromBlock(
     bannerTrustLabel:
       typeof b.bannerTrustLabel === "string" ? b.bannerTrustLabel : "",
   };
+}
+
+function aboutFromBlock(b: Record<string, unknown> | undefined): AboutLocaleDraft {
+  const d = emptyAboutLocaleDraft();
+  if (!b) return d;
+  for (const key of ABOUT_PAGE_TEMPLATE_FIELD_KEYS) {
+    if (typeof b[key] === "string") d[key] = b[key] as string;
+  }
+  return d;
+}
+
+function filledAbout(d: AboutLocaleDraft): boolean {
+  return ABOUT_PAGE_TEMPLATE_FIELD_KEYS.some((k) => d[k].trim().length > 0);
+}
+
+function humanAboutFieldKey(key: string): string {
+  return key
+    .split("_")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
 }
 
 function filledSite(d: SiteLocaleDraft): boolean {
@@ -1102,6 +1129,9 @@ export default function CmsSectionsView() {
   const [appManagerDraftsByCountry, setAppManagerDraftsByCountry] = useState<
     Record<string, Record<string, AppManagerLocaleDraft>>
   >({});
+  const [aboutDraftsByCountry, setAboutDraftsByCountry] = useState<
+    Record<string, Record<string, AboutLocaleDraft>>
+  >({});
   const [active, setActive] = useState(true);
   const [registrationActive, setRegistrationActive] = useState(false);
   const [videoImageUrl, setVideoImageUrl] = useState("");
@@ -1188,18 +1218,19 @@ export default function CmsSectionsView() {
   useEffect(() => {
     const isApp =
       cSub === "app-manager" || cSub.startsWith("app-manager");
-    if (cType === "why_choose_us" && isApp) {
+    const isAbout = cSub === "about-page" || cSub.startsWith("about-page-");
+    if (cType === "why_choose_us" && (isApp || isAbout)) {
       setCSub("why-choose-us");
     }
-    if (cType === "blog_section" && isApp) {
+    if (cType === "blog_section" && (isApp || isAbout)) {
       setCSub("blog-section");
     }
-    if (cType === "banner" && (cSub === "why-choose-us" || isApp)) {
+    if (cType === "banner" && (cSub === "why-choose-us" || isApp || isAbout)) {
       setCSub("banner");
     }
     if (
       cType === "stat" &&
-      (cSub === "why-choose-us" || cSub === "banner" || isApp)
+      (cSub === "why-choose-us" || cSub === "banner" || isApp || isAbout)
     ) {
       setCSub("stat");
     }
@@ -1209,7 +1240,8 @@ export default function CmsSectionsView() {
         cSub === "banner" ||
         cSub === "stat" ||
         cSub === "faq" ||
-        isApp)
+        isApp ||
+        isAbout)
     ) {
       setCSub("features");
     }
@@ -1221,7 +1253,8 @@ export default function CmsSectionsView() {
         cSub === "features" ||
         cSub === "blog-section" ||
         cSub === "profile-listing" ||
-        isApp)
+        isApp ||
+        isAbout)
     ) {
       setCSub("faq");
     }
@@ -1234,7 +1267,8 @@ export default function CmsSectionsView() {
         cSub === "faq" ||
         cSub === "blog-section" ||
         cSub === "profile-listing" ||
-        isApp)
+        isApp ||
+        isAbout)
     ) {
       setCSub("service-benefits");
     }
@@ -1247,12 +1281,19 @@ export default function CmsSectionsView() {
         cSub === "faq" ||
         cSub === "service-benefits" ||
         cSub === "blog-section" ||
-        isApp)
+        isApp ||
+        isAbout)
     ) {
       setCSub("profile-listing");
     }
     if (cType === "app_manager" && !isApp) {
       setCSub("app-manager");
+    }
+    if (cType === "about_page" && !isAbout) {
+      setCSub("about-page");
+    }
+    if (cType === "site_settings" && isAbout) {
+      setCSub("user-interface-settings");
     }
   }, [cType, cSub]);
 
@@ -1267,6 +1308,7 @@ export default function CmsSectionsView() {
       setFaqDraftsByCountry({});
       setServiceBenefitsDraftsByCountry({});
       setAppManagerDraftsByCountry({});
+      setAboutDraftsByCountry({});
       setAssignNamespaceId("");
       return;
     }
@@ -1281,6 +1323,7 @@ export default function CmsSectionsView() {
     const nextSb: Record<string, Record<string, ServiceBenefitsLocaleDraft>> =
       {};
     const nextAm: Record<string, Record<string, AppManagerLocaleDraft>> = {};
+    const nextAbout: Record<string, Record<string, AboutLocaleDraft>> = {};
     for (const country of sortedCountryCodes) {
       for (const code of sortedCodes) {
         const block = selected.translations?.[country]?.[code] as
@@ -1295,6 +1338,7 @@ export default function CmsSectionsView() {
         if (!nextFaq[country]) nextFaq[country] = {};
         if (!nextSb[country]) nextSb[country] = {};
         if (!nextAm[country]) nextAm[country] = {};
+        if (!nextAbout[country]) nextAbout[country] = {};
         nextSite[country][code] = siteFromBlock(block);
         nextWhy[country][code] = whyFromBlock(block);
         nextBlog[country][code] = blogFromBlock(block);
@@ -1304,6 +1348,7 @@ export default function CmsSectionsView() {
         nextFaq[country][code] = faqFromBlock(block);
         nextSb[country][code] = serviceBenefitsFromBlock(block);
         nextAm[country][code] = appManagerLocaleFromBlock(block);
+        nextAbout[country][code] = aboutFromBlock(block);
       }
     }
     setSiteDraftsByCountry(nextSite);
@@ -1315,6 +1360,7 @@ export default function CmsSectionsView() {
     setFaqDraftsByCountry(nextFaq);
     setServiceBenefitsDraftsByCountry(nextSb);
     setAppManagerDraftsByCountry(nextAm);
+    setAboutDraftsByCountry(nextAbout);
     setActive(selected.active ?? true);
     setRegistrationActive(Boolean(selected.registrationActive));
     setVideoImageUrl(selected.videoImageUrl ?? "");
@@ -1459,6 +1505,21 @@ export default function CmsSectionsView() {
     [activeCountryCode, activeLocaleCode],
   );
 
+  const patchAbout = useCallback(
+    (fn: (d: AboutLocaleDraft) => AboutLocaleDraft) => {
+      const c = activeCountryCode;
+      const loc = activeLocaleCode;
+      setAboutDraftsByCountry((p) => {
+        const cur = p[c]?.[loc] ?? emptyAboutLocaleDraft();
+        return {
+          ...p,
+          [c]: {...(p[c] ?? {}), [loc]: fn(cur)},
+        };
+      });
+    },
+    [activeCountryCode, activeLocaleCode],
+  );
+
   const grouped = useMemo(() => {
     const orphan: CmsSectionDoc[] = [];
     const byNs = new Map<string, CmsSectionDoc[]>();
@@ -1542,6 +1603,14 @@ export default function CmsSectionsView() {
           if (
             filledAppManagerLocale(
               appManagerDraftsByCountry[country]?.[code] ?? emptyAppManagerLocaleDraft(),
+            )
+          ) {
+            filledPairs.push({country, locale: code});
+          }
+        } else if (kind === "about_page") {
+          if (
+            filledAbout(
+              aboutDraftsByCountry[country]?.[code] ?? emptyAboutLocaleDraft(),
             )
           ) {
             filledPairs.push({country, locale: code});
@@ -1680,6 +1749,19 @@ export default function CmsSectionsView() {
             name: d.name.trim(),
             appManagerStepsJson: serializeAppManagerConfig(d.config),
           });
+        } else if (kind === "about_page") {
+          const d =
+            aboutDraftsByCountry[country]?.[code] ?? emptyAboutLocaleDraft();
+          const name = d.title.trim() || d.meta_title.trim();
+          if (!name) {
+            setLoadError(t("cms.aboutPage.errorNeedTitle"));
+            setSaving(false);
+            return;
+          }
+          Object.assign(body, {name});
+          for (const key of ABOUT_PAGE_TEMPLATE_FIELD_KEYS) {
+            body[key] = d[key];
+          }
         } else {
           const d = siteDraftsByCountry[country]?.[code] ?? emptySite();
           if (!d.name.trim()) {
@@ -1818,6 +1900,9 @@ export default function CmsSectionsView() {
   const currentAppManager =
     appManagerDraftsByCountry[activeCountryCode]?.[activeLocaleCode] ??
     emptyAppManagerLocaleDraft();
+  const currentAbout =
+    aboutDraftsByCountry[activeCountryCode]?.[activeLocaleCode] ??
+    emptyAboutLocaleDraft();
   const hasLocales = sortedCodes.length > 0;
 
   function tabFilledLocale(code: string): boolean {
@@ -1852,6 +1937,11 @@ export default function CmsSectionsView() {
     if (k === "app_manager") {
       return filledAppManagerLocale(
         appManagerDraftsByCountry[c]?.[code] ?? emptyAppManagerLocaleDraft(),
+      );
+    }
+    if (k === "about_page") {
+      return filledAbout(
+        aboutDraftsByCountry[c]?.[code] ?? emptyAboutLocaleDraft(),
       );
     }
     return filledSite(siteDraftsByCountry[c]?.[code] ?? emptySite());
@@ -1889,6 +1979,11 @@ export default function CmsSectionsView() {
       if (k === "app_manager") {
         return filledAppManagerLocale(
           appManagerDraftsByCountry[cc]?.[loc] ?? emptyAppManagerLocaleDraft(),
+        );
+      }
+      if (k === "about_page") {
+        return filledAbout(
+          aboutDraftsByCountry[cc]?.[loc] ?? emptyAboutLocaleDraft(),
         );
       }
       return filledSite(siteDraftsByCountry[cc]?.[loc] ?? emptySite());
@@ -2488,6 +2583,50 @@ export default function CmsSectionsView() {
                     sectionId={selectedId ?? undefined}
                     disabled={saving}
                   />
+                </div>
+              : sectionKind === "about_page" ?
+                <div className="space-y-3">
+                  <p className="text-xs text-gray-500">
+                    {t("cms.aboutPage.editorHint")}
+                  </p>
+                  <div className="max-h-[min(70vh,720px)] space-y-3 overflow-y-auto pr-1">
+                    {ABOUT_PAGE_TEMPLATE_FIELD_KEYS.map((key) => {
+                      const rows = textareaRowsForAboutField(key);
+                      const isUrl = key === "hero_image_url";
+                      return (
+                        <label key={key} className="block text-xs text-gray-700">
+                          <span className="font-medium text-gray-800">
+                            {humanAboutFieldKey(key)}
+                          </span>
+                          {isUrl ?
+                            <input
+                              type="url"
+                              value={currentAbout[key]}
+                              onChange={(e) =>
+                                patchAbout((cur) => ({
+                                  ...cur,
+                                  [key]: e.target.value,
+                                }))
+                              }
+                              placeholder="https://…"
+                              className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                            />
+                          : <textarea
+                              value={currentAbout[key]}
+                              onChange={(e) =>
+                                patchAbout((cur) => ({
+                                  ...cur,
+                                  [key]: e.target.value,
+                                }))
+                              }
+                              rows={rows}
+                              className="mt-1 w-full resize-y rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                            />
+                          }
+                        </label>
+                      );
+                    })}
+                  </div>
                 </div>
               : sectionKind === "banner" ?
                 <div className="space-y-4">
