@@ -1,6 +1,6 @@
 "use client";
 
-import {useCallback, useEffect, useMemo, useState} from "react";
+import {useCallback, useEffect, useMemo, useRef, useState} from "react";
 import Link from "next/link";
 import {useAuth} from "@/contexts/auth-context";
 import {useEditorLocale} from "@/contexts/editor-locale-context";
@@ -21,6 +21,14 @@ import {
 import {CmsVideoThumbnailField} from "@/components/cms-video-thumbnail-field";
 import {SearchableRelationSelect} from "@/components/searchable-relation-select";
 import {ServiceLabelHtmlEditor} from "@/components/service-label-html-editor";
+import {CmsAppManagerEditor} from "./cms-app-manager-editor";
+import {
+  appManagerLocaleFromBlock,
+  emptyAppManagerLocaleDraft,
+  filledAppManagerLocale,
+  serializeAppManagerConfig,
+  type AppManagerLocaleDraft,
+} from "./cms-app-manager-model";
 
 type SiteLocaleDraft = {
   name: string;
@@ -79,17 +87,10 @@ type FaqItemDraft = {question: string; answer: string};
 type FaqColumnDraft = {title: string; items: FaqItemDraft[]};
 type FaqLocaleDraft = {name: string; columns: FaqColumnDraft[]};
 
-const SERVICE_BENEFIT_ICON_KEYS = [
-  "efficient",
-  "flexible",
-  "accessible",
-] as const;
-type ServiceBenefitIconKey = (typeof SERVICE_BENEFIT_ICON_KEYS)[number];
-
 type ServiceBenefitItemDraft = {
   title: string;
   description: string;
-  iconKey: ServiceBenefitIconKey;
+  imageUrl: string;
 };
 
 type ServiceBenefitsLocaleDraft = {
@@ -105,6 +106,7 @@ const SECTION_TYPES: {id: CmsSectionTypeId; labelKey: string}[] = [
   {id: "features", labelKey: "cms.sectionType.features"},
   {id: "faq", labelKey: "cms.sectionType.faq"},
   {id: "service_benefits", labelKey: "cms.sectionType.serviceBenefits"},
+  {id: "app_manager", labelKey: "cms.sectionType.appManager"},
   {id: "blog_section", labelKey: "cms.sectionType.blogSection"},
   {id: "profile_listing", labelKey: "cms.sectionType.profileListing"},
   {id: "site_settings", labelKey: "cms.sectionType.siteSettings"},
@@ -433,23 +435,17 @@ function filledFaq(d: FaqLocaleDraft): boolean {
   );
 }
 
-function normalizeServiceBenefitIconKey(v: unknown): ServiceBenefitIconKey {
-  const s = String(v ?? "").trim().toLowerCase();
-  if (s === "flexible" || s === "accessible") return s;
-  return "efficient";
-}
-
 function emptyServiceBenefitItem(): ServiceBenefitItemDraft {
-  return {title: "", description: "", iconKey: "efficient"};
+  return {title: "", description: "", imageUrl: ""};
 }
 
 function emptyServiceBenefits(): ServiceBenefitsLocaleDraft {
   return {
     name: "",
     items: [
-      {...emptyServiceBenefitItem(), iconKey: "efficient"},
-      {...emptyServiceBenefitItem(), iconKey: "flexible"},
-      {...emptyServiceBenefitItem(), iconKey: "accessible"},
+      {...emptyServiceBenefitItem()},
+      {...emptyServiceBenefitItem()},
+      {...emptyServiceBenefitItem()},
     ],
   };
 }
@@ -460,7 +456,7 @@ function parseServiceBenefitItemRow(o: unknown): ServiceBenefitItemDraft | null 
   return {
     title: typeof r.title === "string" ? r.title : "",
     description: typeof r.description === "string" ? r.description : "",
-    iconKey: normalizeServiceBenefitIconKey(r.iconKey),
+    imageUrl: typeof r.imageUrl === "string" ? r.imageUrl : "",
   };
 }
 
@@ -665,10 +661,8 @@ function StatKpiFieldset({
 type ServiceBenefitCardsFieldsetLabels = {
   cardTitle: string;
   cardDescription: string;
-  cardIcon: string;
-  iconEfficient: string;
-  iconFlexible: string;
-  iconAccessible: string;
+  cardImage: string;
+  cardImageHint: string;
 };
 
 type ServiceBenefitCardsFieldsetProps = {
@@ -679,6 +673,8 @@ type ServiceBenefitCardsFieldsetProps = {
   addLabel: string;
   removeLabel: string;
   labels: ServiceBenefitCardsFieldsetLabels;
+  sectionId?: string;
+  disabled?: boolean;
 };
 
 function ServiceBenefitCardsFieldset({
@@ -689,23 +685,32 @@ function ServiceBenefitCardsFieldset({
   addLabel,
   removeLabel,
   labels,
+  sectionId,
+  disabled,
 }: ServiceBenefitCardsFieldsetProps) {
+  const itemsRef = useRef(items);
+  useEffect(() => {
+    itemsRef.current = items;
+  }, [items]);
+
   function updateItem(
     index: number,
     patch: Partial<ServiceBenefitItemDraft>,
   ) {
-    const next = items.map((it, i) => (i === index ? {...it, ...patch} : it));
+    const next = itemsRef.current.map((it, i) =>
+      i === index ? {...it, ...patch} : it,
+    );
     onItemsChange(next);
   }
   function addItem() {
-    onItemsChange([...items, emptyServiceBenefitItem()]);
+    onItemsChange([...itemsRef.current, emptyServiceBenefitItem()]);
   }
   function removeItem(index: number) {
-    if (items.length <= 1) {
+    if (itemsRef.current.length <= 1) {
       onItemsChange([emptyServiceBenefitItem()]);
       return;
     }
-    onItemsChange(items.filter((_, i) => i !== index));
+    onItemsChange(itemsRef.current.filter((_, i) => i !== index));
   }
 
   return (
@@ -736,22 +741,14 @@ function ServiceBenefitCardsFieldset({
                 className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-primary/70 focus:ring-2 focus:ring-primary/15 focus:outline-none"
               />
             </label>
-            <label className="block text-sm text-gray-700">
-              {labels.cardIcon}
-              <select
-                value={it.iconKey}
-                onChange={(e) =>
-                  updateItem(idx, {
-                    iconKey: normalizeServiceBenefitIconKey(e.target.value),
-                  })
-                }
-                className="mt-1 w-full max-w-md rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm"
-              >
-                <option value="efficient">{labels.iconEfficient}</option>
-                <option value="flexible">{labels.iconFlexible}</option>
-                <option value="accessible">{labels.iconAccessible}</option>
-              </select>
-            </label>
+            <CmsVideoThumbnailField
+              value={it.imageUrl}
+              onChange={(url) => updateItem(idx, {imageUrl: url})}
+              sectionId={sectionId}
+              disabled={disabled}
+              label={labels.cardImage}
+              hint={labels.cardImageHint}
+            />
             <div className="flex justify-end">
               <button
                 type="button"
@@ -1102,6 +1099,9 @@ export default function CmsSectionsView() {
   >({});
   const [serviceBenefitsDraftsByCountry, setServiceBenefitsDraftsByCountry] =
     useState<Record<string, Record<string, ServiceBenefitsLocaleDraft>>>({});
+  const [appManagerDraftsByCountry, setAppManagerDraftsByCountry] = useState<
+    Record<string, Record<string, AppManagerLocaleDraft>>
+  >({});
   const [active, setActive] = useState(true);
   const [registrationActive, setRegistrationActive] = useState(false);
   const [videoImageUrl, setVideoImageUrl] = useState("");
@@ -1186,12 +1186,20 @@ export default function CmsSectionsView() {
   }, [sortedCountryCodes]);
 
   useEffect(() => {
-    if (cType === "banner" && cSub === "why-choose-us") {
+    const isApp =
+      cSub === "app-manager" || cSub.startsWith("app-manager");
+    if (cType === "why_choose_us" && isApp) {
+      setCSub("why-choose-us");
+    }
+    if (cType === "blog_section" && isApp) {
+      setCSub("blog-section");
+    }
+    if (cType === "banner" && (cSub === "why-choose-us" || isApp)) {
       setCSub("banner");
     }
     if (
       cType === "stat" &&
-      (cSub === "why-choose-us" || cSub === "banner")
+      (cSub === "why-choose-us" || cSub === "banner" || isApp)
     ) {
       setCSub("stat");
     }
@@ -1200,7 +1208,8 @@ export default function CmsSectionsView() {
       (cSub === "why-choose-us" ||
         cSub === "banner" ||
         cSub === "stat" ||
-        cSub === "faq")
+        cSub === "faq" ||
+        isApp)
     ) {
       setCSub("features");
     }
@@ -1211,7 +1220,8 @@ export default function CmsSectionsView() {
         cSub === "stat" ||
         cSub === "features" ||
         cSub === "blog-section" ||
-        cSub === "profile-listing")
+        cSub === "profile-listing" ||
+        isApp)
     ) {
       setCSub("faq");
     }
@@ -1223,7 +1233,8 @@ export default function CmsSectionsView() {
         cSub === "features" ||
         cSub === "faq" ||
         cSub === "blog-section" ||
-        cSub === "profile-listing")
+        cSub === "profile-listing" ||
+        isApp)
     ) {
       setCSub("service-benefits");
     }
@@ -1235,9 +1246,13 @@ export default function CmsSectionsView() {
         cSub === "features" ||
         cSub === "faq" ||
         cSub === "service-benefits" ||
-        cSub === "blog-section")
+        cSub === "blog-section" ||
+        isApp)
     ) {
       setCSub("profile-listing");
+    }
+    if (cType === "app_manager" && !isApp) {
+      setCSub("app-manager");
     }
   }, [cType, cSub]);
 
@@ -1251,6 +1266,7 @@ export default function CmsSectionsView() {
       setFeaturesDraftsByCountry({});
       setFaqDraftsByCountry({});
       setServiceBenefitsDraftsByCountry({});
+      setAppManagerDraftsByCountry({});
       setAssignNamespaceId("");
       return;
     }
@@ -1264,6 +1280,7 @@ export default function CmsSectionsView() {
     const nextFaq: Record<string, Record<string, FaqLocaleDraft>> = {};
     const nextSb: Record<string, Record<string, ServiceBenefitsLocaleDraft>> =
       {};
+    const nextAm: Record<string, Record<string, AppManagerLocaleDraft>> = {};
     for (const country of sortedCountryCodes) {
       for (const code of sortedCodes) {
         const block = selected.translations?.[country]?.[code] as
@@ -1277,6 +1294,7 @@ export default function CmsSectionsView() {
         if (!nextFeatures[country]) nextFeatures[country] = {};
         if (!nextFaq[country]) nextFaq[country] = {};
         if (!nextSb[country]) nextSb[country] = {};
+        if (!nextAm[country]) nextAm[country] = {};
         nextSite[country][code] = siteFromBlock(block);
         nextWhy[country][code] = whyFromBlock(block);
         nextBlog[country][code] = blogFromBlock(block);
@@ -1285,6 +1303,7 @@ export default function CmsSectionsView() {
         nextFeatures[country][code] = featuresFromBlock(block);
         nextFaq[country][code] = faqFromBlock(block);
         nextSb[country][code] = serviceBenefitsFromBlock(block);
+        nextAm[country][code] = appManagerLocaleFromBlock(block);
       }
     }
     setSiteDraftsByCountry(nextSite);
@@ -1295,6 +1314,7 @@ export default function CmsSectionsView() {
     setFeaturesDraftsByCountry(nextFeatures);
     setFaqDraftsByCountry(nextFaq);
     setServiceBenefitsDraftsByCountry(nextSb);
+    setAppManagerDraftsByCountry(nextAm);
     setActive(selected.active ?? true);
     setRegistrationActive(Boolean(selected.registrationActive));
     setVideoImageUrl(selected.videoImageUrl ?? "");
@@ -1424,6 +1444,21 @@ export default function CmsSectionsView() {
     [activeCountryCode, activeLocaleCode],
   );
 
+  const patchAppManager = useCallback(
+    (fn: (d: AppManagerLocaleDraft) => AppManagerLocaleDraft) => {
+      const c = activeCountryCode;
+      const loc = activeLocaleCode;
+      setAppManagerDraftsByCountry((p) => {
+        const cur = p[c]?.[loc] ?? emptyAppManagerLocaleDraft();
+        return {
+          ...p,
+          [c]: {...(p[c] ?? {}), [loc]: fn(cur)},
+        };
+      });
+    },
+    [activeCountryCode, activeLocaleCode],
+  );
+
   const grouped = useMemo(() => {
     const orphan: CmsSectionDoc[] = [];
     const byNs = new Map<string, CmsSectionDoc[]>();
@@ -1499,6 +1534,14 @@ export default function CmsSectionsView() {
             filledServiceBenefits(
               serviceBenefitsDraftsByCountry[country]?.[code] ??
                 emptyServiceBenefits(),
+            )
+          ) {
+            filledPairs.push({country, locale: code});
+          }
+        } else if (kind === "app_manager") {
+          if (
+            filledAppManagerLocale(
+              appManagerDraftsByCountry[country]?.[code] ?? emptyAppManagerLocaleDraft(),
             )
           ) {
             filledPairs.push({country, locale: code});
@@ -1624,6 +1667,18 @@ export default function CmsSectionsView() {
           Object.assign(body, {
             name: d.name.trim(),
             serviceBenefitCards: serviceBenefitsToStored(d.items),
+          });
+        } else if (kind === "app_manager") {
+          const d =
+            appManagerDraftsByCountry[country]?.[code] ?? emptyAppManagerLocaleDraft();
+          if (!d.name.trim()) {
+            setLoadError(t("cms.appManager.errorNeedTitle"));
+            setSaving(false);
+            return;
+          }
+          Object.assign(body, {
+            name: d.name.trim(),
+            appManagerStepsJson: serializeAppManagerConfig(d.config),
           });
         } else {
           const d = siteDraftsByCountry[country]?.[code] ?? emptySite();
@@ -1760,6 +1815,9 @@ export default function CmsSectionsView() {
     serviceBenefitsDraftsByCountry[activeCountryCode]?.[
       activeLocaleCode
     ] ?? emptyServiceBenefits();
+  const currentAppManager =
+    appManagerDraftsByCountry[activeCountryCode]?.[activeLocaleCode] ??
+    emptyAppManagerLocaleDraft();
   const hasLocales = sortedCodes.length > 0;
 
   function tabFilledLocale(code: string): boolean {
@@ -1789,6 +1847,11 @@ export default function CmsSectionsView() {
     if (k === "service_benefits") {
       return filledServiceBenefits(
         serviceBenefitsDraftsByCountry[c]?.[code] ?? emptyServiceBenefits(),
+      );
+    }
+    if (k === "app_manager") {
+      return filledAppManagerLocale(
+        appManagerDraftsByCountry[c]?.[code] ?? emptyAppManagerLocaleDraft(),
       );
     }
     return filledSite(siteDraftsByCountry[c]?.[code] ?? emptySite());
@@ -1821,6 +1884,11 @@ export default function CmsSectionsView() {
       if (k === "service_benefits") {
         return filledServiceBenefits(
           serviceBenefitsDraftsByCountry[cc]?.[loc] ?? emptyServiceBenefits(),
+        );
+      }
+      if (k === "app_manager") {
+        return filledAppManagerLocale(
+          appManagerDraftsByCountry[cc]?.[loc] ?? emptyAppManagerLocaleDraft(),
         );
       }
       return filledSite(siteDraftsByCountry[cc]?.[loc] ?? emptySite());
@@ -2401,14 +2469,24 @@ export default function CmsSectionsView() {
                     }
                     addLabel={t("cms.serviceBenefits.addCard")}
                     removeLabel={t("cms.serviceBenefits.removeCard")}
+                    sectionId={selectedId ?? undefined}
+                    disabled={saving}
                     labels={{
                       cardTitle: t("cms.serviceBenefits.cardTitle"),
                       cardDescription: t("cms.serviceBenefits.cardDescription"),
-                      cardIcon: t("cms.serviceBenefits.cardIcon"),
-                      iconEfficient: t("cms.serviceBenefits.iconEfficient"),
-                      iconFlexible: t("cms.serviceBenefits.iconFlexible"),
-                      iconAccessible: t("cms.serviceBenefits.iconAccessible"),
+                      cardImage: t("cms.serviceBenefits.cardImage"),
+                      cardImageHint: t("cms.serviceBenefits.cardImageHint"),
                     }}
+                  />
+                </div>
+              : sectionKind === "app_manager" ?
+                <div className="space-y-3">
+                  <p className="text-xs text-gray-500">{t("cms.appManager.formHint")}</p>
+                  <CmsAppManagerEditor
+                    value={currentAppManager}
+                    onChange={(next) => patchAppManager(() => next)}
+                    sectionId={selectedId ?? undefined}
+                    disabled={saving}
                   />
                 </div>
               : sectionKind === "banner" ?

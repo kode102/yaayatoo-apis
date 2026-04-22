@@ -193,6 +193,8 @@ const CMS_FIELDS = [
    * [{ title, description, iconKey: efficient|flexible|accessible }].
    */
   "serviceBenefitCards",
+  /** JSON widget « App manager » (page téléchargement). */
+  "appManagerStepsJson",
 ] as const;
 
 /**

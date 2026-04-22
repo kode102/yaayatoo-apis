@@ -69,6 +69,8 @@ export type CountryDoc = {
   id: string;
   code: string;
   flagLink: string;
+  activePopularCities?: string[];
+  activePopularRegions?: string[];
   active: boolean;
   translations: TranslationMap;
   createdAt?: string;
@@ -191,7 +193,8 @@ export type CmsSectionTypeId =
   | "stat"
   | "features"
   | "faq"
-  | "service_benefits";
+  | "service_benefits"
+  | "app_manager";
 
 export type CmsSectionDoc = {
   id: string;
@@ -566,7 +569,8 @@ export function inferCmsSectionType(doc: CmsSectionDoc): CmsSectionTypeId {
     raw === "stat" ||
     raw === "features" ||
     raw === "faq" ||
-    raw === "service_benefits"
+    raw === "service_benefits" ||
+    raw === "app_manager"
   ) {
     return raw;
   }
@@ -587,6 +591,9 @@ export function inferCmsSectionType(doc: CmsSectionDoc): CmsSectionTypeId {
     sub === "service_benefits"
   ) {
     return "service_benefits";
+  }
+  if (sub === "app-manager" || sub.startsWith("app-manager")) {
+    return "app_manager";
   }
   return "site_settings";
 }

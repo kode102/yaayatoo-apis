@@ -1,0 +1,141 @@
+{
+  "sectionAria": "Yaayatoo mobile app: key features and intelligent offer-to-profile matching",
+  "journeyPreview": "Screen",
+  "journeyPrev": "Previous slide",
+  "journeyNext": "Next slide",
+  "steps": [
+    {
+      "id": "image1",
+      "number": "01",
+      "image": "/app-1.png",
+      "shapePath": "M48,96 H588 M48,216 H536 M48,336 H552 M168,64 V416 M432,72 V448",
+      "title": "Manage offers, contracts & calendar in one place",
+      "description": "Run your home-help activity from a single hub: publish and edit offers, follow contract status and signatures, and keep visits and deadlines visible on your calendar—so nothing slips between messages and spreadsheets.",
+      "bullets": [
+        "Create, update, or pause offers with clear statuses—draft, live, or filled—without losing context.",
+        "Track contracts end-to-end: versions, signatures, and next steps always attached to the right offer.",
+        "Calendar view for visits, renewals, and reminders synced with your offers and contracts."
+      ],
+      "mock": {
+        "variant": "card",
+        "headline": "Your hub",
+        "barHint": "Offers · contracts · calendar",
+        "cardCaption": "This week",
+        "cardTitle": "2 visits · 1 contract pending",
+        "listTitle": "Agenda & documents",
+        "rows": [
+          {
+            "label": "Home help offer",
+            "badge": "Live",
+            "badgeTone": "emerald"
+          },
+          {
+            "label": "Contract awaiting signature",
+            "badge": "Open",
+            "badgeTone": "blue"
+          }
+        ]
+      }
+    },
+    {
+      "id": "image2",
+      "number": "02",
+      "image": "/app-2.png",
+      "shapePath": "M32,520 C160,440 200,320 288,280 S456,200 604,88",
+      "title": "Real-time alerts, notifications & smart tips",
+      "description": "Stay ahead with instant alerts and in-app notifications tied to what matters: new or updated offers, wallet and payout events, profile matches, and booking changes—plus short tips that deep-link you straight to the right screen.",
+      "bullets": [
+        "Real-time push and in-app alerts when an offer, visit, or contract step changes—open the exact detail in one tap.",
+        "Notifications for payments and wallet activity (payouts, top-ups, reminders) so you always know where money moved.",
+        "Tips and nudges for strong profile matches, expiring opportunities, and follow-ups—each linked to offers, matches, or messages."
+      ],
+      "mock": {
+        "variant": "card",
+        "headline": "Your activity",
+        "barHint": "Live alerts · tips & deep links",
+        "cardCaption": "Today",
+        "cardTitle": "3 updates · offers & wallet",
+        "listTitle": "Notifications",
+        "rows": [
+          {
+            "label": "Payout sent · wallet",
+            "badge": "Paid",
+            "badgeTone": "sky"
+          },
+          {
+            "label": "Strong match on your offer",
+            "badge": "Open",
+            "badgeTone": "amber"
+          }
+        ]
+      }
+    },
+    {
+      "id": "image3",
+      "number": "03",
+      "image": "/app-3.png",
+      "shapePath": "M40,400 Q318,300 596,380 M72,440 Q318,360 564,420",
+      "title": "Pay in the app with your wallet",
+      "description": "Handle money where you already manage work: families can settle offer payments smoothly in the app, while household professionals get paid, review their balance, and track income over time—all in one wallet.",
+      "bullets": [
+        "For families: confirm and pay for offers from the app with a clear, guided flow—less admin, fewer mistakes.",
+        "For professionals: receive payouts to your in-app wallet, see what you earned, and follow upcoming transfers.",
+        "History and tracking in one place so both sides always know what was paid, when, and for which offer."
+      ],
+      "mock": {
+        "variant": "wallet",
+        "headline": "Wallet & payouts",
+        "barHint": "Search · statements · export",
+        "walletCaption": "Available balance",
+        "walletAmount": "€1,240.00",
+        "listTitle": "Payments & income",
+        "rows": [
+          {
+            "label": "Payout · home help offer",
+            "badge": "Sent",
+            "badgeTone": "sky"
+          },
+          {
+            "label": "Family payment received",
+            "badge": "Credited",
+            "badgeTone": "emerald"
+          }
+        ]
+      }
+    },
+    {
+      "id": "image4",
+      "number": "04",
+      "image": "/app-4.png",
+      "shapePath": "M120,140 L480,120 L520,380 L180,420 Z M200,200 L440,340 M440,200 L200,340",
+      "title": "Intelligent offer–profile matching",
+      "description": "Yaayatoo pairs home-help offers with the right profiles automatically. Household professionals get recommended, relevant jobs and timely alerts—families receive top-matching candidates for each offer so you compare faster, hire with confidence, and keep everyone engaged.",
+      "bullets": [
+        "For professionals: see offers that fit your profile (skills, availability, travel area) with less irrelevant browsing.",
+        "Smart notifications when a high-fit offer opens so you can apply or reply while it still matters.",
+        "For families: get ranked profile suggestions aligned with your offer, schedule, and household needs—shorter shortlists, better first matches.",
+        "Clear next steps, reminders, and in-app messages help both sides move from interest to booking with fewer back-and-forths."
+      ],
+      "mock": {
+        "variant": "card",
+        "headline": "Smart matches",
+        "barHint": "Offers near you · auto-ranked",
+        "cardCaption": "Top fit this week",
+        "cardTitle": "Home help offer · 94% profile match",
+        "listTitle": "Recommended & new alerts",
+        "rows": [
+          {
+            "label": "Nanny role · 3 km",
+            "badge": "High fit",
+            "badgeTone": "emerald"
+          },
+          {
+            "label": "Suggested profile",
+            "badge": "For your offer",
+            "badgeTone": "blue"
+          }
+        ]
+      }
+    }
+  ]
+}

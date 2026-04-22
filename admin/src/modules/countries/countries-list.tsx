@@ -24,6 +24,8 @@ import {
 } from "@/lib/i18n-types";
 import {persistCountryEditDrafts} from "@/lib/translation-persist";
 import {uiLocaleFromEditorCode} from "@/lib/ui-locale-constants";
+import {StringListFieldset} from "./string-list-fieldset";
+import {FlagUrlInput} from "./flag-url-input";
 
 const countryColumnHelper = createColumnHelper<CountryDoc>();
 
@@ -39,6 +41,8 @@ export default function CountriesListView() {
     {},
   );
   const [editFlag, setEditFlag] = useState("");
+  const [editPopularCities, setEditPopularCities] = useState<string[]>([""]);
+  const [editPopularRegions, setEditPopularRegions] = useState<string[]>([""]);
 
   const load = useCallback(async () => {
     const token = await getIdToken();
@@ -111,6 +115,12 @@ export default function CountriesListView() {
         buildLocaleDraftsFromTranslations(row.translations, activeLanguages),
       );
       setEditFlag(row.flagLink ?? "");
+      setEditPopularCities(
+        row.activePopularCities?.length ? row.activePopularCities : [""],
+      );
+      setEditPopularRegions(
+        row.activePopularRegions?.length ? row.activePopularRegions : [""],
+      );
     },
     [activeLanguages],
   );
@@ -128,6 +138,8 @@ export default function CountriesListView() {
         codes,
         editDrafts,
         editFlag,
+        editPopularCities,
+        editPopularRegions,
       );
       setEditRow(null);
       await load();
@@ -325,6 +337,8 @@ export default function CountriesListView() {
     [
       busy,
       dateLocale,
+      duplicating,
+      duplicateRow,
       editorLocale,
       openEdit,
       removeRow,
@@ -357,6 +371,8 @@ export default function CountriesListView() {
         open={!!editRow}
         title={t("countries.edit.sheetTitle")}
         onClose={() => setEditRow(null)}
+        panelClassName="max-w-3xl"
+        scrollableContent
         footer={
           <>
             <button
@@ -391,14 +407,28 @@ export default function CountriesListView() {
             setEditDrafts((prev) => ({...prev, [code]: next}))
           }
         />
-        <label className="block text-sm text-gray-700">
-          {t("countries.create.flagUrl")}
-          <input
-            value={editFlag}
-            onChange={(e) => setEditFlag(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary/70 focus:ring-2 focus:ring-primary/15 focus:outline-none"
+        <FlagUrlInput
+          label={t("countries.create.flagUrl")}
+          placeholder={t("countries.create.flagUrl")}
+          value={editFlag}
+          onChange={setEditFlag}
+        />
+        <div className="grid gap-3 sm:grid-cols-2">
+          <StringListFieldset
+            label={t("countries.create.activePopularCities")}
+            addLabel={t("countries.create.stringListAdd")}
+            placeholder={t("countries.create.cityPlaceholder")}
+            values={editPopularCities}
+            onChange={setEditPopularCities}
           />
-        </label>
+          <StringListFieldset
+            label={t("countries.create.activePopularRegions")}
+            addLabel={t("countries.create.stringListAdd")}
+            placeholder={t("countries.create.regionPlaceholder")}
+            values={editPopularRegions}
+            onChange={setEditPopularRegions}
+          />
+        </div>
       </EditSheet>
     </div>
   );

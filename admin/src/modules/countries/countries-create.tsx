@@ -14,6 +14,8 @@ import {
   type CountryDoc,
   type LocaleTextDraft,
 } from "@/lib/i18n-types";
+import {StringListFieldset} from "./string-list-fieldset";
+import {FlagUrlInput} from "./flag-url-input";
 
 export default function CountriesCreateView() {
   const {getIdToken} = useAuth();
@@ -23,6 +25,8 @@ export default function CountriesCreateView() {
   const [drafts, setDrafts] = useState<Record<string, LocaleTextDraft>>({});
   const [code, setCode] = useState("");
   const [flagLink, setFlagLink] = useState("");
+  const [activePopularCities, setActivePopularCities] = useState<string[]>([""]);
+  const [activePopularRegions, setActivePopularRegions] = useState<string[]>([""]);
   const [activeNew, setActiveNew] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -80,6 +84,12 @@ export default function CountriesCreateView() {
             name: drafts[primaryCode]!.name.trim(),
             code,
             flagLink,
+            activePopularCities: activePopularCities
+              .map((x) => x.trim())
+              .filter(Boolean),
+            activePopularRegions: activePopularRegions
+              .map((x) => x.trim())
+              .filter(Boolean),
             active: activeNew,
           }),
         },
@@ -104,6 +114,8 @@ export default function CountriesCreateView() {
       setDrafts({});
       setCode("");
       setFlagLink("");
+      setActivePopularCities([""]);
+      setActivePopularRegions([""]);
       setActiveNew(true);
       router.push("/countries/list");
     } catch (err: unknown) {
@@ -167,12 +179,28 @@ export default function CountriesCreateView() {
             {t("common.active")}
           </label>
         </div>
-        <input
+        <FlagUrlInput
+          label={t("countries.create.flagUrl")}
           placeholder={t("countries.create.flagUrl")}
           value={flagLink}
-          onChange={(e) => setFlagLink(e.target.value)}
-          className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary/70 focus:ring-2 focus:ring-primary/15 focus:outline-none"
+          onChange={setFlagLink}
         />
+        <div className="grid gap-3 sm:grid-cols-2">
+          <StringListFieldset
+            label={t("countries.create.activePopularCities")}
+            addLabel={t("countries.create.stringListAdd")}
+            placeholder={t("countries.create.cityPlaceholder")}
+            values={activePopularCities}
+            onChange={setActivePopularCities}
+          />
+          <StringListFieldset
+            label={t("countries.create.activePopularRegions")}
+            addLabel={t("countries.create.stringListAdd")}
+            placeholder={t("countries.create.regionPlaceholder")}
+            values={activePopularRegions}
+            onChange={setActivePopularRegions}
+          />
+        </div>
         <button
           type="submit"
           disabled={busy || !hasAnyDraftName(drafts)}

@@ -81,6 +81,16 @@ export const openApiComponents = {
         active: {type: "boolean"},
         code: {type: "string", description: "Pays / langues"},
         flagLink: {type: "string", description: "URL drapeau pays"},
+        activePopularCities: {
+          type: "array",
+          description: "Villes populaires actives (pays)",
+          items: {type: "string"},
+        },
+        activePopularRegions: {
+          type: "array",
+          description: "Régions populaires actives (pays)",
+          items: {type: "string"},
+        },
         flagIconUrl: {type: "string", description: "URL icône langue"},
         imageUrl: {type: "string", description: "URL image service"},
         color1: {type: "string", description: "Couleur dégradé bannière (#RGB)"},

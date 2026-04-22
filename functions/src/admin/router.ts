@@ -158,6 +158,8 @@ const CMS_TRANSLATABLE_FIELDS = [
   "featureItems",
   "faqSections",
   "serviceBenefitCards",
+  /** Parcours app page téléchargement (JSON : sectionAria, steps[], …). */
+  "appManagerStepsJson",
 ] as const;
 
 /**
@@ -760,6 +762,8 @@ function parseServicePost(body: Record<string, unknown>): {
 function parseCountryPost(body: Record<string, unknown>): {
   code: string;
   flagLink: string;
+  activePopularCities: string[];
+  activePopularRegions: string[];
   active: boolean;
   translations: TranslationsMap;
 } | null {
@@ -770,10 +774,27 @@ function parseCountryPost(body: Record<string, unknown>): {
   if (!locale || !name || !code) return null;
   const flagLink =
     typeof body.flagLink === "string" ? body.flagLink : "";
+  const activePopularCities = parseStringList(
+    body.activePopularCities,
+    120,
+    120,
+  );
+  const activePopularRegions = parseStringList(
+    body.activePopularRegions,
+    120,
+    120,
+  );
   const active =
     typeof body.active === "boolean" ? body.active : true;
   const translations = mergeTranslations({}, locale, {name});
-  return {code, flagLink, active, translations};
+  return {
+    code,
+    flagLink,
+    activePopularCities,
+    activePopularRegions,
+    active,
+    translations,
+  };
 }
 
 /**
@@ -1825,6 +1846,32 @@ function buildPutPatch(
     }
     if (typeof body.flagLink === "string") {
       patch.flagLink = body.flagLink;
+    }
+    if (body.activePopularCities !== undefined) {
+      if (!Array.isArray(body.activePopularCities)) {
+        return {
+          patch: {},
+          error: "activePopularCities doit être un tableau de chaînes",
+        };
+      }
+      patch.activePopularCities = parseStringList(
+        body.activePopularCities,
+        120,
+        120,
+      );
+    }
+    if (body.activePopularRegions !== undefined) {
+      if (!Array.isArray(body.activePopularRegions)) {
+        return {
+          patch: {},
+          error: "activePopularRegions doit être un tableau de chaînes",
+        };
+      }
+      patch.activePopularRegions = parseStringList(
+        body.activePopularRegions,
+        120,
+        120,
+      );
     }
   }
 

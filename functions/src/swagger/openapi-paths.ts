@@ -1296,6 +1296,11 @@ export const openApiPaths = {
                     name: {type: "string"},
                     code: {type: "string"},
                     flagLink: {type: "string"},
+                    activePopularCities: {type: "array", items: {type: "string"}},
+                    activePopularRegions: {
+                      type: "array",
+                      items: {type: "string"},
+                    },
                     active: {type: "boolean"},
                   },
                 },
@@ -1389,7 +1394,7 @@ export const openApiPaths = {
       summary: "Mettre à jour un document",
       description:
         "Au moins un parmi : `active`, `locale`+champs traduction, " +
-        "`imageUrl` (services), `code`/`flagLink` (pays), `flagIconUrl` (langue). " +
+        "`imageUrl` (services), `code`/`flagLink`/`activePopularCities`/`activePopularRegions` (pays), `flagIconUrl` (langue). " +
         "Avec `locale` : services exigent au moins un parmi name, description, label, labelHtml ; " +
         "pays/langues exigent `name`.",
       security: [{bearerAuth: []}],
@@ -1410,6 +1415,8 @@ export const openApiPaths = {
                 imageUrl: {type: "string"},
                 code: {type: "string"},
                 flagLink: {type: "string"},
+                activePopularCities: {type: "array", items: {type: "string"}},
+                activePopularRegions: {type: "array", items: {type: "string"}},
                 flagIconUrl: {type: "string"},
                 googlePlayStoreLink: {type: "string"},
                 appleAppStoreLink: {type: "string"},

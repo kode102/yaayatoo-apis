@@ -35,20 +35,34 @@ export function AuthProvider({children}: {children: ReactNode}) {
 
   useEffect(() => {
     let unsub: (() => void) | undefined;
-    void (async () => {
-      try {
-        await ensureFirebaseApp();
+    let cancelled = false;
+
+    void ensureFirebaseApp()
+      .then(() => {
+        if (cancelled) return;
         const auth = getFirebaseAuth();
+        if (cancelled) return;
         unsub = onAuthStateChanged(auth, (u) => {
-          setUser(u);
+          if (cancelled) return;
+          // Décale hors du callback Firebase pour éviter des courses avec Strict Mode / HMR.
+          queueMicrotask(() => {
+            if (cancelled) return;
+            setUser(u);
+            setLoading(false);
+          });
+        });
+      })
+      .catch((e: unknown) => {
+        if (cancelled) return;
+        queueMicrotask(() => {
+          if (cancelled) return;
+          setConfigError(e instanceof Error ? e.message : String(e));
           setLoading(false);
         });
-      } catch (e: unknown) {
-        setConfigError(e instanceof Error ? e.message : String(e));
-        setLoading(false);
-      }
-    })();
+      });
+
     return () => {
+      cancelled = true;
       unsub?.();
     };
   }, []);

@@ -71,7 +71,11 @@ export async function persistCountryEditDrafts(
   sortedCodes: string[],
   drafts: Record<string, LocaleTextDraft>,
   flagLink: string,
+  activePopularCities: string[],
+  activePopularRegions: string[],
 ): Promise<void> {
+  const nextCities = [...new Set(activePopularCities.map((x) => x.trim()).filter(Boolean))];
+  const nextRegions = [...new Set(activePopularRegions.map((x) => x.trim()).filter(Boolean))];
   let sentLocale = false;
   for (const code of sortedCodes) {
     const d = drafts[code];
@@ -82,6 +86,8 @@ export async function persistCountryEditDrafts(
     const body: Record<string, unknown> = {locale: code, name};
     if (!sentLocale) {
       body.flagLink = flagLink;
+      body.activePopularCities = nextCities;
+      body.activePopularRegions = nextRegions;
     }
     sentLocale = true;
     await adminFetch<ApiDocResponse<CountryDoc>>(
@@ -94,7 +100,14 @@ export async function persistCountryEditDrafts(
     await adminFetch<ApiDocResponse<CountryDoc>>(
       `/admin/documents/countries/${countryId}`,
       token,
-      {method: "PUT", body: JSON.stringify({flagLink})},
+      {
+        method: "PUT",
+        body: JSON.stringify({
+          flagLink,
+          activePopularCities: nextCities,
+          activePopularRegions: nextRegions,
+        }),
+      },
     );
   }
 }
