@@ -34,6 +34,7 @@ import {
 import {attachFirebaseUserRoutes} from "./firebase-users-routes.js";
 import {attachHelpDeskRoutes} from "./help-desk-routes.js";
 import {isPublicActiveDoc} from "../lib/public-active-doc.js";
+import {parseAboutPageByLocaleInput} from "../lib/about-page-template.js";
 import {publicServiceSlug} from "../public/service-slug.js";
 import {
   publicEmployeeSlug,
@@ -960,6 +961,7 @@ function parseCmsSettingsPost(body: Record<string, unknown>): {
   countryCode: string;
   region: Record<string, unknown>;
   active: boolean;
+  aboutPageByLocale: Record<string, Record<string, string>>;
 } {
   const countryCode = normCmsCountryCode(String(body.countryCode ?? ""));
   const region = {
@@ -989,10 +991,17 @@ function parseCmsSettingsPost(body: Record<string, unknown>): {
     phoneNumbers: parseStringList(body.phoneNumbers, 30, 64),
     emailAddresses: parseStringList(body.emailAddresses, 30, 254),
   };
+  const aboutPageByLocale = Object.prototype.hasOwnProperty.call(
+    body,
+    "aboutPageByLocale",
+  ) ?
+    parseAboutPageByLocaleInput(body.aboutPageByLocale) :
+    {};
   return {
     countryCode,
     region,
     active: typeof body.active === "boolean" ? body.active : true,
+    aboutPageByLocale,
   };
 }
 
@@ -1583,6 +1592,11 @@ function buildPutPatch(
       const prev = perCountry[countryCode] ?? {};
       perCountry[countryCode] = {...prev, ...incomingRegion};
       patch.perCountry = perCountry;
+    }
+    if (Object.prototype.hasOwnProperty.call(body, "aboutPageByLocale")) {
+      patch.aboutPageByLocale = parseAboutPageByLocaleInput(
+        body.aboutPageByLocale,
+      );
     }
     if (typeof body.active === "boolean") {
       patch.active = body.active;
@@ -2282,6 +2296,7 @@ export function createAdminRouter(): express.Router {
           [v.countryCode]: v.region,
         },
         active: v.active,
+        aboutPageByLocale: v.aboutPageByLocale,
       };
     } else if (collection === "newsFeed") {
       const v = parseNewsFeedPost(body);

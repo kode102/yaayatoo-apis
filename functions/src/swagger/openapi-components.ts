@@ -167,6 +167,13 @@ export const openApiComponents = {
         addresses: {type: "array", items: {type: "string"}},
         phoneNumbers: {type: "array", items: {type: "string"}},
         emailAddresses: {type: "array", items: {type: "string"}},
+        aboutPage: {
+          type: "object",
+          description:
+            "GET /public/cms-settings : textes page À propos pour la locale " +
+            "(`locale`), clés snake_case (repli site si vide).",
+          additionalProperties: {type: "string"},
+        },
         createdAt: {type: "string", format: "date-time"},
         updatedAt: {type: "string", format: "date-time"},
       },

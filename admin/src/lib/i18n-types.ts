@@ -260,6 +260,8 @@ export type CmsSettingsDoc = {
   addresses?: string[];
   phoneNumbers?: string[];
   emailAddresses?: string[];
+  /** Textes page « À propos » par locale (`en`, `fr`). */
+  aboutPageByLocale?: Record<string, Record<string, string>>;
   perCountry?: Record<string, CmsSettingsRegion>;
   createdAt?: string;
   updatedAt?: string;

@@ -5,6 +5,7 @@ import {
   CMS_DEFAULT_COUNTRY,
   normCmsCountryCode,
 } from "../admin/cms-translations.js";
+import {pickAboutPageForPublicLocale} from "../lib/about-page-template.js";
 
 /**
  * Nettoie une liste de chaînes (trim, dédoublonnage, limites).
@@ -83,6 +84,15 @@ export async function getPublicCmsSettings(
       Object.values(byCountry)[0] ??
       {};
 
+    const contentLocale = String(req.query.locale ?? "")
+      .trim()
+      .toLowerCase()
+      .slice(0, 2);
+    const aboutPage = pickAboutPageForPublicLocale(
+      doc.aboutPageByLocale,
+      contentLocale === "fr" ? "fr" : "en",
+    );
+
     res.status(200).json({
       success: true,
       data: {
@@ -100,6 +110,7 @@ export async function getPublicCmsSettings(
         addresses: normalizeList(resolved.addresses, 30, 512),
         phoneNumbers: normalizeList(resolved.phoneNumbers, 30, 64),
         emailAddresses: normalizeList(resolved.emailAddresses, 30, 254),
+        aboutPage,
       },
     });
   } catch (e: unknown) {

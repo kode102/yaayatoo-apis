@@ -10,6 +10,16 @@ import {
   type CmsSettingsRegion,
   type CountryDoc,
 } from "@/lib/i18n-types";
+import {
+  defaultAboutDraftsByLocale,
+  type AboutLocaleCode,
+  type AboutPageTemplateFieldKey,
+} from "./about-page-template-fields";
+import {
+  AboutPageTemplateSection,
+  buildAboutPageByLocalePayload,
+  mergeAboutDraftsFromDoc,
+} from "./about-page-template-section";
 
 type SettingsDraft = {
   googlePlayStoreLink: string;
@@ -148,6 +158,11 @@ export default function CmsSettingsView() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [aboutDrafts, setAboutDrafts] = useState(() =>
+    defaultAboutDraftsByLocale(),
+  );
+  const [activeAboutLocale, setActiveAboutLocale] =
+    useState<AboutLocaleCode>("en");
 
   const load = useCallback(async () => {
     const token = await getIdToken();
@@ -188,6 +203,7 @@ export default function CmsSettingsView() {
       setSettingsId(first?.id ?? null);
       setCountryCodes(nextCountryCodes);
       setDraftsByCountry(nextDrafts);
+      setAboutDrafts(mergeAboutDraftsFromDoc(first?.aboutPageByLocale));
       setActiveCountryCode((prev) =>
         nextCountryCodes.includes(prev) ? prev : CMS_DEFAULT_COUNTRY_KEY,
       );
@@ -230,6 +246,7 @@ export default function CmsSettingsView() {
       addresses: draft.addresses.map((x) => x.trim()).filter(Boolean),
       phoneNumbers: draft.phoneNumbers.map((x) => x.trim()).filter(Boolean),
       emailAddresses: draft.emailAddresses.map((x) => x.trim()).filter(Boolean),
+      aboutPageByLocale: buildAboutPageByLocalePayload(aboutDrafts),
     };
     try {
       if (!settingsId) {
@@ -376,6 +393,22 @@ export default function CmsSettingsView() {
           onChange={(next) => patchDraft({emailAddresses: next})}
         />
       </section>
+
+      <AboutPageTemplateSection
+        activeLocale={activeAboutLocale}
+        onLocaleChange={setActiveAboutLocale}
+        drafts={aboutDrafts}
+        onFieldChange={(
+          loc: AboutLocaleCode,
+          key: AboutPageTemplateFieldKey,
+          value: string,
+        ) => {
+          setAboutDrafts((prev) => ({
+            ...prev,
+            [loc]: {...prev[loc], [key]: value},
+          }));
+        }}
+      />
 
       <div className="flex justify-end">
         <button

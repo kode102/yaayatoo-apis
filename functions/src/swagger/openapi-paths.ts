@@ -1050,8 +1050,9 @@ export const openApiPaths = {
       description:
         "Retourne le premier document actif de `cmsSettings` avec " +
         "adresses, téléphones, e-mails et liens applicatifs / réseaux, " +
-        "résolus par pays (`country` / `countryCode`).",
-      parameters: [countryQuery, countryCodeQuery],
+        "résolus par pays (`country` / `countryCode`). " +
+        "Inclut `aboutPage` (textes page À propos) pour la `locale` demandée.",
+      parameters: [countryQuery, countryCodeQuery, localeQuery],
       responses: {
         "200": {
           description: "OK",
