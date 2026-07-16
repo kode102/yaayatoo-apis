@@ -803,8 +803,8 @@ function parseCountryPost(body: Record<string, unknown>): {
     typeof body.flagLink === "string" ? body.flagLink : "";
   const currencyCode =
     typeof body.currencyCode === "string" ?
-      body.currencyCode.trim().toUpperCase()
-    : "";
+      body.currencyCode.trim().toUpperCase() :
+      "";
   const activePopularCities = parseStringList(
     body.activePopularCities,
     120,
