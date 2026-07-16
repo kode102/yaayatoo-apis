@@ -81,6 +81,10 @@ export const openApiComponents = {
         active: {type: "boolean"},
         code: {type: "string", description: "Pays / langues"},
         flagLink: {type: "string", description: "URL drapeau pays"},
+        currencyCode: {
+          type: "string",
+          description: "Code devise ISO 4217 (ex. XAF, EUR)",
+        },
         activePopularCities: {
           type: "array",
           description: "Villes populaires actives (pays)",

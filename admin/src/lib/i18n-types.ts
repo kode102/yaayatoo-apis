@@ -75,6 +75,8 @@ export type CountryDoc = {
   id: string;
   code: string;
   flagLink: string;
+  /** Code devise ISO 4217 (ex. XAF, EUR). */
+  currencyCode?: string;
   activePopularCities?: string[];
   activePopularRegions?: string[];
   active: boolean;

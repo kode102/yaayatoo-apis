@@ -788,6 +788,7 @@ function parseServicePost(body: Record<string, unknown>): {
 function parseCountryPost(body: Record<string, unknown>): {
   code: string;
   flagLink: string;
+  currencyCode: string;
   activePopularCities: string[];
   activePopularRegions: string[];
   active: boolean;
@@ -800,6 +801,10 @@ function parseCountryPost(body: Record<string, unknown>): {
   if (!locale || !name || !code) return null;
   const flagLink =
     typeof body.flagLink === "string" ? body.flagLink : "";
+  const currencyCode =
+    typeof body.currencyCode === "string" ?
+      body.currencyCode.trim().toUpperCase()
+    : "";
   const activePopularCities = parseStringList(
     body.activePopularCities,
     120,
@@ -816,6 +821,7 @@ function parseCountryPost(body: Record<string, unknown>): {
   return {
     code,
     flagLink,
+    currencyCode,
     activePopularCities,
     activePopularRegions,
     active,
@@ -1970,6 +1976,9 @@ function buildPutPatch(
     if (typeof body.flagLink === "string") {
       patch.flagLink = body.flagLink;
     }
+    if (typeof body.currencyCode === "string") {
+      patch.currencyCode = body.currencyCode.trim().toUpperCase();
+    }
     if (body.activePopularCities !== undefined) {
       if (!Array.isArray(body.activePopularCities)) {
         return {
@@ -2221,6 +2230,9 @@ export function createAdminRouter(): express.Router {
       payload = {
         code: v.code,
         flagLink: v.flagLink,
+        currencyCode: v.currencyCode,
+        activePopularCities: v.activePopularCities,
+        activePopularRegions: v.activePopularRegions,
         active: v.active,
         translations: v.translations,
       };

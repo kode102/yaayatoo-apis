@@ -41,6 +41,7 @@ export default function CountriesListView() {
     {},
   );
   const [editFlag, setEditFlag] = useState("");
+  const [editCurrencyCode, setEditCurrencyCode] = useState("");
   const [editPopularCities, setEditPopularCities] = useState<string[]>([""]);
   const [editPopularRegions, setEditPopularRegions] = useState<string[]>([""]);
 
@@ -115,6 +116,7 @@ export default function CountriesListView() {
         buildLocaleDraftsFromTranslations(row.translations, activeLanguages),
       );
       setEditFlag(row.flagLink ?? "");
+      setEditCurrencyCode((row.currencyCode ?? "").toUpperCase());
       setEditPopularCities(
         row.activePopularCities?.length ? row.activePopularCities : [""],
       );
@@ -138,6 +140,7 @@ export default function CountriesListView() {
         codes,
         editDrafts,
         editFlag,
+        editCurrencyCode,
         editPopularCities,
         editPopularRegions,
       );
@@ -180,6 +183,18 @@ export default function CountriesListView() {
         ),
         cell: (info) => (
           <span className="text-gray-500">{String(info.getValue() ?? "")}</span>
+        ),
+      }),
+      countryColumnHelper.accessor("currencyCode", {
+        header: ({column}) => (
+          <SortableHeader column={column}>
+            {t("countries.list.colCurrency")}
+          </SortableHeader>
+        ),
+        cell: (info) => (
+          <span className="text-gray-500">
+            {String(info.getValue() ?? "") || "—"}
+          </span>
         ),
       }),
       countryColumnHelper.display({
@@ -407,6 +422,16 @@ export default function CountriesListView() {
             setEditDrafts((prev) => ({...prev, [code]: next}))
           }
         />
+        <label className="block text-sm text-gray-700">
+          {t("countries.create.currencyCode")}
+          <input
+            value={editCurrencyCode}
+            onChange={(e) => setEditCurrencyCode(e.target.value.toUpperCase())}
+            placeholder={t("countries.create.currencyPlaceholder")}
+            maxLength={8}
+            className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary/70 focus:ring-2 focus:ring-primary/15 focus:outline-none"
+          />
+        </label>
         <FlagUrlInput
           label={t("countries.create.flagUrl")}
           placeholder={t("countries.create.flagUrl")}

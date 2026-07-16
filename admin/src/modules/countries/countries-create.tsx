@@ -24,6 +24,7 @@ export default function CountriesCreateView() {
   const router = useRouter();
   const [drafts, setDrafts] = useState<Record<string, LocaleTextDraft>>({});
   const [code, setCode] = useState("");
+  const [currencyCode, setCurrencyCode] = useState("");
   const [flagLink, setFlagLink] = useState("");
   const [activePopularCities, setActivePopularCities] = useState<string[]>([""]);
   const [activePopularRegions, setActivePopularRegions] = useState<string[]>([""]);
@@ -83,6 +84,7 @@ export default function CountriesCreateView() {
             locale: primaryCode,
             name: drafts[primaryCode]!.name.trim(),
             code,
+            currencyCode: currencyCode.trim().toUpperCase(),
             flagLink,
             activePopularCities: activePopularCities
               .map((x) => x.trim())
@@ -113,6 +115,7 @@ export default function CountriesCreateView() {
 
       setDrafts({});
       setCode("");
+      setCurrencyCode("");
       setFlagLink("");
       setActivePopularCities([""]);
       setActivePopularRegions([""]);
@@ -170,7 +173,15 @@ export default function CountriesCreateView() {
             required
             className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary/70 focus:ring-2 focus:ring-primary/15 focus:outline-none"
           />
-          <label className="flex items-center gap-2 text-sm text-gray-700">
+          <input
+            placeholder={t("countries.create.currencyPlaceholder")}
+            value={currencyCode}
+            onChange={(e) => setCurrencyCode(e.target.value.toUpperCase())}
+            maxLength={8}
+            className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary/70 focus:ring-2 focus:ring-primary/15 focus:outline-none"
+            aria-label={t("countries.create.currencyCode")}
+          />
+          <label className="flex items-center gap-2 text-sm text-gray-700 sm:col-span-2">
             <input
               type="checkbox"
               checked={activeNew}

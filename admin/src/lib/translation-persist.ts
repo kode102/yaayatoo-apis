@@ -71,11 +71,13 @@ export async function persistCountryEditDrafts(
   sortedCodes: string[],
   drafts: Record<string, LocaleTextDraft>,
   flagLink: string,
+  currencyCode: string,
   activePopularCities: string[],
   activePopularRegions: string[],
 ): Promise<void> {
   const nextCities = [...new Set(activePopularCities.map((x) => x.trim()).filter(Boolean))];
   const nextRegions = [...new Set(activePopularRegions.map((x) => x.trim()).filter(Boolean))];
+  const nextCurrency = currencyCode.trim().toUpperCase();
   let sentLocale = false;
   for (const code of sortedCodes) {
     const d = drafts[code];
@@ -86,6 +88,7 @@ export async function persistCountryEditDrafts(
     const body: Record<string, unknown> = {locale: code, name};
     if (!sentLocale) {
       body.flagLink = flagLink;
+      body.currencyCode = nextCurrency;
       body.activePopularCities = nextCities;
       body.activePopularRegions = nextRegions;
     }
@@ -104,6 +107,7 @@ export async function persistCountryEditDrafts(
         method: "PUT",
         body: JSON.stringify({
           flagLink,
+          currencyCode: nextCurrency,
           activePopularCities: nextCities,
           activePopularRegions: nextRegions,
         }),

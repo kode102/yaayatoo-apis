@@ -1407,6 +1407,10 @@ export const openApiPaths = {
                     name: {type: "string"},
                     code: {type: "string"},
                     flagLink: {type: "string"},
+                    currencyCode: {
+                      type: "string",
+                      description: "Code devise ISO 4217 (ex. XAF, EUR)",
+                    },
                     activePopularCities: {type: "array", items: {type: "string"}},
                     activePopularRegions: {
                       type: "array",
@@ -1505,7 +1509,7 @@ export const openApiPaths = {
       summary: "Mettre à jour un document",
       description:
         "Au moins un parmi : `active`, `locale`+champs traduction, " +
-        "`imageUrl` (services), `code`/`flagLink`/`activePopularCities`/`activePopularRegions` (pays), `flagIconUrl` (langue). " +
+        "`imageUrl` (services), `code`/`flagLink`/`currencyCode`/`activePopularCities`/`activePopularRegions` (pays), `flagIconUrl` (langue). " +
         "Avec `locale` : services exigent au moins un parmi name, description, label, labelHtml ; " +
         "pays/langues exigent `name`.",
       security: [{bearerAuth: []}],
@@ -1526,6 +1530,10 @@ export const openApiPaths = {
                 imageUrl: {type: "string"},
                 code: {type: "string"},
                 flagLink: {type: "string"},
+                currencyCode: {
+                  type: "string",
+                  description: "Code devise ISO 4217 (ex. XAF, EUR)",
+                },
                 activePopularCities: {type: "array", items: {type: "string"}},
                 activePopularRegions: {type: "array", items: {type: "string"}},
                 flagIconUrl: {type: "string"},

@@ -1,13 +1,15 @@
 import type {Metadata, Viewport} from "next";
-import {Geist, Geist_Mono} from "next/font/google";
+import {Geist_Mono, Plus_Jakarta_Sans} from "next/font/google";
 import AdminJsonLd from "@/components/admin-json-ld";
 import Providers from "@/components/providers";
 import {getAdminSiteUrl, getMetadataBase} from "@/lib/site-url";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const plusJakartaSans = Plus_Jakarta_Sans({
+  variable: "--font-plus-jakarta-sans",
   subsets: ["latin"],
+  display: "swap",
+  weight: ["200", "300", "400", "500", "600", "700", "800"],
 });
 
 const geistMono = Geist_Mono({
@@ -122,7 +124,7 @@ export default function RootLayout({
   return (
     <html lang="fr" suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}
+        className={`${plusJakartaSans.variable} ${geistMono.variable} font-sans antialiased`}
       >
         <AdminJsonLd />
         <Providers>{children}</Providers>
