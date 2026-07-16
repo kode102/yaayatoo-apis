@@ -1,12 +1,165 @@
 rules_version = '2';
-
-// Accès client (Web / mobile). L’Admin SDK (Cloud Functions) ignore ces règles.
-// Par défaut : refus côté client. Ajustez si vous utilisez le SDK Firebase dans une app.
-
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    // Lecture de SON propre doc admin — nécessaire au login (évite le
+    // chicken-and-egg : la règle générique exige déjà d’être admin).
+    match /admins/{adminId} {
+      allow read: if request.auth != null && request.auth.uid == adminId;
+      allow write: if request.auth != null &&
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    // Rôles : lecture pour un admin authentifié (chargement des permissions).
+    match /roles/{roleId} {
+      allow read: if request.auth != null &&
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+      allow write: if request.auth != null &&
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
     match /{document=**} {
-      allow read, write: if false;
+      allow read, write: if request.auth != null &&
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    match /employee/{id} {
+      allow read: if true;
+      allow create: if true;
+      allow update: if request.resource.data.diff(resource.data).affectedKeys()
+                      .hasOnly([
+                        'completedModules', 'ville', 'quartier', 'experience',
+                        'disponibilite', 'langues', 'bio',
+                        'profilePhotoUrl', 'extraPhoto1Url', 'extraPhoto2Url',
+                        'lastLogin'
+                      ]);
+    }
+
+    // Documents sensibles de l'employée (pièce d'identité, signature) —
+    // jamais exposés publiquement, y compris pas via le document `employee`
+    // public (Firestore ne permet pas de masquer un champ dans un document
+    // lisible). Seul l'admin y accède directement ; le client y accède via
+    // la route serveur /api/client/contract-documents (vérification du
+    // contrat), jamais en lecture Firestore directe.
+    match /employeePrivate/{id} {
+      allow read: if request.auth != null;
+      allow create: if true;
+      allow update: if request.resource.data.diff(resource.data).affectedKeys()
+                      .hasOnly([
+                        'idDocType', 'idDocRectoUrl', 'idDocVersoUrl',
+                        'signatureUrl', 'signatureUpdatedAt'
+                      ]);
+    }
+
+    // Documents du contrat (CNI employée, lettre d'engagement, contrat de
+    // service/travail, CNI client) — jamais publics. Créés/modifiés
+    // uniquement par l'admin ; lus par l'admin en direct ou par le client
+    // concerné via la route serveur /api/client/contract-documents.
+    match /contractDocuments/{contractId} {
+      allow read, write: if request.auth != null;
+    }
+
+    match /jobOffers/{id} {
+      allow read: if true;
+      allow create: if true;
+      // Le client peut clôturer sa propre annonce (choix d'un motif), mais
+      // seul l'admin (règle générique ci-dessus) peut la valider/rejeter ou
+      // modifier tout autre champ.
+      allow update: if request.resource.data.diff(resource.data).affectedKeys()
+                      .hasOnly(['status', 'closureReason', 'closedAt'])
+                      && request.resource.data.status == 'closed';
+    }
+    match /services/{id} { allow read: if true; }
+    match /siteContent/{id} { allow read: if true; }
+    match /clients/{id} { allow read, write: if true; }
+    // Codes de connexion — plus aucun accès client direct : la génération et
+    // la vérification passent désormais par /api/auth/send-otp et
+    // /api/auth/verify-otp (Admin SDK, contourne ces règles). Avant cette
+    // fermeture, n'importe qui pouvait lire le code valide de n'importe quel
+    // numéro directement via le SDK Firestore, sans jamais passer par
+    // WhatsApp — une porte dérobée d'authentification complète.
+    match /clientOTPs/{id} { allow read, write: if false; }
+    match /contracts/{id} { allow read: if true; }
+    match /contactMessages/{id} { allow create: if true; allow read: if request.auth != null; }
+    // Comme /notifications et /bonuses : clients/employés utilisent une
+    // session téléphone/OTP maison, jamais Firebase Auth, donc request.auth
+    // est toujours null pour eux — la règle générique admin les bloquerait.
+    match /fcmTokens/{id} { allow read, write: if true; }
+
+    match /applications/{id} {
+      allow read: if true;
+      allow create: if true;
+      allow update: if false;
+    }
+
+    match /notifications/{id} {
+      allow read: if true;
+      allow create: if true;
+      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+    }
+
+    match /bonuses/{id} {
+      allow read: if true;
+      allow create: if true;
+      allow update: if false;
+    }
+
+    // Ledger de crédits wallet (tontines, super wallet...) — même modèle que
+    // /bonuses : create couvert par la règle admin générique ci-dessus
+    // (l'admin est authentifié Firebase Auth), mais l'employé lit son propre
+    // solde via une session téléphone/OTP maison (request.auth toujours null).
+    match /walletCredits/{id} {
+      allow read: if true;
+      allow create: if true;
+      allow update: if false;
+    }
+
+    // Demande de retrait vers mobile money (Phase super wallet) — l'employée
+    // crée sa demande (session maison), l'admin (Firebase Auth) la fait
+    // passer à "traitee" une fois le virement effectué manuellement.
+    match /payoutRequests/{id} {
+      allow read: if true;
+      allow create: if true;
+      allow update: if request.auth != null;
+    }
+
+    // Solde du super wallet admin — lecture publique nécessaire pour
+    // l'affichage employé/admin, écriture réservée à l'admin authentifié.
+    match /superWallet/{id} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
+    match /quizResults/{id} {
+      allow read: if true;
+      allow create: if true;
+    }
+
+    match /tontines/{id} {
+      allow read: if true;
+      allow update: if request.resource.data.diff(resource.data).affectedKeys()
+                      .hasOnly(['participants', 'demandesEnAttente']);
+    }
+
+    match /tontineCotisations/{id} {
+      allow read: if true;
+      allow create: if true;
+    }
+
+    // Épargne personnelle — ledger de mouvements (dépôt/retrait) que
+    // l'employée alimente elle-même depuis son wallet, même modèle
+    // append-only que /walletCredits et /bonuses.
+    match /savingsMovements/{id} {
+      allow read: if true;
+      allow create: if true;
+      allow update: if false;
+    }
+
+    // Articles de blog. Lecture publique uniquement pour les articles
+    // publiés (les brouillons restent visibles de l'admin via la règle
+    // générique tout en haut de ce fichier). Écriture réservée à l'admin.
+    match /blogPosts/{id} {
+      allow read: if resource.data.status == 'published';
     }
   }
 }
