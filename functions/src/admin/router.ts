@@ -1626,6 +1626,9 @@ function buildPutPatch(
     if (typeof body.redirectUrl === "string") {
       patch.redirectUrl = body.redirectUrl.trim();
     }
+    if (typeof body.active === "boolean") {
+      patch.active = body.active;
+    }
     if (
       localeRaw !== undefined &&
       localeRaw !== null &&
