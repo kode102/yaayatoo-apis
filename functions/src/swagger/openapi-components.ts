@@ -165,11 +165,13 @@ export const openApiComponents = {
         linkedInLink: {type: "string"},
         tiktokLink: {type: "string"},
         youtubeLink: {type: "string"},
+        threadsLink: {type: "string"},
         whatsappLink: {type: "string"},
         redirectUrl: {type: "string"},
         titleHtml: {type: "string"},
         addresses: {type: "array", items: {type: "string"}},
         phoneNumbers: {type: "array", items: {type: "string"}},
+        whatsappNumbers: {type: "array", items: {type: "string"}},
         emailAddresses: {type: "array", items: {type: "string"}},
         aboutPage: {
           type: "object",

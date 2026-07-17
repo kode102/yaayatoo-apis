@@ -991,10 +991,13 @@ function parseCmsSettingsPost(body: Record<string, unknown>): {
       typeof body.tiktokLink === "string" ? body.tiktokLink.trim() : "",
     youtubeLink:
       typeof body.youtubeLink === "string" ? body.youtubeLink.trim() : "",
+    threadsLink:
+      typeof body.threadsLink === "string" ? body.threadsLink.trim() : "",
     whatsappLink:
       typeof body.whatsappLink === "string" ? body.whatsappLink.trim() : "",
     addresses: parseStringList(body.addresses, 30, 512),
     phoneNumbers: parseStringList(body.phoneNumbers, 30, 64),
+    whatsappNumbers: parseStringList(body.whatsappNumbers, 30, 64),
     emailAddresses: parseStringList(body.emailAddresses, 30, 254),
   };
   return {
@@ -1187,9 +1190,11 @@ function readCmsSettingsPerCountry(
       linkedInLink: String(doc.linkedInLink ?? "").trim(),
       tiktokLink: String(doc.tiktokLink ?? "").trim(),
       youtubeLink: String(doc.youtubeLink ?? "").trim(),
+      threadsLink: String(doc.threadsLink ?? "").trim(),
       whatsappLink: String(doc.whatsappLink ?? "").trim(),
       addresses: parseStringList(doc.addresses, 30, 512),
       phoneNumbers: parseStringList(doc.phoneNumbers, 30, 64),
+      whatsappNumbers: parseStringList(doc.whatsappNumbers, 30, 64),
       emailAddresses: parseStringList(doc.emailAddresses, 30, 254),
     },
   };
@@ -1542,6 +1547,7 @@ function buildPutPatch(
       "linkedInLink",
       "tiktokLink",
       "youtubeLink",
+      "threadsLink",
       "whatsappLink",
     ] as const;
     const countryCode = normCmsCountryCode(String(body.countryCode ?? ""));
@@ -1561,6 +1567,20 @@ function buildPutPatch(
         };
       }
       incomingRegion.phoneNumbers = parseStringList(body.phoneNumbers, 30, 64);
+      hasRegionPatch = true;
+    }
+    if (body.whatsappNumbers !== undefined) {
+      if (!Array.isArray(body.whatsappNumbers)) {
+        return {
+          patch: {},
+          error: "whatsappNumbers doit être un tableau de chaînes",
+        };
+      }
+      incomingRegion.whatsappNumbers = parseStringList(
+        body.whatsappNumbers,
+        30,
+        64,
+      );
       hasRegionPatch = true;
     }
     if (body.addresses !== undefined) {

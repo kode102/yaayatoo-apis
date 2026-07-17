@@ -259,6 +259,7 @@ export type CmsSettingsDoc = {
   linkedInLink?: string;
   tiktokLink?: string;
   youtubeLink?: string;
+  threadsLink?: string;
   whatsappLink?: string;
   addresses?: string[];
   phoneNumbers?: string[];
@@ -277,6 +278,7 @@ export type CmsSettingsRegion = {
   linkedInLink?: string;
   tiktokLink?: string;
   youtubeLink?: string;
+  threadsLink?: string;
   whatsappLink?: string;
   addresses?: string[];
   phoneNumbers?: string[];

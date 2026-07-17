@@ -20,6 +20,7 @@ type SettingsDraft = {
   linkedInLink: string;
   tiktokLink: string;
   youtubeLink: string;
+  threadsLink: string;
   whatsappLink: string;
   addresses: string[];
   phoneNumbers: string[];
@@ -36,6 +37,7 @@ function toDraftRegion(region?: CmsSettingsRegion): SettingsDraft {
     linkedInLink: region?.linkedInLink ?? "",
     tiktokLink: region?.tiktokLink ?? "",
     youtubeLink: region?.youtubeLink ?? "",
+    threadsLink: region?.threadsLink ?? "",
     whatsappLink: region?.whatsappLink ?? "",
     addresses: region?.addresses?.length ? region.addresses : [""],
     phoneNumbers: region?.phoneNumbers?.length ? region.phoneNumbers : [""],
@@ -59,6 +61,7 @@ function readPerCountry(
       linkedInLink: doc?.linkedInLink ?? "",
       tiktokLink: doc?.tiktokLink ?? "",
       youtubeLink: doc?.youtubeLink ?? "",
+      threadsLink: doc?.threadsLink ?? "",
       whatsappLink: doc?.whatsappLink ?? "",
       addresses: doc?.addresses ?? [],
       phoneNumbers: doc?.phoneNumbers ?? [],
@@ -334,6 +337,7 @@ export default function CmsSettingsView() {
           ["linkedInLink", "cms.settings.linkedInLink"],
           ["tiktokLink", "cms.settings.tiktokLink"],
           ["youtubeLink", "cms.settings.youtubeLink"],
+          ["threadsLink", "cms.settings.threadsLink"],
           ["whatsappLink", "cms.settings.whatsappLink"],
         ] as const).map(([key, labelKey]) => (
           <label key={key} className="block text-sm text-gray-700">
