@@ -26,7 +26,10 @@ import {getPublicSiteMediaByTag} from "./public/site-media-public.js";
 import {graphQlGet, graphQlPost} from "./public/graphql-graph-route.js";
 import {getPublicUiDictionary} from "./public/ui-dictionary-public.js";
 import {getPublicJobReviews} from "./public/job-reviews-public.js";
-import {getPublicHomeProfiles} from "./public/employees-public.js";
+import {
+  getPublicHomeProfiles,
+  getPublicEmployeeDetail,
+} from "./public/employees-public.js";
 import {getPublicCmsSettings} from "./public/cms-settings.js";
 import {getPublicNewsFeed} from "./public/news-feed.js";
 import {postPublicContactMessage} from "./public/contact-message-public.js";
@@ -338,6 +341,11 @@ app.get("/public/job-reviews", (req, res) => {
 /** Profils employés (accueil) : max 10, priorité badge, mélange aléatoire. */
 app.get("/public/home-profiles", (req, res) => {
   void getPublicHomeProfiles(req, res);
+});
+
+/** Fiche employé publique (id document ou slug URL). */
+app.get("/public/employees/:employeeKey", (req, res) => {
+  void getPublicEmployeeDetail(req, res);
 });
 
 /**

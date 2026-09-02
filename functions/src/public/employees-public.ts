@@ -3,7 +3,10 @@
  */
 
 import type {Request, Response} from "express";
-import type {DocumentData} from "firebase-admin/firestore";
+import type {
+  DocumentData,
+  QueryDocumentSnapshot,
+} from "firebase-admin/firestore";
 import {Timestamp} from "firebase-admin/firestore";
 import {
   CMS_DEFAULT_COUNTRY,
@@ -174,6 +177,18 @@ function isEmployableStatus(emp: DocumentData): boolean {
 }
 
 /**
+ * Id Firestore document sûr (pas de `/` — sinon `.doc()` plante).
+ * Certains employés stockent un libellé (`Vendeuse/Commercial`)
+ * au lieu d’un id.
+ * @param {string} id Candidat.
+ * @return {boolean} Utilisable comme doc id.
+ */
+function isSafeFirestoreDocId(id: string): boolean {
+  const t = String(id ?? "").trim();
+  return Boolean(t) && !t.includes("/");
+}
+
+/**
  * @param {DocumentData} data Document service.
  * @param {string} countryCode Pays.
  * @param {string} locale Locale.
@@ -244,6 +259,11 @@ export async function getPublicHomeProfiles(
     const serviceNames = new Map<string, string>();
     await Promise.all(
       [...serviceIds].map(async (sid) => {
+        if (!isSafeFirestoreDocId(sid)) {
+          // Libellé legacy stocké à la place d’un id service.
+          serviceNames.set(sid, sid);
+          return;
+        }
         const s = await db.collection("services").doc(sid).get();
         if (!s.exists) return;
         if (!isPublicActiveDoc(s.data())) return;
@@ -259,9 +279,14 @@ export async function getPublicHomeProfiles(
     const data = ordered.map(({id, data: emp}, idx) => {
       const badge = String(emp.badge ?? "NONE").trim().toUpperCase() || "NONE";
       const verified = badge !== "NONE";
-      const dobYmd = dateFieldToYmd(emp.dateOfBirth);
+      const dobYmd = dateFieldToYmd(emp.dateOfBirth ?? emp.birthDate);
       const startYmd = dateFieldToYmd(emp.startedWorkingAt);
-      const ageYears = fullYearsSinceYmd(dobYmd);
+      // Repli sur le champ numérique `age` (fiches sans date de naissance).
+      const ageField =
+        typeof emp.age === "number" && Number.isFinite(emp.age) && emp.age > 0 ?
+          Math.round(emp.age) :
+          null;
+      const ageYears = fullYearsSinceYmd(dobYmd) ?? ageField;
       const experienceYears = fullYearsSinceYmd(startYmd);
 
       const offered = Array.isArray(emp.offeredServiceIds) ?
@@ -280,6 +305,15 @@ export async function getPublicHomeProfiles(
       const workRaw = String(emp.workType ?? "FULL_TIME").trim().toUpperCase();
       const workType = workRaw === "PART_TIME" ? "PART_TIME" : "FULL_TIME";
 
+      // Adresse publique : `address`, sinon quartier + ville (legacy).
+      const address = String(emp.address ?? "").trim();
+      const quartier = String(emp.quartier ?? "").trim();
+      const ville = String(emp.ville ?? emp.city ?? "").trim();
+      const homeAddress =
+        address ||
+        [quartier, ville].filter(Boolean).join(", ") ||
+        ville;
+
       return {
         id,
         fullName,
@@ -293,12 +327,455 @@ export async function getPublicHomeProfiles(
         totalReviews,
         averageRating,
         employeeNote,
-        homeAddress: String(emp.address ?? "").trim(),
+        homeAddress,
+        // Champs séparés pour l'affichage « Ville · Quartier » côté site.
+        ville,
+        quartier,
         workType,
       };
     });
 
     res.status(200).json({success: true, data});
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error(e);
+    res.status(500).json({success: false, error: msg});
+  }
+}
+
+const DETAIL_PAGE = 500;
+const SIMILAR_MAX = 6;
+const REVIEWS_MAX = 8;
+
+/**
+ * Résout un employé actif par id document ou slug public.
+ * Parcourt toute la collection (pagination) — un `limit` fixe
+ * manquait des profils au-delà des N premiers docs.
+ * @param {string} param Segment d’URL.
+ * @return {Promise<Object|null>} id + data, ou null.
+ */
+async function findActiveEmployeeByParam(
+  param: string,
+): Promise<{id: string; data: DocumentData} | null> {
+  const p = String(param ?? "").trim();
+  if (!p) return null;
+
+  const byId = await db.collection("employee").doc(p).get();
+  if (byId.exists) {
+    const data = byId.data() as DocumentData;
+    if (isPublicActiveDoc(data) && isEmployableStatus(data)) {
+      return {id: byId.id, data};
+    }
+  }
+
+  let lastDoc: QueryDocumentSnapshot | null = null;
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    let q = db.collection("employee").orderBy("__name__").limit(DETAIL_PAGE);
+    if (lastDoc) q = q.startAfter(lastDoc);
+    const snap = await q.get();
+    if (snap.empty) break;
+
+    for (const d of snap.docs) {
+      const data = d.data();
+      if (!isPublicActiveDoc(data)) continue;
+      if (!isEmployableStatus(data)) continue;
+      const fullName = String(data.fullName ?? "").trim() || d.id;
+      if (publicEmployeeSlug(d.id, fullName) === p) {
+        return {id: d.id, data};
+      }
+    }
+
+    lastDoc = snap.docs[snap.docs.length - 1]!;
+    if (snap.size < DETAIL_PAGE) break;
+  }
+  return null;
+}
+
+/**
+ * @param {unknown} v Valeur numérique brute.
+ * @return {number|null} Nombre fini ou null.
+ */
+function numOrNull(v: unknown): number | null {
+  if (typeof v === "number" && Number.isFinite(v)) return v;
+  if (typeof v === "string") {
+    const n = parseFloat(v.replace(/\s/g, "").replace(",", "."));
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+}
+
+/**
+ * @param {DocumentData} emp Document employé.
+ * @return {string[]} Langues.
+ */
+function readLanguages(emp: DocumentData): string[] {
+  const raw = emp.langues ?? emp.languages;
+  if (!Array.isArray(raw)) return [];
+  return raw.map((x) => String(x ?? "").trim()).filter(Boolean);
+}
+
+/**
+ * @param {DocumentData} emp Document employé.
+ * @param {Map<string, string>} serviceNames Noms résolus.
+ * @return {string[]} Libellés services.
+ */
+function readServiceLabels(
+  emp: DocumentData,
+  serviceNames: Map<string, string>,
+): string[] {
+  const offered = Array.isArray(emp.offeredServiceIds) ?
+    emp.offeredServiceIds :
+    [];
+  const fromIds = offered
+    .map((raw) => {
+      const id = String(raw ?? "").trim();
+      if (!id) return "";
+      return serviceNames.get(id) ?? (isSafeFirestoreDocId(id) ? "" : id);
+    })
+    .filter(Boolean);
+  if (fromIds.length > 0) return fromIds;
+  if (Array.isArray(emp.services)) {
+    return emp.services.map((x) => String(x ?? "").trim()).filter(Boolean);
+  }
+  const single = String(emp.service ?? "").trim();
+  return single ? [single] : [];
+}
+
+/**
+ * Avis clients publics liés aux offres de l’employé.
+ * @param {string} employeeId Id employé.
+ * @return {Promise<Object[]>} Cartes avis.
+ */
+async function publicReviewsForEmployee(employeeId: string): Promise<{
+  id: string;
+  clientName: string;
+  clientImageUrl: string | null;
+  rating: number;
+  comment: string;
+  reviewedAt: string;
+  city: string | null;
+}[]> {
+  const offerIds = await jobOfferIdsForEmployee(employeeId);
+  if (offerIds.length === 0) return [];
+
+  type Row = {
+    id: string;
+    clientName: string;
+    clientImageUrl: string | null;
+    rating: number;
+    comment: string;
+    reviewedAt: string;
+    city: string | null;
+    sortMs: number;
+  };
+  const rows: Row[] = [];
+
+  for (let i = 0; i < offerIds.length; i += 10) {
+    const chunk = offerIds.slice(i, i + 10);
+    const snap = await db
+      .collection("jobReviews")
+      .where("jobOfferId", "in", chunk)
+      .get();
+    for (const doc of snap.docs) {
+      const d = doc.data();
+      if (!isPublicActiveDoc(d) && d.active === false) continue;
+      const rating = numRating(d.rating);
+      if (rating === null) continue;
+      const comment = String(
+        d.reviewText ?? d.comment ?? d.text ?? "",
+      ).trim();
+      if (!comment) continue;
+      let sortMs = 0;
+      let reviewedAt = "";
+      const rawAt = d.reviewedAt ?? d.createdAt;
+      if (
+        rawAt &&
+        typeof rawAt === "object" &&
+        typeof (rawAt as {toDate?: () => Date}).toDate === "function"
+      ) {
+        const dt = (rawAt as {toDate: () => Date}).toDate();
+        sortMs = dt.getTime();
+        reviewedAt = dt.toISOString().slice(0, 10);
+      } else if (typeof rawAt === "string" && rawAt.trim()) {
+        const dt = new Date(rawAt);
+        if (!Number.isNaN(dt.getTime())) {
+          sortMs = dt.getTime();
+          reviewedAt = dt.toISOString().slice(0, 10);
+        }
+      }
+      rows.push({
+        id: doc.id,
+        clientName: String(d.reviewerName ?? d.clientName ?? "").trim() ||
+          "Client",
+        clientImageUrl:
+          String(d.reviewerImageUrl ?? d.clientImageUrl ?? "").trim() || null,
+        rating,
+        comment,
+        reviewedAt,
+        city: String(d.city ?? d.ville ?? "").trim() || null,
+        sortMs,
+      });
+    }
+  }
+
+  rows.sort((a, b) => b.sortMs - a.sortMs);
+  return rows.slice(0, REVIEWS_MAX).map((row) => {
+    const {sortMs: _ignored, ...rest} = row;
+    void _ignored;
+    return rest;
+  });
+}
+
+/**
+ * GET /public/employees/:employeeKey — fiche publique (id ou slug).
+ * Query : `locale`, `country` (ISO2).
+ * @param {express.Request} req Requête.
+ * @param {express.Response} res Réponse.
+ * @return {Promise<void>}
+ */
+export async function getPublicEmployeeDetail(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  try {
+    const employeeKey = String(req.params.employeeKey ?? "").trim();
+    if (!employeeKey) {
+      res.status(400).json({success: false, error: "employeeKey requis"});
+      return;
+    }
+
+    const locale = normLocale(String(req.query.locale ?? DEFAULT_LOCALE));
+    const countryCode = normCmsCountryCode(String(req.query.country ?? ""));
+
+    const found = await findActiveEmployeeByParam(employeeKey);
+    if (!found) {
+      res.status(404).json({success: false, error: "Profil introuvable"});
+      return;
+    }
+    if (!matchesCountryFilter(found.data, countryCode)) {
+      res.status(404).json({success: false, error: "Profil introuvable"});
+      return;
+    }
+
+    const emp = found.data;
+    const id = found.id;
+    const fullName = String(emp.fullName ?? "").trim() || id;
+    const slug = publicEmployeeSlug(id, fullName);
+
+    const offered = Array.isArray(emp.offeredServiceIds) ?
+      emp.offeredServiceIds.map((x) => String(x ?? "").trim()).filter(Boolean) :
+      [];
+    const serviceIds = new Set<string>(offered);
+
+    const poolSnap = await db.collection("employee").limit(DETAIL_PAGE).get();
+    const similarCandidates: {id: string; data: DocumentData}[] = [];
+    for (const d of poolSnap.docs) {
+      if (d.id === id) continue;
+      const data = d.data();
+      if (!isPublicActiveDoc(data)) continue;
+      if (!isEmployableStatus(data)) continue;
+      if (!matchesCountryFilter(data, countryCode)) continue;
+      const otherOffered = Array.isArray(data.offeredServiceIds) ?
+        data.offeredServiceIds.map((x) => String(x ?? "").trim()) :
+        [];
+      const shareService = otherOffered.some((sid) => serviceIds.has(sid));
+      const sameCity =
+        String(data.ville ?? data.city ?? "").trim().toLowerCase() ===
+        String(emp.ville ?? emp.city ?? "").trim().toLowerCase() &&
+        Boolean(String(emp.ville ?? emp.city ?? "").trim());
+      if (shareService || sameCity) {
+        similarCandidates.push({id: d.id, data});
+        for (const sid of otherOffered) {
+          if (sid) serviceIds.add(sid);
+        }
+      }
+    }
+
+    const serviceNames = new Map<string, string>();
+    await Promise.all(
+      [...serviceIds].map(async (sid) => {
+        if (!isSafeFirestoreDocId(sid)) {
+          serviceNames.set(sid, sid);
+          return;
+        }
+        const s = await db.collection("services").doc(sid).get();
+        if (!s.exists) return;
+        if (!isPublicActiveDoc(s.data())) return;
+        const name = servicePrimaryName(s.data()!, countryCode, locale);
+        if (name) serviceNames.set(sid, name);
+      }),
+    );
+
+    const [stats, reviews] = await Promise.all([
+      reviewStatsForEmployeeAssignedOffers(id),
+      publicReviewsForEmployee(id),
+    ]);
+
+    const badgeRaw = String(emp.badge ?? "NONE").trim().toUpperCase() || "NONE";
+    const badge =
+      badgeRaw === "BLUE" || badgeRaw === "GREEN" || badgeRaw === "YELLOW" ?
+        badgeRaw :
+        "NONE";
+    const verified = badge !== "NONE";
+
+    const dobYmd = dateFieldToYmd(emp.dateOfBirth ?? emp.birthDate);
+    const age =
+      fullYearsSinceYmd(dobYmd) ??
+      (typeof emp.age === "number" && Number.isFinite(emp.age) ?
+        emp.age :
+        null);
+    const startYmd = dateFieldToYmd(emp.startedWorkingAt);
+    const experienceYears = fullYearsSinceYmd(startYmd);
+    const experience =
+      experienceYears != null ?
+        String(experienceYears) :
+        (emp.experience != null || emp.yearsOfExperience != null ?
+          String(emp.experience ?? emp.yearsOfExperience) :
+          null);
+
+    const workRaw = String(
+      emp.workType ?? emp.disponibilite ?? "FULL_TIME",
+    ).trim().toUpperCase();
+    let availability: "FULL_TIME" | "PART_TIME" | "AVAILABLE" | "UNAVAILABLE" =
+      "AVAILABLE";
+    if (workRaw === "PART_TIME") availability = "PART_TIME";
+    else if (workRaw === "FULL_TIME") availability = "FULL_TIME";
+    else if (workRaw === "UNAVAILABLE" || workRaw === "FALSE") {
+      availability = "UNAVAILABLE";
+    } else if (typeof emp.disponibilite === "boolean") {
+      availability = emp.disponibilite ? "AVAILABLE" : "UNAVAILABLE";
+    }
+
+    const availableForContract =
+      availability !== "UNAVAILABLE" && emp.availableForContract !== false;
+
+    const nameParts = fullName.split(/\s+/).filter(Boolean);
+    const firstName = String(emp.firstName ?? nameParts[0] ?? "").trim();
+    const lastFromParts =
+      nameParts.length > 1 ? nameParts.slice(1).join(" ") : "";
+    const lastName = String(
+      emp.lastName ?? lastFromParts,
+    ).trim();
+
+    const city = String(emp.ville ?? emp.city ?? "").trim();
+    const neighborhood = String(emp.quartier ?? "").trim() || null;
+    const services = readServiceLabels(emp, serviceNames);
+    const salaryMin =
+      numOrNull(emp.salaire_min ?? emp.minimumSalary ?? emp.salaryMin);
+    const salaryMax =
+      numOrNull(emp.salaire_max ?? emp.maximumSalary ?? emp.salaryMax);
+
+    const evaluationsRaw =
+      Array.isArray(emp.evaluations) ? emp.evaluations : [];
+    const evaluations = evaluationsRaw
+      .slice(0, 4)
+      .map((row: unknown, idx: number) => {
+        if (!row || typeof row !== "object") return null;
+        const o = row as Record<string, unknown>;
+        const reviewer =
+          o.reviewer && typeof o.reviewer === "object" ?
+            (o.reviewer as Record<string, unknown>) :
+            {};
+        return {
+          id: String(o.id ?? `eval-${idx}`),
+          label: String(o.label ?? o.title ?? "").trim(),
+          score: numOrNull(o.score ?? o.rating),
+          reviewer: {
+            name: String(reviewer.name ?? "").trim(),
+            role: String(reviewer.role ?? "").trim(),
+            imageUrl: String(reviewer.imageUrl ?? "").trim() || null,
+          },
+          comment: String(o.comment ?? "").trim() || null,
+        };
+      })
+      .filter((row): row is NonNullable<typeof row> =>
+        Boolean(row && (row.label || row.comment)),
+      );
+
+    const similarWithStats = await Promise.all(
+      shuffle(similarCandidates)
+        .slice(0, SIMILAR_MAX * 2)
+        .map(async ({id: sid, data}) => {
+          const sStats = await reviewStatsForEmployeeAssignedOffers(sid);
+          const sName = String(data.fullName ?? "").trim() || sid;
+          const sSlug = publicEmployeeSlug(sid, sName);
+          const sOffered = Array.isArray(data.offeredServiceIds) ?
+            data.offeredServiceIds :
+            [];
+          const sServices = sOffered
+            .map((x) => serviceNames.get(String(x ?? "").trim()) ?? "")
+            .filter(Boolean);
+          const sExpY = fullYearsSinceYmd(
+            dateFieldToYmd(data.startedWorkingAt),
+          );
+          const sWork = String(data.workType ?? "FULL_TIME")
+            .trim()
+            .toUpperCase();
+          return {
+            id: sid,
+            slug: sSlug,
+            fullName: sName,
+            profileImageUrl:
+              String(data.profileImageUrl ?? data.photo ?? "").trim() || null,
+            services: sServices.length > 0 ? sServices :
+              (Array.isArray(data.services) ?
+                data.services.map((x: unknown) => String(x)).filter(Boolean) :
+                []),
+            experience: sExpY != null ? String(sExpY) : null,
+            city: String(data.ville ?? data.city ?? "").trim(),
+            rating: sStats.averageRating,
+            totalReviews: sStats.totalReviews,
+            availability: sWork === "PART_TIME" ? "PART_TIME" : "FULL_TIME",
+          };
+        }),
+    );
+
+    const payload = {
+      id,
+      slug,
+      fullName,
+      firstName,
+      lastName,
+      age,
+      gender: String(emp.genre ?? emp.gender ?? "").trim() || null,
+      origin: String(emp.origine ?? emp.origin ?? "").trim() || null,
+      languages: readLanguages(emp),
+      religion: String(emp.religion ?? "").trim() || null,
+      education:
+        String(emp.niveau_etude ?? emp.educationLevel ?? emp.education ?? "")
+          .trim() || null,
+      professionalTraining:
+        String(emp.formation_pro ?? emp.professionalTraining ?? "").trim() ||
+        null,
+      children: numOrNull(emp.enfants ?? emp.children),
+      maritalStatus:
+        String(emp.situation_matrimoniale ?? emp.maritalStatus ?? "").trim() ||
+        null,
+      city,
+      neighborhood,
+      services,
+      isResident: Boolean(emp.residente ?? emp.isResident ?? false),
+      experience,
+      availableForContract,
+      availability,
+      bio:
+        String(emp.bio ?? emp.description ?? emp.notes ?? "").trim() || null,
+      profileImageUrl:
+        String(emp.profileImageUrl ?? emp.photo ?? emp.photoUrl ?? "").trim() ||
+        null,
+      verified,
+      badge,
+      salaryMin,
+      salaryMax,
+      rating: stats.averageRating,
+      totalReviews: stats.totalReviews,
+      evaluations,
+      reviews,
+      similarProfiles: similarWithStats.slice(0, SIMILAR_MAX),
+    };
+
+    res.status(200).json({success: true, data: payload});
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     console.error(e);
